@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>METech小助手</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="src/style.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./node_modules/three/build/three.module.js"
+      }
+    }
+  </script>
+</head>
+<body class="desktop-pet-body">
+
+  <!-- Main Transparent Pet Frame -->
+  <div id="pet-container" class="pet-wrapper">
+    <div id="assistant-panels-stack" class="assistant-panels-stack">
+    <section id="email-sticky-board" class="email-sticky-board" aria-label="郵件便利貼">
+      <div class="email-sticky-header">
+        <strong>📧 郵件便利貼</strong>
+        <span id="email-sticky-count">0</span>
+      </div>
+      <div id="email-sticky-list" class="email-sticky-list"></div>
+    </section>
+
+    <section id="calendar-sticky-board" class="calendar-sticky-board" aria-label="行事曆便利貼">
+      <div class="calendar-sticky-header">
+        <strong>📅 行事曆便利貼</strong>
+        <span id="calendar-sticky-count">0</span>
+      </div>
+      <div id="calendar-sticky-list" class="calendar-sticky-list"></div>
+    </section>
+
+    <!-- Quick Sticky Notes Workspace -->
+    <section id="sticky-notes-board" class="sticky-notes-board" aria-label="待辦事項便利貼">
+      <div class="sticky-board-toolbar">
+        <div class="sticky-board-title">
+          <span>📝</span>
+          <span id="sticky-board-title-text">待辦便利貼</span>
+          <span id="sticky-active-count" class="sticky-count">0</span>
+        </div>
+        <div class="sticky-board-actions">
+          <button type="button" id="sticky-add-button" class="sticky-tool-btn" title="新增便利貼" aria-label="新增便利貼">
+            <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 2v8M2 6h8" /></svg>
+          </button>
+          <button type="button" id="sticky-board-close" class="sticky-tool-btn" title="收合便利貼" aria-label="收合便利貼">
+            <svg viewBox="0 0 12 12" aria-hidden="true"><path d="m3 3 6 6M9 3 3 9" /></svg>
+          </button>
+        </div>
+      </div>
+
+      <div id="sticky-notes-list" class="sticky-notes-list"></div>
+      <div id="sticky-empty-state" class="sticky-empty-state">
+        <span>✨</span>
+        <span id="sticky-empty-text">點小熊的筆電，快速新增第一張便利貼</span>
+      </div>
+
+      <form id="sticky-note-form" class="sticky-note-form" autocomplete="off">
+        <div class="sticky-form-header">
+          <strong id="sticky-form-title">新增便利貼</strong>
+          <div class="sticky-form-header-actions">
+            <button type="button" id="sticky-alarm-toggle" class="sticky-alarm-toggle" title="設定鬧鐘" aria-label="設定鬧鐘" aria-pressed="false">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4 4 7M17 4l3 3M6 13a6 6 0 1 1 12 0c0 3 2 4 2 4H4s2-1 2-4Z"/><path d="M9 21h6M12 9v4l3 2"/></svg>
+            </button>
+            <button type="submit" id="sticky-save-button" class="sticky-save-button">儲存便利貼</button>
+            <button type="button" id="sticky-form-close" class="sticky-form-close" aria-label="關閉">×</button>
+          </div>
+        </div>
+        <label class="sticky-field">
+          <span id="sticky-subject-label">主旨</span>
+          <input id="sticky-subject" type="text" maxlength="80" placeholder="例如：今天回覆客戶" required>
+        </label>
+        <div class="sticky-items-field">
+          <div class="sticky-items-heading">
+            <span id="sticky-content-label">事項</span>
+          </div>
+          <div id="sticky-items-editor" class="sticky-items-editor"></div>
+          <button type="button" id="sticky-add-item" class="sticky-add-item">＋ 新增事項</button>
+        </div>
+        <fieldset class="sticky-color-field">
+          <legend id="sticky-color-label">顏色／緊急程度</legend>
+          <label class="sticky-color-option color-red">
+            <input type="radio" name="sticky-color" value="red">
+            <span id="sticky-color-red">緊急</span>
+          </label>
+          <label class="sticky-color-option color-amber">
+            <input type="radio" name="sticky-color" value="amber">
+            <span id="sticky-color-amber">重要</span>
+          </label>
+          <label class="sticky-color-option color-blue">
+            <input type="radio" name="sticky-color" value="blue" checked>
+            <span id="sticky-color-blue">一般</span>
+          </label>
+        </fieldset>
+        <label id="sticky-alarm-field" class="sticky-field sticky-alarm-field">
+          <span id="sticky-alarm-label">鬧鐘日期與時間</span>
+          <input id="sticky-alarm-at" type="datetime-local">
+        </label>
+        <div id="sticky-form-error" class="sticky-form-error" role="alert"></div>
+      </form>
+    </section>
+    <button type="button" id="sticky-reopen-tab" class="sticky-reopen-tab" title="顯示已收合的便利貼" aria-label="顯示已收合的便利貼">
+      <span aria-hidden="true">📝</span>
+      <span id="sticky-reopen-count">0</span>
+    </button>
+    </div>
+
+    <!-- Speech & Reaction Bubble -->
+    <div id="speech-bubble" class="speech-bubble show">
+      <div class="bubble-content" id="speech-text">今天也是充滿幹勁的一天！🚀</div>
+      <div class="bubble-tail"></div>
+    </div>
+
+    <!-- Interactive Animated Character Layer -->
+    <div id="bear-character" class="bear-character-layer" title="METech小助手">
+      
+      <!-- Energy Aura behind the ball -->
+      <div id="globe-aura" class="globe-aura"></div>
+      
+      <!-- Base Bear Body -->
+      <img id="bear-body-img" class="bear-body" src="assets/bear_body.png" onerror="if(!this.dataset.tried){this.dataset.tried='1';this.src='public/assets/bear_body.png';}" alt="MEtech Bear" draggable="false" />
+
+      <!-- 3D Rotating MEtech Globe Canvas -->
+      <div id="ball-canvas-container" class="ball-container" title="點擊或滾輪可加速旋轉！">
+        <canvas id="ball-canvas"></canvas>
+        <div class="ball-shine-overlay"></div>
+      </div>
+
+      <!-- Tech Mail Crystal Orb (Pure Cyber Luminous Yellow / Golden Tech) -->
+      <div id="mail-opened-container" class="mail-opened-container" title="點擊查看郵件 / 恢復科技球">
+        <svg viewBox="0 0 120 120" class="mail-opened-svg">
+          <defs>
+            <!-- 1. Crystal Orb Radial Background (Pure Glowing Neon Yellow into Dark Tech Space) -->
+            <radialGradient id="orbBgGrad" cx="38%" cy="32%" r="68%">
+              <stop offset="0%" stop-color="#fde047" stop-opacity="0.95" />
+              <stop offset="35%" stop-color="#facc15" stop-opacity="0.95" />
+              <stop offset="70%" stop-color="#ca8a04" stop-opacity="0.92" />
+              <stop offset="90%" stop-color="#2a2205" stop-opacity="0.98" />
+              <stop offset="100%" stop-color="#0f0e03" stop-opacity="1" />
+            </radialGradient>
+
+            <!-- 2. Electric Pure Neon Yellow Rim Glow -->
+            <linearGradient id="orbRimGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#ffffff" />
+              <stop offset="30%" stop-color="#fef08a" />
+              <stop offset="70%" stop-color="#fde047" />
+              <stop offset="100%" stop-color="#eab308" />
+            </linearGradient>
+
+            <!-- 3. Specular Glass Highlight with Golden Tint -->
+            <linearGradient id="orbGlassGloss" x1="0%" y1="0%" x2="50%" y2="100%">
+              <stop offset="0%" stop-color="#ffffff" stop-opacity="0.8" />
+              <stop offset="40%" stop-color="#fef08a" stop-opacity="0.35" />
+              <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+            </linearGradient>
+
+            <!-- 4. Holographic Envelope Body Gradient (Luminous White-Gold Cyber Glass) -->
+            <linearGradient id="mailEnvBody" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#ffffff" stop-opacity="0.98" />
+              <stop offset="45%" stop-color="#fef9c3" stop-opacity="0.95" />
+              <stop offset="100%" stop-color="#fef08a" stop-opacity="0.92" />
+            </linearGradient>
+
+            <!-- 5. Golden Seal & Lightning Glow (Pure Gold) -->
+            <linearGradient id="sealGoldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#ffffff" />
+              <stop offset="40%" stop-color="#fef08a" />
+              <stop offset="80%" stop-color="#fde047" />
+              <stop offset="100%" stop-color="#ca8a04" />
+            </linearGradient>
+
+            <!-- 6. Floating Letter Sheet Gradient -->
+            <linearGradient id="floatingDocGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="#ffffff" />
+              <stop offset="100%" stop-color="#fef9c3" />
+            </linearGradient>
+
+            <!-- 7. Glow Filters for Pure Cyber Luminous Yellow -->
+            <filter id="orbNeonGlow" x="-40%" y="-40%" width="180%" height="180%">
+              <feGaussianBlur stdDeviation="2.2" result="blur" />
+              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+            <filter id="goldBadgeGlow" x="-40%" y="-40%" width="180%" height="180%">
+              <feGaussianBlur stdDeviation="1.8" result="blur" />
+              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+          </defs>
+
+          <!-- 1. Outer Crystal Sphere Background -->
+          <circle cx="60" cy="60" r="53" fill="url(#orbBgGrad)" stroke="url(#orbRimGrad)" stroke-width="2.5" />
+
+          <!-- 2. Cyber Orbiting Planetary Rings (Bright Luminous Yellow) -->
+          <g class="orb-ring-group">
+            <ellipse cx="60" cy="60" rx="51" ry="17" transform="rotate(-25 60 60)" fill="none" stroke="#fde047" stroke-width="1.8" stroke-dasharray="5 7" opacity="0.92" />
+            <ellipse cx="60" cy="60" rx="49" ry="13" transform="rotate(35 60 60)" fill="none" stroke="#fef08a" stroke-width="1.2" stroke-dasharray="4 6" opacity="0.8" />
+          </g>
+
+          <!-- 3. Floating Holographic Envelope Inside Orb (Luminous White-Gold Cyber Envelope) -->
+          <g class="floating-mail-core">
+            <!-- Floating Letter peeking out with Gold Border -->
+            <g class="letter-sheet">
+              <rect x="36" y="27" width="48" height="26" rx="4" fill="url(#floatingDocGrad)" stroke="#ca8a04" stroke-width="1.4" filter="url(#orbNeonGlow)" />
+              <line x1="43" y1="35" x2="65" y2="35" stroke="#ca8a04" stroke-width="2.2" stroke-linecap="round" />
+              <line x1="43" y1="42" x2="77" y2="42" stroke="#a16207" stroke-width="1.8" stroke-linecap="round" />
+            </g>
+
+            <!-- Envelope Pocket Back/Front (Luminous White-Gold with Gold Stroke) -->
+            <rect x="29" y="40" width="62" height="42" rx="7" fill="url(#mailEnvBody)" stroke="#ca8a04" stroke-width="1.8" />
+            
+            <!-- Envelope Flap Creases in Crisp Gold -->
+            <path d="M 30 43 L 60 65 L 90 43" fill="none" stroke="#ca8a04" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+            <path d="M 30 81 L 52 60 M 90 81 L 68 60" fill="none" stroke="#eab308" stroke-width="1.6" opacity="0.85" />
+
+            <!-- Center Golden MEtech Seal -->
+            <circle cx="60" cy="58" r="9" fill="url(#sealGoldGrad)" stroke="#ffffff" stroke-width="1.4" filter="url(#goldBadgeGlow)" />
+            <path d="M 59 51 L 55 58 L 59 58 L 58 65 L 65 57 L 61 57 Z" fill="#854d0e" />
+
+            <!-- Unread Notification Golden Cyber Beacon Badge -->
+            <g class="mail-alert-badge">
+              <circle cx="88" cy="38" r="6.5" fill="#fde047" stroke="#ffffff" stroke-width="1.5" filter="url(#goldBadgeGlow)" />
+              <circle cx="88" cy="38" r="2.4" fill="#ffffff" />
+            </g>
+          </g>
+
+          <!-- 4. Top-Left Crystal Glass Specular Arc Reflection -->
+          <ellipse cx="44" cy="32" rx="26" ry="14" transform="rotate(-35 44 32)" fill="url(#orbGlassGloss)" pointer-events="none" />
+
+          <!-- 5. Micro Magic Sparkles (Luminous Yellow) -->
+          <path class="mail-sparkle s1" d="M 22 28 Q 26 28 26 24 Q 26 28 30 28 Q 26 28 26 32 Q 26 28 22 28" fill="#fde047" />
+          <path class="mail-sparkle s2" d="M 96 22 Q 99 22 99 19 Q 99 22 102 22 Q 99 22 99 25 Q 99 22 96 22" fill="#fef08a" />
+          <path class="mail-sparkle s3" d="M 88 92 Q 91 92 91 89 Q 91 92 94 92 Q 91 92 91 95 Q 91 92 88 92" fill="#facc15" />
+        </svg>
+      </div>
+
+      <!-- Purple Cyber Alarm Crystal Orb -->
+      <div id="alarm-orb-container" class="alarm-orb-container" title="點擊停止鬧鐘並恢復科技球">
+        <svg viewBox="0 0 120 120" class="alarm-orb-svg" aria-hidden="true">
+          <defs>
+            <radialGradient id="alarmOrbBg" cx="38%" cy="30%" r="70%"><stop offset="0" stop-color="#e9d5ff"/><stop offset=".28" stop-color="#a855f7"/><stop offset=".68" stop-color="#6d28d9"/><stop offset="1" stop-color="#17042f"/></radialGradient>
+            <filter id="alarmGlow"><feGaussianBlur stdDeviation="2.6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          </defs>
+          <circle cx="60" cy="60" r="49" fill="url(#alarmOrbBg)" stroke="#d8b4fe" stroke-width="2"/>
+          <g class="alarm-ring-group" fill="none"><ellipse cx="60" cy="60" rx="52" ry="16" transform="rotate(-28 60 60)" stroke="#c084fc" stroke-width="2" stroke-dasharray="5 6"/><ellipse cx="60" cy="60" rx="49" ry="13" transform="rotate(36 60 60)" stroke="#f0abfc" stroke-width="1.4" stroke-dasharray="3 6"/></g>
+          <g class="floating-alarm-core" filter="url(#alarmGlow)" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M43 40 35 33M77 40l8-7" fill="none"/><path d="M38 31q-7 4-8 11M82 31q7 4 8 11" fill="none"/>
+            <circle cx="60" cy="61" r="23" fill="#4c1d95"/><circle cx="60" cy="61" r="18" fill="#7e22ce"/>
+            <path d="M60 49v13l9 5" fill="none"/><circle cx="60" cy="61" r="2.5" fill="#fff" stroke="none"/><path d="M48 84l-5 7M72 84l5 7" fill="none"/>
+          </g>
+          <g fill="#f5d0fe" class="alarm-sparkles"><path d="m22 27 2 5 5 2-5 2-2 5-2-5-5-2 5-2Z"/><path d="m94 20 1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5Z"/><path d="m93 88 2 5 5 2-5 2-2 5-2-5-5-2 5-2Z"/></g>
+        </svg>
+      </div>
+
+      <!-- Cyber Sports Hydro Tumbler (Displayed when hydration reminder triggers) -->
+      <div id="water-bottle-container" class="water-bottle-container" title="點擊補充水分 / 恢復科技球">
+        <svg viewBox="0 0 120 120" class="water-bottle-svg">
+          <defs>
+            <!-- Water Background Aura -->
+            <radialGradient id="hydroBgAura" cx="40%" cy="35%" r="65%">
+              <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.9" />
+              <stop offset="45%" stop-color="#0284c7" stop-opacity="0.85" />
+              <stop offset="85%" stop-color="#082f49" stop-opacity="0.95" />
+              <stop offset="100%" stop-color="#0e7490" stop-opacity="1" />
+            </radialGradient>
+
+            <!-- Sports Bottle Cap Gradient -->
+            <linearGradient id="sportsCapGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#38bdf8" />
+              <stop offset="30%" stop-color="#0284c7" />
+              <stop offset="70%" stop-color="#0f172a" />
+              <stop offset="100%" stop-color="#0284c7" />
+            </linearGradient>
+
+            <!-- Translucent Bottle Shell Gradient -->
+            <linearGradient id="bottleShellGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#e0f2fe" stop-opacity="0.45" />
+              <stop offset="20%" stop-color="#38bdf8" stop-opacity="0.25" />
+              <stop offset="80%" stop-color="#0284c7" stop-opacity="0.3" />
+              <stop offset="100%" stop-color="#e0f2fe" stop-opacity="0.5" />
+            </linearGradient>
+
+            <!-- Liquid Water Core Gradient -->
+            <linearGradient id="sportsLiquidGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="#a5f3fc" />
+              <stop offset="35%" stop-color="#38bdf8" />
+              <stop offset="75%" stop-color="#0284c7" />
+              <stop offset="100%" stop-color="#0369a1" />
+            </linearGradient>
+
+            <!-- Silicone Grip Band Gradient -->
+            <linearGradient id="siliconeGripGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#0f172a" />
+              <stop offset="50%" stop-color="#1e293b" />
+              <stop offset="100%" stop-color="#0f172a" />
+            </linearGradient>
+
+            <!-- Straw Neon Gradient -->
+            <linearGradient id="strawNeonGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#ffffff" />
+              <stop offset="50%" stop-color="#67e8f9" />
+              <stop offset="100%" stop-color="#06b6d4" />
+            </linearGradient>
+
+            <!-- Floating Crystal Ice Cube Gradient -->
+            <linearGradient id="iceCubeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#ffffff" stop-opacity="0.9" />
+              <stop offset="50%" stop-color="#bae6fd" stop-opacity="0.75" />
+              <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.6" />
+            </linearGradient>
+
+            <!-- Gloss Specular -->
+            <linearGradient id="bottleGloss" x1="0%" y1="0%" x2="70%" y2="100%">
+              <stop offset="0%" stop-color="#ffffff" stop-opacity="0.75" />
+              <stop offset="35%" stop-color="#38bdf8" stop-opacity="0.2" />
+              <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+            </linearGradient>
+
+            <filter id="hydroGlowFilter" x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation="2.5" result="blur" />
+              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+          </defs>
+
+          <!-- Outer Background Crystal Atmosphere (Seamless circular alignment in bear's paw) -->
+          <circle cx="60" cy="60" r="53" fill="url(#hydroBgAura)" stroke="#38bdf8" stroke-width="2" />
+
+          <!-- Orbiting Energy Water Ring -->
+          <g class="water-ring-group">
+            <ellipse cx="60" cy="60" rx="51" ry="16" transform="rotate(-15 60 60)" fill="none" stroke="#22d3ee" stroke-width="1.6" stroke-dasharray="4 6" opacity="0.8" />
+          </g>
+
+          <!-- 3D Cyber Sports Water Tumbler Body -->
+          <g class="flask-core">
+            <!-- 1. Silicone Carry Loop Handle (Top Left) -->
+            <path d="M 44 18 C 38 10 52 6 54 16" fill="none" stroke="#38bdf8" stroke-width="3" stroke-linecap="round" />
+
+            <!-- 2. Angled Sports Straw / Drinking Spout (Top Right) -->
+            <path d="M 64 22 L 72 10" stroke="url(#strawNeonGrad)" stroke-width="3.5" stroke-linecap="round" />
+            <circle cx="72" cy="10" r="2.2" fill="#ffffff" filter="url(#hydroGlowFilter)" />
+
+            <!-- 3. Flip-Top Sports Cap with Texture -->
+            <rect x="42" y="19" width="36" height="8" rx="3.5" fill="url(#sportsCapGrad)" stroke="#38bdf8" stroke-width="1.2" />
+            <rect x="56" y="16" width="8" height="4" rx="1.5" fill="#fbbf24" />
+
+            <!-- 4. Main Sports Bottle Body (Ergonomic Curved Silhouette) -->
+            <path d="M 43 27 L 77 27 C 78 27 79 28 79 30 L 76 58 C 75.5 63 76 68 77 74 L 77 88 C 77 94 72 98 66 98 L 54 98 C 48 98 43 94 43 88 L 43 74 C 44 68 44.5 63 44 58 L 41 30 C 41 28 42 27 43 27 Z"
+              fill="url(#bottleShellGrad)" stroke="#38bdf8" stroke-width="1.8" />
+
+            <!-- 5. Liquid Wave Reservoir (Inside Transparent Flask) -->
+            <g class="liquid-wave-group">
+              <path d="M 43 45 Q 52 41 60 45 T 77 45 L 76 87 C 76 92 72 96 66 96 L 54 96 C 48 96 44 92 44 87 Z"
+                fill="url(#sportsLiquidGrad)" filter="url(#hydroGlowFilter)" />
+            </g>
+
+            <!-- 6. Floating Crystal Ice Cube (3D Isometric Cube) -->
+            <g class="floating-ice-cube" transform="translate(52, 50)">
+              <polygon points="0,4 8,0 16,4 8,8" fill="url(#iceCubeGrad)" stroke="#ffffff" stroke-width="0.8" opacity="0.9" />
+              <polygon points="0,4 8,8 8,16 0,12" fill="#38bdf8" stroke="#ffffff" stroke-width="0.8" opacity="0.75" />
+              <polygon points="8,8 16,4 16,12 8,16" fill="#0284c7" stroke="#ffffff" stroke-width="0.8" opacity="0.85" />
+            </g>
+
+            <!-- 7. Milliliter Hydration Scale / Measurement Ticks -->
+            <g class="water-level-ticks" opacity="0.85">
+              <line x1="72" y1="52" x2="75" y2="52" stroke="#ffffff" stroke-width="1.2" stroke-linecap="round" />
+              <line x1="73" y1="62" x2="75" y2="62" stroke="#ffffff" stroke-width="1.2" stroke-linecap="round" />
+              <line x1="72" y1="72" x2="75" y2="72" stroke="#ffffff" stroke-width="1.2" stroke-linecap="round" />
+              <line x1="73" y1="82" x2="75" y2="82" stroke="#ffffff" stroke-width="1.2" stroke-linecap="round" />
+            </g>
+
+            <!-- 8. Sports Honeycomb Silicone Grip Band (Middle) -->
+            <rect x="42" y="66" width="36" height="12" rx="3" fill="url(#siliconeGripGrad)" stroke="#38bdf8" stroke-width="1" opacity="0.85" />
+            <line x1="48" y1="69" x2="48" y2="75" stroke="#38bdf8" stroke-width="1" opacity="0.7" />
+            <line x1="53" y1="69" x2="53" y2="75" stroke="#38bdf8" stroke-width="1" opacity="0.7" />
+            <line x1="58" y1="69" x2="58" y2="75" stroke="#38bdf8" stroke-width="1" opacity="0.7" />
+            <line x1="63" y1="69" x2="63" y2="75" stroke="#38bdf8" stroke-width="1" opacity="0.7" />
+            <line x1="68" y1="69" x2="68" y2="75" stroke="#38bdf8" stroke-width="1" opacity="0.7" />
+            <line x1="73" y1="69" x2="73" y2="75" stroke="#38bdf8" stroke-width="1" opacity="0.7" />
+
+            <!-- 9. Golden Water Droplet Badge in the Center of Grip -->
+            <circle cx="60" cy="72" r="5" fill="#0284c7" stroke="#fbbf24" stroke-width="1" />
+            <path d="M 60 69 C 58.5 71 57.5 72 57.5 73 C 57.5 74.4 58.6 75.5 60 75.5 C 61.4 75.5 62.5 74.4 62.5 73 C 62.5 72 61.5 71 60 69 Z" fill="#38bdf8" />
+
+            <!-- 10. Rising Effervescent Micro Bubbles -->
+            <circle class="hydro-bubble b1" cx="48" cy="78" r="1.8" fill="#ffffff" opacity="0.85" />
+            <circle class="hydro-bubble b2" cx="64" cy="62" r="2.2" fill="#ffffff" opacity="0.9" />
+            <circle class="hydro-bubble b3" cx="54" cy="48" r="1.6" fill="#e0f2fe" opacity="0.8" />
+            <circle class="hydro-bubble b4" cx="68" cy="84" r="1.8" fill="#ffffff" opacity="0.85" />
+          </g>
+
+          <!-- 11. Specular Curved Glass Highlight -->
+          <path d="M 45 32 C 45 45 46 65 45 88" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" opacity="0.6" pointer-events="none" />
+          <ellipse cx="44" cy="32" rx="26" ry="14" transform="rotate(-35 44 32)" fill="url(#bottleGloss)" pointer-events="none" />
+
+          <!-- 12. Sparkle Droplets & Twinkles -->
+          <path class="water-sparkle s1" d="M 22 28 Q 26 28 26 24 Q 26 28 30 28 Q 26 28 26 32 Q 26 28 22 28" fill="#22d3ee" />
+          <path class="water-sparkle s2" d="M 96 24 Q 99 24 99 21 Q 99 24 102 24 Q 99 24 99 27 Q 99 24 96 24" fill="#fbbf24" />
+          <path class="water-sparkle s3" d="M 90 90 Q 93 90 93 87 Q 93 90 96 90 Q 93 90 93 93 Q 93 90 90 90" fill="#38bdf8" />
+        </svg>
+      </div>
+
+      <!-- Cyber Holographic Calendar Orb (Displayed when calendar & meeting reminder triggers) -->
+      <div id="calendar-orb-container" class="calendar-orb-container" title="點擊確認行程 / 恢復科技球">
+        <svg viewBox="0 0 120 120" class="calendar-orb-svg">
+          <defs>
+            <!-- 1. Crystal Orb Radial Background (Deep Matrix Emerald to Electric Cyan-Green) -->
+            <radialGradient id="calOrbBgGrad" cx="38%" cy="32%" r="68%">
+              <stop offset="0%" stop-color="#059669" stop-opacity="0.95" />
+              <stop offset="38%" stop-color="#047857" stop-opacity="0.95" />
+              <stop offset="75%" stop-color="#064e3b" stop-opacity="0.98" />
+              <stop offset="100%" stop-color="#022c22" stop-opacity="1" />
+            </radialGradient>
+
+            <!-- 2. Electric Neon Green Rim Glow Gradient -->
+            <linearGradient id="calOrbRimGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#a7f3d0" />
+              <stop offset="35%" stop-color="#4ade80" />
+              <stop offset="70%" stop-color="#10b981" />
+              <stop offset="100%" stop-color="#fbbf24" />
+            </linearGradient>
+
+            <!-- 3. Specular Glass Highlight -->
+            <linearGradient id="calOrbGlassGloss" x1="0%" y1="0%" x2="50%" y2="100%">
+              <stop offset="0%" stop-color="#ffffff" stop-opacity="0.75" />
+              <stop offset="40%" stop-color="#86efac" stop-opacity="0.3" />
+              <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+            </linearGradient>
+
+            <!-- 4. Holographic Calendar Body Gradient (Translucent Dark Matrix Glass) -->
+            <linearGradient id="calHoloBodyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#022c22" stop-opacity="0.95" />
+              <stop offset="50%" stop-color="#064e3b" stop-opacity="0.92" />
+              <stop offset="100%" stop-color="#047857" stop-opacity="0.9" />
+            </linearGradient>
+
+            <!-- 5. Bright Neon Green Calendar Header Gradient -->
+            <linearGradient id="calHeaderGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#059669" />
+              <stop offset="45%" stop-color="#22c55e" />
+              <stop offset="55%" stop-color="#4ade80" />
+              <stop offset="100%" stop-color="#10b981" />
+            </linearGradient>
+
+            <!-- 6. Golden Binder Ring / Hook Gradient -->
+            <linearGradient id="calGoldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#fef08a" />
+              <stop offset="50%" stop-color="#fbbf24" />
+              <stop offset="100%" stop-color="#d97706" />
+            </linearGradient>
+
+            <!-- 7. Bright Neon Laser Scanner Gradient -->
+            <linearGradient id="calLaserGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#4ade80" stop-opacity="0" />
+              <stop offset="50%" stop-color="#86efac" stop-opacity="0.95" />
+              <stop offset="100%" stop-color="#4ade80" stop-opacity="0" />
+            </linearGradient>
+
+            <!-- 8. Filters for Neon Green Glow -->
+            <filter id="calNeonGlow" x="-40%" y="-40%" width="180%" height="180%">
+              <feGaussianBlur stdDeviation="2.2" result="blur" />
+              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+            <filter id="calBadgeGlow" x="-40%" y="-40%" width="180%" height="180%">
+              <feGaussianBlur stdDeviation="1.8" result="blur" />
+              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+          </defs>
+
+          <!-- 1. Outer Crystal Sphere Background -->
+          <circle cx="60" cy="60" r="53" fill="url(#calOrbBgGrad)" stroke="url(#calOrbRimGrad)" stroke-width="2.5" />
+
+          <!-- 2. Cyber Orbiting Planetary Rings -->
+          <g class="cal-ring-group">
+            <ellipse cx="60" cy="60" rx="51" ry="17" transform="rotate(-30 60 60)" fill="none" stroke="#4ade80" stroke-width="1.8" stroke-dasharray="5 7" opacity="0.9" />
+            <ellipse cx="60" cy="60" rx="49" ry="13" transform="rotate(40 60 60)" fill="none" stroke="#fbbf24" stroke-width="1.2" stroke-dasharray="4 6" opacity="0.75" />
+          </g>
+
+          <!-- 3. Floating Holographic Calendar Tablet / Pad Core (Luminous Neon Green) -->
+          <g class="floating-cal-core">
+            <!-- Calendar Back Glow Plate -->
+            <rect x="30" y="27" width="60" height="58" rx="8" fill="#064e3b" opacity="0.7" filter="url(#calNeonGlow)" />
+
+            <!-- Calendar Main Tablet with Neon Green Stroke -->
+            <rect x="30" y="27" width="60" height="58" rx="8" fill="url(#calHoloBodyGrad)" stroke="#4ade80" stroke-width="2" />
+
+            <!-- Calendar Header Top Bar (Vibrant Neon Green) -->
+            <path d="M 30 35 Q 30 27 38 27 L 82 27 Q 90 27 90 35 L 90 42 L 30 42 Z" fill="url(#calHeaderGrad)" />
+
+            <!-- Golden Binder Suspension Rings (Top) -->
+            <rect x="42" y="22" width="6" height="11" rx="3" fill="url(#calGoldGrad)" stroke="#ffffff" stroke-width="0.8" filter="url(#calBadgeGlow)" />
+            <rect x="72" y="22" width="6" height="11" rx="3" fill="url(#calGoldGrad)" stroke="#ffffff" stroke-width="0.8" filter="url(#calBadgeGlow)" />
+
+            <!-- Holographic Schedule Grid Slots -->
+            <!-- Row 1: Weekday dots in glowing neon green -->
+            <circle cx="41" cy="49" r="2.2" fill="#86efac" opacity="0.9" />
+            <circle cx="50.5" cy="49" r="2.2" fill="#86efac" opacity="0.9" />
+            <circle cx="60" cy="49" r="2.2" fill="#86efac" opacity="0.9" />
+            <circle cx="69.5" cy="49" r="2.2" fill="#86efac" opacity="0.9" />
+            <circle cx="79" cy="49" r="2.2" fill="#fbbf24" filter="url(#calBadgeGlow)" />
+
+            <!-- Row 2: Event blocks -->
+            <rect x="36" y="56" width="22" height="5" rx="2" fill="#047857" stroke="#86efac" stroke-width="0.9" />
+            <rect x="62" y="56" width="22" height="5" rx="2" fill="#0f766e" stroke="#34d399" stroke-width="0.9" />
+
+            <!-- Row 3: Active Event block with Bright Neon Green Glow -->
+            <rect x="36" y="65" width="34" height="6" rx="2.5" fill="#059669" stroke="#4ade80" stroke-width="1.2" filter="url(#calNeonGlow)" />
+            <circle cx="41" cy="68" r="1.8" fill="#fef08a" />
+            <line x1="46" y1="68" x2="66" y2="68" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" />
+
+            <!-- Row 4: Timeline / Status Line -->
+            <line x1="36" y1="76" x2="74" y2="76" stroke="#059669" stroke-width="1.2" stroke-dasharray="3 3" />
+            <circle cx="78" cy="76" r="2.5" fill="#22c55e" filter="url(#calBadgeGlow)" />
+
+            <!-- Cyber Scanning Holographic Laser Line (Luminous Neon Green) -->
+            <line class="cal-scan-laser" x1="32" y1="45" x2="88" y2="45" stroke="url(#calLaserGrad)" stroke-width="2.2" filter="url(#calNeonGlow)" />
+
+            <!-- Pulsing Notification Clock Badge (Top Right) -->
+            <g class="cal-alert-badge">
+              <circle cx="86" cy="31" r="6" fill="#fbbf24" stroke="#ffffff" stroke-width="1.2" filter="url(#calBadgeGlow)" />
+              <circle cx="86" cy="31" r="0.8" fill="#0f172a" />
+              <line x1="86" y1="31" x2="86" y2="28" stroke="#0f172a" stroke-width="1.2" stroke-linecap="round" />
+              <line x1="86" y1="31" x2="88.5" y2="31" stroke="#0f172a" stroke-width="1" stroke-linecap="round" />
+            </g>
+          </g>
+
+          <!-- 4. Top-Left Crystal Glass Specular Arc Reflection -->
+          <ellipse cx="44" cy="32" rx="26" ry="14" transform="rotate(-35 44 32)" fill="url(#calOrbGlassGloss)" pointer-events="none" />
+
+          <!-- 5. Micro Magic Cyber Sparkles (Luminous Emerald & Gold) -->
+          <path class="cal-sparkle s1" d="M 22 28 Q 26 28 26 24 Q 26 28 30 28 Q 26 28 26 32 Q 26 28 22 28" fill="#4ade80" />
+          <path class="cal-sparkle s2" d="M 96 22 Q 99 22 99 19 Q 99 22 102 22 Q 99 22 99 25 Q 99 22 96 22" fill="#fbbf24" />
+          <path class="cal-sparkle s3" d="M 88 92 Q 91 92 91 89 Q 91 92 94 92 Q 91 92 91 95 Q 91 92 88 92" fill="#86efac" />
+        </svg>
+      </div>
+
+      <!-- Cyber Wisdom Lightbulb Orb (Displayed when life trivia / joke triggers) -->
+      <div id="trivia-orb-container" class="trivia-orb-container" title="點擊確認 / 恢復科技球">
+        <svg viewBox="0 0 120 120" class="trivia-orb-svg">
+          <defs>
+            <!-- 1. Crystal Orb Deep Cosmic Background (Dark Crystal Backdrop to make bulb contour razor-sharp) -->
+            <radialGradient id="trivOrbBg" cx="38%" cy="32%" r="68%">
+              <stop offset="0%" stop-color="#1e293b" stop-opacity="0.95" />
+              <stop offset="35%" stop-color="#0f172a" stop-opacity="0.98" />
+              <stop offset="75%" stop-color="#090d16" stop-opacity="1" />
+              <stop offset="100%" stop-color="#020617" stop-opacity="1" />
+            </radialGradient>
+
+            <!-- 2. Electric Pure White & Silver Rim -->
+            <linearGradient id="trivOrbRim" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#ffffff" />
+              <stop offset="30%" stop-color="#cbd5e1" />
+              <stop offset="70%" stop-color="#ffffff" />
+              <stop offset="100%" stop-color="#64748b" />
+            </linearGradient>
+
+            <!-- 3. Specular Highlight -->
+            <linearGradient id="trivGlassGloss" x1="0%" y1="0%" x2="50%" y2="100%">
+              <stop offset="0%" stop-color="#ffffff" stop-opacity="0.75" />
+              <stop offset="40%" stop-color="#e2e8f0" stop-opacity="0.25" />
+              <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+            </linearGradient>
+
+            <!-- 4. Translucent Lightbulb Glass Body (Transparent so filament is clearly visible) -->
+            <linearGradient id="bulbGlassGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#ffffff" stop-opacity="0.3" />
+              <stop offset="45%" stop-color="#e2e8f0" stop-opacity="0.12" />
+              <stop offset="100%" stop-color="#94a3b8" stop-opacity="0.05" />
+            </linearGradient>
+
+            <!-- 5. Filament Pure White Spark -->
+            <linearGradient id="filamentWhite" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#ffffff" />
+              <stop offset="50%" stop-color="#f8fafc" />
+              <stop offset="100%" stop-color="#ffffff" />
+            </linearGradient>
+
+            <!-- 6. Bulb Base Metal Screw -->
+            <linearGradient id="bulbBaseMetal" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#94a3b8" />
+              <stop offset="45%" stop-color="#f8fafc" />
+              <stop offset="100%" stop-color="#64748b" />
+            </linearGradient>
+
+            <!-- 7. Glow Filters (Tuned for crisp clarity) -->
+            <filter id="trivNeonGlow" x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation="1.6" result="blur" />
+              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+            <filter id="trivCoreGlow" x="-40%" y="-40%" width="180%" height="180%">
+              <feGaussianBlur stdDeviation="2.2" result="blur" />
+              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+          </defs>
+
+          <!-- 1. Outer Crystal Sphere -->
+          <circle cx="60" cy="60" r="53" fill="url(#trivOrbBg)" stroke="url(#trivOrbRim)" stroke-width="2.2" />
+
+          <!-- 2. Cyber Orbiting Planetary Rings (Refined White Neon) -->
+          <g class="triv-ring-group">
+            <ellipse cx="60" cy="60" rx="51" ry="17" transform="rotate(-30 60 60)" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-dasharray="5 7" opacity="0.85" />
+            <ellipse cx="60" cy="60" rx="49" ry="13" transform="rotate(40 60 60)" fill="none" stroke="#cbd5e1" stroke-width="1.1" stroke-dasharray="4 6" opacity="0.7" />
+          </g>
+
+          <!-- 3. Floating Holographic Lightbulb Core (Crystal Clear Contour) -->
+          <g class="floating-bulb-core">
+            <!-- Subtle Center Bulb Backlight Glow -->
+            <circle cx="60" cy="50" r="18" fill="#ffffff" opacity="0.18" filter="url(#trivCoreGlow)" />
+
+            <!-- Bulb Glass Dome Contour (Crisp White Outline & Transparent 3D Glass Shell) -->
+            <path d="M 45 50 C 45 40, 50 32, 60 32 C 70 32, 75 40, 75 50 C 75 58, 70 63, 67 67 L 67 73 L 53 73 L 53 67 C 50 63, 45 58, 45 50 Z"
+                  fill="url(#bulbGlassGrad)" stroke="#ffffff" stroke-width="2.2" filter="url(#trivNeonGlow)" />
+
+            <!-- Bulb Glass Inner Highlight Reflection Arc -->
+            <path d="M 48 48 C 48 41, 52 35, 59 34" fill="none" stroke="#ffffff" stroke-width="1.4" stroke-linecap="round" opacity="0.8" />
+
+            <!-- Cyber Dual Filament with Glowing White Center Core -->
+            <path d="M 54 67 L 57 48 L 60 52 L 63 48 L 66 67" fill="none" stroke="url(#filamentWhite)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" filter="url(#trivNeonGlow)" />
+            <circle cx="60" cy="48" r="2.8" fill="#ffffff" filter="url(#trivNeonGlow)" />
+
+            <!-- Laser Radiating Energy Sparks (Crisp White Rays) -->
+            <line x1="60" y1="24" x2="60" y2="18" stroke="#ffffff" stroke-width="2" stroke-linecap="round" filter="url(#trivNeonGlow)" />
+            <line x1="74" y1="32" x2="79" y2="28" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" filter="url(#trivNeonGlow)" />
+            <line x1="46" y1="32" x2="41" y2="28" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" filter="url(#trivNeonGlow)" />
+
+            <!-- Bulb Screw Base (Clearly Defined Metallic Thread Rings) -->
+            <rect x="54" y="73" width="12" height="3" rx="1.5" fill="url(#bulbBaseMetal)" stroke="#cbd5e1" stroke-width="0.8" />
+            <rect x="55" y="77" width="10" height="3" rx="1.5" fill="url(#bulbBaseMetal)" stroke="#94a3b8" stroke-width="0.8" />
+            <path d="M 57 81 Q 60 84 63 81 Z" fill="#334155" stroke="#64748b" stroke-width="0.8" />
+          </g>
+
+          <!-- 4. Top-Left Crystal Glass Specular Arc Reflection -->
+          <ellipse cx="44" cy="32" rx="26" ry="14" transform="rotate(-35 44 32)" fill="url(#trivGlassGloss)" pointer-events="none" />
+
+          <!-- 5. Micro Cyber Sparkles -->
+          <path class="triv-sparkle s1" d="M 22 28 Q 26 28 26 24 Q 26 28 30 28 Q 26 28 26 32 Q 26 28 22 28" fill="#ffffff" />
+          <path class="triv-sparkle s2" d="M 96 22 Q 99 22 99 19 Q 99 22 102 22 Q 99 22 99 25 Q 99 22 96 22" fill="#ffffff" />
+          <path class="triv-sparkle s3" d="M 88 92 Q 91 92 91 89 Q 91 92 94 92 Q 91 92 91 95 Q 91 92 88 92" fill="#cbd5e1" />
+        </svg>
+      </div>
+
+      <!-- Foreground Paw (Fingers wrapping naturally over the ball/letter) -->
+      <img id="paw-overlay-img" class="paw-overlay" src="assets/paw_overlay.png" onerror="if(!this.dataset.tried){this.dataset.tried='1';this.src='public/assets/paw_overlay.png';}" alt="Paw Overlay" draggable="false" />
+
+      <!-- Interactive laptop outline: quick sticky-note entry -->
+      <button type="button" id="laptop-notes-trigger" class="laptop-notes-trigger" title="快速新增待辦便利貼" aria-label="快速新增待辦便利貼">
+        <svg class="laptop-hit-outline" viewBox="0 0 100 70" aria-hidden="true">
+          <path class="laptop-outline-screen" d="M3.7 3.2 L56.5 11.3 L66.2 53.8 L16.5 47.1 Z"></path>
+          <path class="laptop-outline-keyboard" d="M62 37.8 L87.5 44.5 L66.2 53.8"></path>
+        </svg>
+      </button>
+
+    </div>
+
+  </div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

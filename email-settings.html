@@ -1,0 +1,2178 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title id="window-title">總覽設定 - METech小助手</title>
+  <link rel="stylesheet" href="src/email-settings.css">
+</head>
+
+<body>
+  <!-- Header -->
+  <div class="header">
+    <div class="title-group">
+      <h1 id="header-title">⚙️ 總覽設定</h1>
+      <span class="subtitle" id="header-subtitle">集中管理郵箱、日曆、健康、生活資訊與鬧鐘</span>
+    </div>
+    <div class="header-actions">
+      <span class="version-badge header-version-badge" id="header-version">Ver.1.2.0</span>
+      <div class="lang-switcher">
+        <button type="button" class="lang-btn active" data-lang="zh-TW" id="btn-lang-zh">繁中</button>
+        <button type="button" class="lang-btn" data-lang="en" id="btn-lang-en">EN</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Navigation Tabs -->
+  <div class="nav-tabs" role="tablist">
+    <button type="button" class="tab-btn active" role="tab" aria-selected="true" data-tab="panel-email" id="tab-btn-email">
+      <span>📬</span>
+      <span id="tab-label-email">郵箱帳號與規則</span>
+    </button>
+    <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="panel-calendar" id="tab-btn-calendar">
+      <span>📅</span>
+      <span id="tab-label-calendar">Google 日曆</span>
+    </button>
+    <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="panel-health" id="tab-btn-health">
+      <span>🍵</span>
+      <span id="tab-label-health">喝水健康提醒</span>
+    </button>
+    <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="panel-trivia" id="tab-btn-trivia">
+      <span>💡</span>
+      <span id="tab-label-trivia">生活知識與笑話</span>
+    </button>
+    <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="panel-alarm" id="tab-btn-alarm"><span>📝</span><span id="tab-label-alarm">便利貼</span></button>
+  </div>
+
+  <div id="panel-alarm" class="tab-panel">
+    <div class="section">
+      <div class="section-title" id="sec-title-panel-opacity">📝 待辦便利貼外觀</div>
+      <div class="rule-item">
+        <div class="rule-label"><label for="todo-panel-opacity" id="label-todo-panel-opacity"><strong>待辦便利貼整體透明度</strong></label></div>
+        <div style="display:flex;align-items:center;gap:8px;min-width:210px">
+          <input id="todo-panel-opacity" type="range" min="0" max="70" step="5" value="0" style="flex:1">
+          <output id="todo-panel-opacity-value">0%</output>
+        </div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">📝 便利貼提醒鈴聲設定</div>
+      <div class="tip" style="margin-bottom:12px">便利貼設定的時間到達後，會依此處選擇播放鈴聲。</div>
+      <label class="checkbox-wrap"><input type="radio" name="alarm-sound-type" value="preset" checked><span>系統預設鈴聲</span></label>
+      <div class="rule-item"><div class="rule-label"><strong>選擇內建鈴聲</strong></div><select id="alarm-preset" class="rule-input">
+        <option value="notification-064">預設鈴聲01</option>
+        <option value="cheerful-harp">預設鈴聲02</option>
+        <option value="ringtone-088">預設鈴聲03</option>
+        <option value="ringtone-070">預設鈴聲04</option>
+        <option value="ringtone-065">預設鈴聲05</option>
+        <option value="ringtone-066">預設鈴聲06</option>
+        <option value="ringtone-067">預設鈴聲07</option>
+        <option value="ringtone-062">預設鈴聲08</option>
+        <option value="ringtone-047">預設鈴聲09</option>
+        <option value="ringtone-080">預設鈴聲10</option>
+        <option value="ringtone-042">預設鈴聲11</option>
+        <option value="notification-066">預設鈴聲12</option>
+      </select></div>
+      <label class="checkbox-wrap"><input type="radio" name="alarm-sound-type" value="custom"><span>自訂音頻檔案或資料夾</span></label>
+      <div class="btn-row"><button type="button" class="action-btn btn-secondary" id="alarm-choose-files">選擇音頻檔案</button><button type="button" class="action-btn btn-secondary" id="alarm-choose-folder">選擇資料夾</button></div>
+      <div id="alarm-custom-summary" class="tip">尚未選擇音頻；資料夾內多首音頻將隨機播放。</div>
+      <label class="checkbox-wrap"><input type="radio" name="alarm-sound-type" value="url"><span>自訂網址（支援直接音訊網址與 YouTube）</span></label>
+      <input id="alarm-url" class="text-input" type="url" placeholder="https://www.youtube.com/watch?v=..." style="width:100%;margin:8px 0 14px">
+      <div class="rule-item"><div class="rule-label"><strong>鬧鐘響鈴時間</strong><div class="tip">時間到後自動切斷，或持續播放至點擊鬧鐘球。</div></div><select id="alarm-duration" class="rule-input"><option value="1">1 分鐘</option><option value="5">5 分鐘</option><option value="10">10 分鐘</option><option value="continuous">持續重複播放</option></select></div>
+      <div class="btn-row">
+        <button type="button" class="action-btn btn-secondary" id="alarm-test">⏰ 測試鬧鐘效果</button>
+        <button type="button" class="action-btn btn-danger" id="alarm-stop-test">⏹ 中斷測試</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================================
+       Tab Panel 1: Email Settings (Multi-Account Support)
+       ====================================================================== -->
+  <div id="panel-email" class="tab-panel active">
+    <!-- Master Switch Card -->
+    <div class="master-switch-card">
+      <span class="master-switch-label" id="label-enable-switch">
+        🔔 啟用小助手郵件自動對話提醒
+      </span>
+      <div class="switch-wrap">
+        <label class="switch" for="email-enabled" aria-label="Toggle email monitoring">
+          <input type="checkbox" id="email-enabled">
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title" id="sec-title-email-sticky">📧 郵件便利貼設定</div>
+      <div class="rule-item">
+        <div class="rule-label"><label for="email-panel-opacity" id="label-email-panel-opacity"><strong>郵件便利貼整體透明度</strong></label></div>
+        <div style="display:flex;align-items:center;gap:8px;min-width:210px">
+          <input id="email-panel-opacity" type="range" min="0" max="70" step="5" value="0" style="flex:1">
+          <output id="email-panel-opacity-value">0%</output>
+        </div>
+      </div>
+      <div class="rule-item">
+        <div class="rule-label">
+          <label for="email-sticky-max-items" id="label-email-sticky-max-items"><strong>最多顯示郵件數量</strong></label>
+          <div class="tip" id="tip-email-sticky-max-items">依收件時間顯示最新的 1～30 封郵件</div>
+        </div>
+        <input id="email-sticky-max-items" class="rule-input" type="number" min="1" max="30" step="1" value="8">
+      </div>
+      <div class="rule-sound-group">
+        <label class="checkbox-wrap" for="email-sticky-unread-only">
+          <input type="checkbox" id="email-sticky-unread-only" checked>
+          <span id="label-email-sticky-unread-only">便利貼只顯示未讀郵件</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Multi-Account Section -->
+    <div class="section">
+      <div class="section-header-row">
+        <div class="section-title" id="sec-title-accounts">👤 多組郵箱帳號設定</div>
+      </div>
+
+      <!-- Dynamic Accounts List -->
+      <div id="accounts-container" class="accounts-list-container">
+        <!-- Account cards will be dynamically injected here -->
+      </div>
+
+      <!-- Add Account Button (Positioned above Gmail Guide Box) -->
+      <div class="add-account-wrap">
+        <button type="button" class="btn-add-account-wide" id="btn-add-account">
+          <span>➕</span>
+          <span id="btn-add-account-text">新增信箱帳號</span>
+        </button>
+      </div>
+
+      <!-- Single Global Shared Gmail Guide Box (Never duplicated per card) -->
+      <div id="gmail-guide-box" class="gmail-help-box">
+        <div><strong id="gmail-guide-title">🔑 Gmail 設定注意 (重要)：</strong></div>
+        <div id="gmail-guide-step1">1. Google 已停用一般密碼直接登入，<strong>必須使用 16 位「應用程式專用密碼」</strong>。</div>
+        <div id="gmail-guide-step2">2. 請點此開啟：<a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" class="gmail-link" id="gmail-guide-link">👉 前往 Google 產生應用程式專用密碼</a></div>
+        <div id="gmail-guide-step3">3. 應用程式名稱可輸入「桌面小助手」，產生後複製 16 位密碼貼至上方。</div>
+        <div id="gmail-guide-step4">4. 確認 Gmail 網頁版「設定 &gt; 轉寄和 POP/IMAP &gt; 啟用 IMAP」。</div>
+      </div>
+    </div>
+
+    <!-- Custom Parsing Rules -->
+    <div class="section">
+      <div class="section-title" id="sec-title-rules">⏱️ 新郵件解析與排程規則</div>
+
+      <div class="rule-item">
+        <div class="rule-label">
+          <label for="rule-max-age" id="label-max-age">
+            <strong>新郵件時間範圍</strong>
+          </label>
+          <div class="tip" id="tip-max-age">只檢查指定小時內的未讀郵件，舊信將自動略過</div>
+        </div>
+        <select id="rule-max-age" class="rule-input">
+          <option value="0.5" id="opt-age-30m">30 分鐘內</option>
+          <option value="1" id="opt-age-1h">1 小時內</option>
+          <option value="2" id="opt-age-2h" selected>2 小時內 (推薦)</option>
+          <option value="6" id="opt-age-6h">6 小時內</option>
+          <option value="12" id="opt-age-12h">12 小時內</option>
+          <option value="24" id="opt-age-24h">24 小時內</option>
+          <option value="48" id="opt-age-48h">48 小時內</option>
+        </select>
+      </div>
+
+      <div class="rule-item">
+        <div class="rule-label">
+          <label for="rule-interval" id="label-interval">
+            <strong>自動檢查間隔</strong>
+          </label>
+          <div class="tip" id="tip-interval">背景自動連線伺服器檢查新信件頻率</div>
+        </div>
+        <select id="rule-interval" class="rule-input">
+          <option value="1" id="opt-int-1m">每 1 分鐘</option>
+          <option value="3" id="opt-int-3m">每 3 分鐘</option>
+          <option value="5" id="opt-int-5m" selected>每 5 分鐘 (推薦)</option>
+          <option value="10" id="opt-int-10m">每 10 分鐘</option>
+          <option value="15" id="opt-int-15m">每 15 分鐘</option>
+          <option value="30" id="opt-int-30m">每 30 分鐘</option>
+          <option value="60" id="opt-int-60m">每 1 小時</option>
+        </select>
+      </div>
+
+      <div class="rule-sound-group">
+        <label class="checkbox-wrap" for="rule-sound">
+          <input type="checkbox" id="rule-sound" checked>
+          <span id="label-sound">收到新郵件時播放提示音 (無跳躍動作)</span>
+        </label>
+      </div>
+
+      <div class="rule-repeat-group">
+        <label class="checkbox-wrap" for="rule-repeat">
+          <input type="checkbox" id="rule-repeat">
+          <span id="label-repeat">未讀郵件重複提示 (若信箱仍有未讀郵件，每次排程檢查時再次提示，避免漏看)</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Email Action Buttons -->
+    <div class="btn-row">
+      <button type="button" class="action-btn btn-secondary" id="btn-test-all">🔗 測試所有連線</button>
+      <button type="button" class="action-btn btn-secondary" id="btn-check-now">🔄 立即檢查所有信箱</button>
+    </div>
+  </div>
+
+  <!-- ======================================================================
+       Tab Panel 2: Google Calendar Settings (Multi-Account & Timezone)
+       ====================================================================== -->
+  <div id="panel-calendar" class="tab-panel">
+    <!-- Master Calendar Switch Card -->
+    <div class="master-switch-card">
+      <span class="master-switch-label" id="label-enable-calendar">
+        📅 啟用小助手行程對話提醒
+      </span>
+      <span class="version-badge" id="calendar-version">Ver.1.2.0</span>
+      <div class="switch-wrap">
+        <label class="switch" for="calendar-enabled" aria-label="Toggle calendar monitoring">
+          <input type="checkbox" id="calendar-enabled" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Timezone Banner -->
+    <div class="timezone-banner" id="cal-timezone-badge">
+      <span class="timezone-icon">🌍</span>
+      <div class="timezone-text">
+        <strong id="tz-label-title">系統時區自動適應：</strong>
+        <span id="tz-current-name">讀取 Windows 系統時區中...</span>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title" id="sec-title-calendar-opacity">📅 行事曆便利貼外觀</div>
+      <div class="rule-item">
+        <div class="rule-label"><label for="calendar-panel-opacity" id="label-calendar-panel-opacity"><strong>行事曆便利貼整體透明度</strong></label></div>
+        <div style="display:flex;align-items:center;gap:8px;min-width:210px">
+          <input id="calendar-panel-opacity" type="range" min="0" max="70" step="5" value="0" style="flex:1">
+          <output id="calendar-panel-opacity-value">0%</output>
+        </div>
+      </div>
+    </div>
+
+    <!-- Multi-Calendar Section -->
+    <div class="section">
+      <div class="section-header-row">
+        <div class="section-title" id="sec-title-calendars">📅 多組 Google 日曆帳號</div>
+      </div>
+
+      <!-- Dynamic Calendars List -->
+      <div id="calendars-container" class="accounts-list-container">
+        <!-- Calendar cards will be dynamically injected here -->
+      </div>
+
+      <!-- Add Calendar Button -->
+      <div class="add-account-wrap">
+        <button type="button" class="btn-add-account-wide" id="btn-add-calendar">
+          <span>➕</span>
+          <span id="btn-add-calendar-text">新增 Google 日曆帳號</span>
+        </button>
+      </div>
+
+      <!-- Google Calendar Secret iCal Guide Box -->
+      <div id="calendar-guide-box" class="gmail-help-box">
+        <div><strong id="cal-guide-title">🔑 Google 日曆秘密 iCal 網址取得方式（30秒完成）：</strong></div>
+        <div id="cal-guide-step1">1. 電腦瀏覽器開啟 <a href="https://calendar.google.com/" target="_blank" rel="noopener noreferrer" class="gmail-link" id="cal-guide-link">Google 日曆網頁版</a>。</div>
+        <div id="cal-guide-step2">2. 左側「我的日曆」清單中，將滑鼠移至要同步的日曆名稱旁，點擊三個點 <strong>︙</strong> &gt; 選擇<strong>「設定和共用」</strong>。</div>
+        <div id="cal-guide-step3">3. 向下滾動找到<strong>「整合日曆」</strong>區塊中的<strong>「以 iCal 格式顯示的秘密地址」</strong>。</div>
+        <div id="cal-guide-step4">4. 點擊複製該秘密網址（https://calendar.google.com/.../basic.ics），貼至上方日曆網址欄位即可！</div>
+      </div>
+    </div>
+
+    <!-- Calendar Reminder Rules -->
+    <div class="section">
+      <div class="section-title" id="sec-title-cal-rules">⏰ 小助手行程提醒規則</div>
+
+      <div class="rule-item">
+        <div class="rule-label">
+          <label for="rule-cal-advance" id="label-cal-advance">
+            <strong>會議開始前提醒時間</strong>
+          </label>
+          <div class="tip" id="tip-cal-advance">在即將開始的會議前，小熊會主動發出提醒</div>
+        </div>
+        <select id="rule-cal-advance" class="rule-input">
+          <option value="5" id="opt-cal-adv-5m">提前 5 分鐘</option>
+          <option value="10" id="opt-cal-adv-10m">提前 10 分鐘</option>
+          <option value="15" id="opt-cal-adv-15m" selected>提前 15 分鐘 (推薦)</option>
+          <option value="30" id="opt-cal-adv-30m">提前 30 分鐘</option>
+        </select>
+      </div>
+
+      <div class="rule-item">
+        <div class="rule-label">
+          <label for="rule-cal-tomorrow-hour" id="label-cal-tomorrow-hour">
+            <strong>明日行程預告開始時間</strong>
+          </label>
+          <div class="tip" id="tip-cal-tomorrow-hour">當天超過此時間後，小助手會主動為您預報明日的重點行程</div>
+        </div>
+        <select id="rule-cal-tomorrow-hour" class="rule-input">
+          <option value="17" id="opt-cal-tom-17">每日 17:00 (下午 5 點)</option>
+          <option value="18" id="opt-cal-tom-18" selected>每日 18:00 (下午 6 點 - 推薦)</option>
+          <option value="19" id="opt-cal-tom-19">每日 19:00 (晚上 7 點)</option>
+          <option value="20" id="opt-cal-tom-20">每日 20:00 (晚上 8 點)</option>
+          <option value="21" id="opt-cal-tom-21">每日 21:00 (晚上 9 點)</option>
+          <option value="0" id="opt-cal-tom-off">關閉明日行程預告</option>
+        </select>
+      </div>
+
+      <div class="rule-item">
+        <div class="rule-label">
+          <label for="rule-cal-interval" id="label-cal-interval">
+            <strong>行事曆檢查頻率</strong>
+          </label>
+          <div class="tip" id="tip-cal-interval">背景自動同步 Google 日曆更新頻率</div>
+        </div>
+        <select id="rule-cal-interval" class="rule-input">
+          <option value="5" id="opt-cal-int-5m">每 5 分鐘</option>
+          <option value="10" id="opt-cal-int-10m">每 10 分鐘</option>
+          <option value="15" id="opt-cal-int-15m" selected>每 15 分鐘 (推薦)</option>
+          <option value="30" id="opt-cal-int-30m">每 30 分鐘</option>
+          <option value="60" id="opt-cal-int-60m">每 1 小時</option>
+        </select>
+      </div>
+
+      <div class="rule-sound-group">
+        <label class="checkbox-wrap" for="rule-cal-sound">
+          <input type="checkbox" id="rule-cal-sound" checked>
+          <span id="label-cal-sound">行程與會議提醒時播放提示音</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title" id="sec-title-cal-sticky-rules">🗒️ 行事曆便利貼規則</div>
+      <div class="rule-item">
+        <div class="rule-label">
+          <label for="rule-cal-sticky-days" id="label-cal-sticky-days"><strong>便利貼顯示天數</strong></label>
+          <div class="tip" id="tip-cal-sticky-days">顯示從今天起 1～30 天內的行程</div>
+        </div>
+        <input id="rule-cal-sticky-days" class="rule-input" type="number" min="1" max="30" step="1" value="7">
+      </div>
+      <div class="rule-item">
+        <div class="rule-label">
+          <label for="rule-cal-sticky-interval" id="label-cal-sticky-interval"><strong>便利貼同步頻率</strong></label>
+          <div class="tip" id="tip-cal-sticky-interval">背景更新行事曆便利貼內容的頻率</div>
+        </div>
+        <select id="rule-cal-sticky-interval" class="rule-input">
+          <option value="5">每 5 分鐘</option><option value="10">每 10 分鐘</option>
+          <option value="15" selected>每 15 分鐘</option><option value="30">每 30 分鐘</option><option value="60">每 1 小時</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Calendar Action Buttons -->
+    <div class="btn-row">
+      <button type="button" class="action-btn btn-secondary" id="btn-test-all-cal">🔗 測試所有日曆連線</button>
+      <button type="button" class="action-btn btn-secondary" id="btn-check-cal-now">📅 立即檢查今日與明日行程</button>
+    </div>
+  </div>
+
+  <!-- ======================================================================
+       Tab Panel 3: Health & Rest Settings
+       ====================================================================== -->
+  <div id="panel-health" class="tab-panel">
+    <!-- Master Health Switch Card -->
+    <div class="master-switch-card">
+      <span class="master-switch-label" id="label-enable-health">
+        🍵 啟用定時喝水與伸展提醒
+      </span>
+      <span class="version-badge" id="health-version">Ver.1.2.0</span>
+      <div class="switch-wrap">
+        <label class="switch" for="health-enabled" aria-label="Toggle health reminder">
+          <input type="checkbox" id="health-enabled" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title" id="sec-title-health">⏱️ 喝水與作息提醒規則</div>
+
+      <div class="rule-item">
+        <div class="rule-label">
+          <label for="health-interval" id="label-health-interval">
+            <strong>提醒間隔時間</strong>
+          </label>
+          <div class="tip" id="tip-health-interval">每隔指定時間小熊會手持科技水壺並溫馨提醒</div>
+        </div>
+        <select id="health-interval" class="rule-input">
+          <option value="30" id="opt-health-30m">每 30 分鐘</option>
+          <option value="45" id="opt-health-45m" selected>每 45 分鐘 (推薦)</option>
+          <option value="60" id="opt-health-60m">每 60 分鐘 (1 小時)</option>
+          <option value="90" id="opt-health-90m">每 90 分鐘 (1.5 小時)</option>
+          <option value="120" id="opt-health-120m">每 120 分鐘 (2 小時)</option>
+        </select>
+      </div>
+
+      <div class="rule-sound-group">
+        <label class="checkbox-wrap" for="health-sound">
+          <input type="checkbox" id="health-sound" checked>
+          <span id="label-health-sound">提醒時播放清脆水滴提示音</span>
+        </label>
+      </div>
+
+      <!-- Visual Preview Card -->
+      <div class="health-preview-card">
+        <div class="health-preview-icon">💧</div>
+        <div class="health-preview-text">
+          <strong id="health-preview-title">Cyber Hydro Tumbler 3D 運動能量水壺</strong>
+          <span id="health-preview-desc">提醒觸發時，小熊手中的科技球會自動置換為吸管水瓶，並伴隨漂浮冰塊、上升氣泡與水滴音效。</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Health Action Buttons -->
+    <div class="btn-row">
+      <button type="button" class="action-btn btn-secondary btn-full" id="btn-test-health">
+        🍵 測試喝水提醒 (預覽效果)
+      </button>
+    </div>
+  </div>
+
+  <!-- ======================================================================
+       Tab Panel 4: Online Trivia & Clean Jokes Settings
+       ====================================================================== -->
+  <div id="panel-trivia" class="tab-panel">
+    <!-- Master Trivia Switch Card -->
+    <div class="master-switch-card">
+      <span class="master-switch-label" id="label-enable-trivia">
+        💡 啟用定時線上探索與主動提醒
+      </span>
+      <div class="switch-wrap">
+        <label class="switch" for="trivia-enabled" aria-label="Toggle trivia reminder">
+          <input type="checkbox" id="trivia-enabled" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title" id="sec-title-trivia">💡 線上生活知識與幽默冷笑話規則</div>
+
+      <div class="rule-item">
+        <div class="rule-label">
+          <label for="trivia-category" id="label-trivia-category">
+            <strong>內容探索偏好</strong>
+          </label>
+          <div class="tip" id="tip-trivia-category">自訂小助手為您探索的知識類別偏好</div>
+        </div>
+        <select id="trivia-category" class="rule-input">
+          <option value="all" id="opt-trivia-all" selected>🎲 綜合隨機探索 (知識與笑話)</option>
+          <option value="fact" id="opt-trivia-fact">🔬 僅生活小百科與科學冷知識</option>
+          <option value="joke" id="opt-trivia-joke">😄 僅職場幽默與乾淨冷笑話</option>
+        </select>
+      </div>
+
+      <div class="rule-item">
+        <div class="rule-label">
+          <label for="trivia-interval" id="label-trivia-interval">
+            <strong>探索推送間隔</strong>
+          </label>
+          <div class="tip" id="tip-trivia-interval">每隔指定時間小熊會連網隨機探索一則最新知識或笑話</div>
+        </div>
+        <select id="trivia-interval" class="rule-input">
+          <option value="30" id="opt-trivia-30m">每 30 分鐘</option>
+          <option value="60" id="opt-trivia-60m" selected>每 60 分鐘 (1 小時，推薦)</option>
+          <option value="90" id="opt-trivia-90m">每 90 分鐘 (1.5 小時)</option>
+          <option value="120" id="opt-trivia-120m">每 120 分鐘 (2 小時)</option>
+        </select>
+      </div>
+
+      <div class="rule-sound-group">
+        <label class="checkbox-wrap" for="trivia-sound">
+          <input type="checkbox" id="trivia-sound" checked>
+          <span id="label-trivia-sound">提醒時播放清脆提示音</span>
+        </label>
+      </div>
+
+      <!-- Safe Filter & Cyber Wisdom Orb Feature Card -->
+      <div class="health-preview-card trivia-feature-card">
+        <div class="health-preview-icon">🛡️</div>
+        <div class="health-preview-text">
+          <strong id="trivia-preview-title">100% 嚴格排除情色與不當內容（純聯網探索）</strong>
+          <span id="trivia-preview-desc">配備雙重關鍵詞過濾與內容安全掃描，確保所有生活知識與幽默笑話健康無害。觸發時小熊手持「賽博智慧燈泡水晶球 💡✨」，若斷網則自動靜默略過。</span>
+        </div>
+      </div>
+
+      <!-- Live Online Test Result Box -->
+      <div id="trivia-preview-box" class="trivia-result-box" style="display: none;">
+        <div class="trivia-result-header">
+          <span id="triv-res-badge" class="badge">💡 生活知識</span>
+          <span id="triv-res-source" class="source">來源：Online</span>
+        </div>
+        <div id="triv-res-title" class="trivia-result-title"></div>
+        <div id="triv-res-content" class="trivia-result-content"></div>
+      </div>
+    </div>
+
+    <!-- Trivia Action Buttons -->
+    <div class="btn-row">
+      <button type="button" class="action-btn btn-secondary btn-full" id="btn-explore-trivia">
+        🎲 立即線上探索一則 (即時預覽)
+      </button>
+    </div>
+  </div>
+
+  <!-- Status Message -->
+  <div id="status-msg" class="status-msg"></div>
+
+  <!-- Save & Apply Button (Always Visible) -->
+  <div class="btn-row save-btn-row">
+    <button type="button" class="action-btn btn-primary btn-save-action" id="btn-save">
+      💾 儲存並套用
+    </button>
+  </div>
+
+  <script>
+    // Embedded Settings Localization Dictionary
+    const settingsLocales = {
+      'zh-TW': {
+        windowTitle: '總覽設定 - METech小助手',
+        headerTitle: '⚙️ 總覽設定',
+        headerSubtitle: '集中管理郵箱、日曆、健康、生活資訊與便利貼',
+        tabEmail: '郵箱帳號與規則',
+        tabCalendar: 'Google 日曆',
+        tabHealth: '喝水健康提醒',
+        tabTrivia: '生活知識與笑話',
+        tabSticky: '便利貼',
+        enableSwitch: '啟用小助手郵件自動對話提醒',
+        sectionAccounts: '👤 多組郵箱帳號設定',
+        btnAddAccount: '新增信箱帳號',
+        accountSwitchLabel: '啟用此信箱',
+        labelAccountName: '信箱名稱 / 標籤',
+        placeholderAccountName: '例：公司 Gmail / 個人信箱',
+        providerGmail: 'Gmail',
+        providerOutlook: 'Outlook / 365',
+        providerCustom: '自訂 IMAP',
+        labelUser: '信箱帳號 (Email Address)',
+        placeholderUser: 'example@gmail.com',
+        labelPass: '密碼 / 應用程式專用密碼 (App Password)',
+        placeholderPass: '16 位專用密碼 (例如: abcd efgh ijkl mnop)',
+        labelHost: 'IMAP 伺服器主機',
+        labelPort: '連接埠 (Port)',
+        btnTestAccount: '測試連線',
+        btnDeleteAccount: '🗑️ 移除',
+        deleteConfirm: '確定要移除此信箱帳號嗎？',
+        assistantEmailReminder: '小助手對話提醒',
+        importEmailSticky: '顯示郵件便利貼',
+        emailStickyAppearance: '📧 郵件便利貼設定',
+        emailPanelOpacity: '郵件便利貼整體透明度',
+        emailStickyMaxItems: '最多顯示郵件數量',
+        emailStickyMaxItemsTip: '依收件時間顯示最新的 1～30 封郵件',
+        emailStickyUnreadOnly: '便利貼只顯示未讀郵件',
+        emailStickyCategories: '便利貼顯示分類',
+        emailCategoryPrimary: '主要郵件',
+        emailCategoryPurchases: '購物交易',
+        emailCategorySocial: '社群網路',
+        emailCategoryUpdates: '最新快訊',
+        emailCategoryPromotions: '促銷內容',
+        emailCategoryForums: '論壇',
+        syncGmailLabels: '同步 Gmail 標籤',
+        syncingGmailLabels: '正在同步 Gmail 標籤…',
+        customGmailLabels: '自訂 Gmail 標籤',
+        noCustomGmailLabels: '尚未同步標籤，或帳號中沒有自訂標籤。',
+        includeArchivedLabeled: '包含已封存但仍有勾選標籤的郵件',
+
+        gmailGuideTitle: '🔑 Gmail 設定注意 (重要)：',
+        gmailGuideStep1: '1. Google 已停用一般密碼直接登入，<strong>必須使用 16 位「應用程式專用密碼」</strong>。',
+        gmailGuideStep2: '2. 請點此開啟：',
+        gmailGuideStep2Link: '👉 前往 Google 產生應用程式專用密碼',
+        gmailGuideStep3: '3. 應用程式名稱可輸入「桌面小助手」，產生後複製 16 位密碼貼至上方。',
+        gmailGuideStep4: '4. 確認 Gmail 網頁版「設定 > 轉寄和 POP/IMAP > 啟用 IMAP」。',
+
+        sectionRules: '⏱️ 新郵件解析與排程規則',
+        labelMaxAge: '新郵件時間範圍',
+        tipMaxAge: '只檢查指定小時內的未讀郵件，舊信將自動略過',
+        optMaxAge30m: '30 分鐘內',
+        optMaxAge1h: '1 小時內',
+        optMaxAge2h: '2 小時內 (推薦)',
+        optMaxAge6h: '6 小時內',
+        optMaxAge12h: '12 小時內',
+        optMaxAge24h: '24 小時內',
+        optMaxAge48h: '48 小時內',
+
+        labelInterval: '自動檢查間隔',
+        tipInterval: '背景自動連線伺服器檢查新信件頻率',
+        optInterval1m: '每 1 分鐘',
+        optInterval3m: '每 3 分鐘',
+        optInterval5m: '每 5 分鐘 (推薦)',
+        optInterval10m: '每 10 分鐘',
+        optInterval15m: '每 15 分鐘',
+        optInterval30m: '每 30 分鐘',
+        optInterval60m: '每 1 小時',
+
+        labelSound: '收到新郵件時播放提示音 (無跳躍動作)',
+        labelRepeat: '未讀郵件重複提示 (若信箱仍有未讀郵件，每次排程檢查時再次提示，避免漏看)',
+
+        enableCalendar: '📅 啟用小助手行程自動對話提醒',
+        tzLabelTitle: '系統時區自動適應：',
+        tzNote: '(隨 Windows 作業系統自動切換)',
+        sectionCalendars: '📅 多組 Google 日曆帳號',
+        importCalendarSticky: '導入行事曆便利貼',
+        assistantCalendarReminder: '小助手對話提醒',
+        enableCalendarSource: '啟用此日曆',
+        panelAppearance: '🗒️ 便利貼外觀',
+        todoPanelAppearance: '📝 待辦便利貼外觀',
+        calendarPanelAppearance: '📅 行事曆便利貼外觀',
+        todoPanelOpacity: '待辦便利貼整體透明度',
+        calendarPanelOpacity: '行事曆便利貼整體透明度',
+        labelCalStickyDays: '便利貼顯示天數',
+        tipCalStickyDays: '顯示從今天起 1～30 天內的行程',
+        sectionCalStickyRules: '🗒️ 行事曆便利貼規則',
+        labelCalStickyInterval: '便利貼同步頻率',
+        tipCalStickyInterval: '背景更新行事曆便利貼內容的頻率',
+        btnAddCalendar: '新增 Google 日曆帳號',
+        labelCalName: '日曆名稱 / 標籤',
+        placeholderCalName: '例：公司重要會議 / 私人行事曆',
+        labelCalUrl: '以 iCal 格式顯示的秘密地址 (Secret iCal URL)',
+        placeholderCalUrl: 'https://calendar.google.com/calendar/ical/.../basic.ics',
+        btnTestCal: '測試連線與預覽',
+        btnDeleteCal: '🗑️ 移除',
+        deleteCalConfirm: '確定要移除此 Google 日曆嗎？',
+
+        calGuideTitle: '🔑 Google 日曆秘密 iCal 網址取得方式（30秒完成）：',
+        calGuideStep1: '1. 電腦瀏覽器開啟 <a href="https://calendar.google.com/" target="_blank" rel="noopener noreferrer" class="gmail-link">Google 日曆網頁版</a>。',
+        calGuideStep2: '2. 左側「我的日曆」清單中，將滑鼠移至要同步的日曆名稱旁，點擊三個點 <strong>︙</strong> > 選擇<strong>「設定和共用」</strong>。',
+        calGuideStep3: '3. 向下滾動找到<strong>「整合日曆」</strong>區塊中的<strong>「以 iCal 格式顯示的秘密地址」</strong>。',
+        calGuideStep4: '4. 點擊複製該秘密網址（開頭為 https://calendar.google.com/.../basic.ics），並貼至上方日曆網址欄位即可！',
+
+        sectionCalRules: '⏰ 小助手行程提醒規則',
+        labelCalAdvance: '會議開始前提醒時間',
+        tipCalAdvance: '在即將開始的會議前，小熊會主動發出提醒',
+        optCalAdv5m: '提前 5 分鐘',
+        optCalAdv10m: '提前 10 分鐘',
+        optCalAdv15m: '提前 15 分鐘 (推薦)',
+        optCalAdv30m: '提前 30 分鐘',
+
+        labelCalTomorrowHour: '明日行程預告開始時間',
+        tipCalTomorrowHour: '當天超過此時間後，小助手會主動為您預報明日的重點行程',
+        optCalTom17: '每日 17:00 (下午 5 點)',
+        optCalTom18: '每日 18:00 (下午 6 點 - 推薦)',
+        optCalTom19: '每日 19:00 (晚上 7 點)',
+        optCalTom20: '每日 20:00 (晚上 8 點)',
+        optCalTom21: '每日 21:00 (晚上 9 點)',
+        optCalTomOff: '關閉明日行程預告',
+
+        labelCalInterval: '小助手提醒檢查頻率',
+        tipCalInterval: '背景檢查需要由小助手對話提醒之行程的頻率',
+        optCalInt5m: '每 5 分鐘',
+        optCalInt10m: '每 10 分鐘',
+        optCalInt15m: '每 15 分鐘 (推薦)',
+        optCalInt30m: '每 30 分鐘',
+        optCalInt60m: '每 1 小時',
+
+        labelCalSound: '行程與會議提醒時播放提示音',
+        btnTestAllCal: '🔗 測試所有日曆連線',
+        btnCheckCalNow: '📅 立即檢查今日與明日行程',
+
+        sectionHealth: '⏱️ 喝水與作息提醒規則',
+        enableHealth: '🍵 啟用定時喝水與伸展提醒',
+        labelHealthInterval: '提醒間隔時間',
+        tipHealthInterval: '每隔指定時間小熊會手持科技水壺並溫馨提醒',
+        optHealth30m: '每 30 分鐘',
+        optHealth45m: '每 45 分鐘 (推薦)',
+        optHealth60m: '每 60 分鐘 (1 小時)',
+        optHealth90m: '每 90 分鐘 (1.5 小時)',
+        optHealth120m: '每 120 分鐘 (2 小時)',
+        labelHealthSound: '提醒時播放清脆水滴提示音',
+        healthPreviewTitle: 'Cyber Hydro Tumbler 3D 運動能量水壺',
+        healthPreviewDesc: '提醒觸發時，小熊手中的科技球會自動置換為吸管水瓶，並伴隨漂浮冰塊、上升氣泡與水滴音效。',
+        btnTestHealth: '🍵 測試喝水提醒 (預覽效果)',
+
+        tabTrivia: '生活知識與笑話',
+        enableTrivia: '💡 啟用定時線上探索與主動提醒',
+        secTitleTrivia: '💡 線上生活知識與幽默冷笑話規則',
+        labelTriviaCategory: '內容探索偏好',
+        tipTriviaCategory: '自訂小助手為您探索的知識類別偏好',
+        optTriviaAll: '🎲 綜合隨機探索 (知識與笑話)',
+        optTriviaFact: '🔬 僅生活小百科與科學冷知識',
+        optTriviaJoke: '😄 僅職場幽默與乾淨冷笑話',
+        labelTriviaInterval: '探索推送間隔',
+        tipTriviaInterval: '每隔指定時間小熊會連網隨機探索一則最新知識或笑話',
+        optTrivia30m: '每 30 分鐘',
+        optTrivia60m: '每 60 分鐘 (1 小時，推薦)',
+        optTrivia90m: '每 90 分鐘 (1.5 小時)',
+        optTrivia120m: '每 120 分鐘 (2 小時)',
+        labelTriviaSound: '提醒時播放清脆提示音',
+        triviaPreviewTitle: '100% 嚴格排除情色與不當內容（純聯網探索）',
+        triviaPreviewDesc: '配備雙重關鍵詞過濾與內容安全掃描，確保所有生活知識與幽默笑話健康無害。觸發時小熊手持「賽博智慧燈泡水晶球 💡✨」，若斷網則自動靜默略過。',
+        btnExploreTrivia: '🎲 立即線上探索一則 (即時預覽)',
+
+        btnTestAll: '🔗 測試所有郵箱連線',
+        btnCheckNow: '🔄 立即檢查所有信箱',
+        btnSave: '💾 儲存並套用',
+
+        statusTesting: '正在連線測試中，請稍候... ⏳',
+        statusChecking: '正在手動檢查中... ⏳',
+        statusSaveSuccess: (label) => `✅ 設定已成功儲存並生效！小助手已開啟自動監聽（每 ${label} 檢查一次）。`,
+        statusSaveFailed: (err) => `❌ 儲存失敗: ${err}`,
+        statusElectronRequired: '⚠️ 請在桌面小助手視窗中執行此操作'
+      },
+
+      'en': {
+        windowTitle: 'Overview Settings - METech Assistant',
+        headerTitle: '⚙️ Overview Settings',
+        headerSubtitle: 'Manage inboxes, calendars, health, trivia and sticky notes in one place',
+        tabEmail: 'Email & Rules',
+        tabCalendar: 'Google Calendar',
+        tabHealth: 'Health Reminders',
+        tabTrivia: 'Trivia & Jokes',
+        tabSticky: 'Sticky Notes',
+        enableSwitch: 'Enable assistant email dialogue reminders',
+        sectionAccounts: '👤 Multiple Email Accounts',
+        btnAddAccount: 'Add Email Account',
+        accountSwitchLabel: 'Enable Account',
+        labelAccountName: 'Account Name / Label',
+        placeholderAccountName: 'e.g. Work Gmail / Personal',
+        providerGmail: 'Gmail',
+        providerOutlook: 'Outlook / 365',
+        providerCustom: 'Custom IMAP',
+        labelUser: 'Email Address',
+        placeholderUser: 'example@gmail.com',
+        labelPass: 'Password / App Password',
+        placeholderPass: '16-digit App Password (e.g. abcd efgh ijkl mnop)',
+        labelHost: 'IMAP Server Host',
+        labelPort: 'Port',
+        btnTestAccount: 'Test Connection',
+        btnDeleteAccount: '🗑️ Remove',
+        deleteConfirm: 'Are you sure you want to remove this email account?',
+        assistantEmailReminder: 'Assistant dialogue reminder',
+        importEmailSticky: 'Show email sticky note',
+        emailStickyAppearance: '📧 Email sticky note settings',
+        emailPanelOpacity: 'Email sticky note transparency',
+        emailStickyMaxItems: 'Maximum emails shown',
+        emailStickyMaxItemsTip: 'Show the newest 1–30 emails by received time',
+        emailStickyUnreadOnly: 'Only show unread emails in sticky note',
+        emailStickyCategories: 'Sticky note categories',
+        emailCategoryPrimary: 'Primary',
+        emailCategoryPurchases: 'Purchases',
+        emailCategorySocial: 'Social',
+        emailCategoryUpdates: 'Updates',
+        emailCategoryPromotions: 'Promotions',
+        emailCategoryForums: 'Forums',
+        syncGmailLabels: 'Sync Gmail labels',
+        syncingGmailLabels: 'Syncing Gmail labels…',
+        customGmailLabels: 'Custom Gmail labels',
+        noCustomGmailLabels: 'No labels synced yet, or this account has no custom labels.',
+        includeArchivedLabeled: 'Include archived emails with selected labels',
+
+        gmailGuideTitle: '🔑 Gmail Setup Guide (Important):',
+        gmailGuideStep1: '1. Standard password login is disabled by Google. <strong>You must use a 16-character "App Password"</strong>.',
+        gmailGuideStep2: '2. Click here to open: ',
+        gmailGuideStep2Link: '👉 Go to Google App Passwords page',
+        gmailGuideStep3: '3. Name it "Desktop Assistant", generate the password and paste it above.',
+        gmailGuideStep4: '4. Ensure "IMAP Access" is enabled in your Gmail Web Settings.',
+
+        sectionRules: '⏱️ Parsing & Polling Rules',
+        labelMaxAge: 'Email Time Range',
+        tipMaxAge: 'Only checks unread emails within the specified range; older emails will be skipped',
+        optMaxAge30m: 'Within 30 mins',
+        optMaxAge1h: 'Within 1 hour',
+        optMaxAge2h: 'Within 2 hours (Recommended)',
+        optMaxAge6h: 'Within 6 hours',
+        optMaxAge12h: 'Within 12 hours',
+        optMaxAge24h: 'Within 24 hours',
+        optMaxAge48h: 'Within 48 hours',
+
+        labelInterval: 'Check Interval',
+        tipInterval: 'Background frequency to check for incoming emails',
+        optInterval1m: 'Every 1 min',
+        optInterval3m: 'Every 3 mins',
+        optInterval5m: 'Every 5 mins (Recommended)',
+        optInterval10m: 'Every 10 mins',
+        optInterval15m: 'Every 15 mins',
+        optInterval30m: 'Every 30 mins',
+        optInterval60m: 'Every 1 hour',
+
+        labelSound: 'Play notification sound when new email arrives (No bounce)',
+        labelRepeat: 'Repeat unread reminders on each scheduled check until read',
+
+        enableCalendar: '📅 Enable assistant calendar dialogue reminders',
+        tzLabelTitle: 'System Timezone Adaptation:',
+        tzNote: '(Auto-sync with Windows OS)',
+        sectionCalendars: '📅 Multiple Google Calendars',
+        importCalendarSticky: 'Show in calendar sticky note',
+        assistantCalendarReminder: 'Assistant dialogue reminder',
+        enableCalendarSource: 'Enable this calendar',
+        panelAppearance: '🗒️ Sticky note appearance',
+        todoPanelAppearance: '📝 To-do sticky note appearance',
+        calendarPanelAppearance: '📅 Calendar sticky note appearance',
+        todoPanelOpacity: 'To-do sticky note transparency',
+        calendarPanelOpacity: 'Calendar sticky note transparency',
+        labelCalStickyDays: 'Calendar sticky display days',
+        tipCalStickyDays: 'Show events from today through the next 1–30 days',
+        sectionCalStickyRules: '🗒️ Calendar sticky note rules',
+        labelCalStickyInterval: 'Sticky note sync frequency',
+        tipCalStickyInterval: 'How often calendar sticky note contents refresh in the background',
+        btnAddCalendar: 'Add Google Calendar',
+        labelCalName: 'Calendar Name / Tag',
+        placeholderCalName: 'e.g. Work Meetings / Personal Schedule',
+        labelCalUrl: 'Secret address in iCal format (URL)',
+        placeholderCalUrl: 'https://calendar.google.com/calendar/ical/.../basic.ics',
+        btnTestCal: 'Test & Preview',
+        btnDeleteCal: '🗑️ Remove',
+        deleteCalConfirm: 'Are you sure you want to remove this calendar?',
+
+        calGuideTitle: '🔑 How to get Google Calendar Secret iCal Address (in 30s):',
+        calGuideStep1: '1. Open <a href="https://calendar.google.com/" target="_blank" rel="noopener noreferrer" class="gmail-link">Google Calendar Web</a> on your desktop.',
+        calGuideStep2: '2. Under "My calendars" on the left, hover over your calendar, click <strong>︙</strong> > <strong>"Settings and sharing"</strong>.',
+        calGuideStep3: '3. Scroll down to the <strong>"Integrate calendar"</strong> section and find <strong>"Secret address in iCal format"</strong>.',
+        calGuideStep4: '4. Copy the URL (starts with https://calendar.google.com/.../basic.ics) and paste it in the field above!',
+
+        sectionCalRules: '⏰ Assistant calendar reminder rules',
+        labelCalAdvance: 'Meeting Advance Reminder',
+        tipCalAdvance: 'The assistant reminds you before upcoming meetings start',
+        optCalAdv5m: '5 mins before',
+        optCalAdv10m: '10 mins before',
+        optCalAdv15m: '15 mins before (Recommended)',
+        optCalAdv30m: '30 mins before',
+
+        labelCalTomorrowHour: 'Tomorrow Preview Start Time',
+        tipCalTomorrowHour: 'After this hour today, assistant previews tomorrow\'s key meetings',
+        optCalTom17: 'Daily 17:00 (5:00 PM)',
+        optCalTom18: 'Daily 18:00 (6:00 PM - Recommended)',
+        optCalTom19: 'Daily 19:00 (7:00 PM)',
+        optCalTom20: 'Daily 20:00 (8:00 PM)',
+        optCalTom21: 'Daily 21:00 (9:00 PM)',
+        optCalTomOff: 'Disable Tomorrow Preview',
+
+        labelCalInterval: 'Assistant reminder check frequency',
+        tipCalInterval: 'How often events requiring assistant dialogue reminders are checked',
+        optCalInt5m: 'Every 5 mins',
+        optCalInt10m: 'Every 10 mins',
+        optCalInt15m: 'Every 15 mins (Recommended)',
+        optCalInt30m: 'Every 30 mins',
+        optCalInt60m: 'Every 1 hour',
+
+        labelCalSound: 'Play notification sound for calendar alerts',
+        btnTestAllCal: '🔗 Test All Calendars',
+        btnCheckCalNow: '📅 Check Today & Tomorrow Agenda Now',
+
+        sectionHealth: '⏱️ Hydration & Rest Reminders',
+        enableHealth: '🍵 Enable Hydration & Stretch Reminders',
+        labelHealthInterval: 'Reminder Interval',
+        tipHealthInterval: 'The assistant will hold a cyber water bottle to remind you',
+        optHealth30m: 'Every 30 mins',
+        optHealth45m: 'Every 45 mins (Recommended)',
+        optHealth60m: 'Every 60 mins (1 Hour)',
+        optHealth90m: 'Every 90 mins (1.5 Hours)',
+        optHealth120m: 'Every 120 mins (2 Hours)',
+        labelHealthSound: 'Play crisp water droplet chime sound on reminder',
+        healthPreviewTitle: 'Cyber Hydro Tumbler 3D Energy Bottle',
+        healthPreviewDesc: 'The assistant replaces the tech globe with a sports water tumbler accompanied by floating ice, bubbles, and droplet chimes.',
+        btnTestHealth: '🍵 Test Water Reminder (Preview)',
+
+        enableTrivia: '💡 Enable Scheduled Online Trivia & Jokes',
+        secTitleTrivia: '💡 Online Life Facts & Clean Humor Rules',
+        labelTriviaCategory: 'Content Exploration Preference',
+        tipTriviaCategory: 'Customize your preference for trivia and clean joke topics',
+        optTriviaAll: '🎲 Mixed Random (Facts & Clean Jokes)',
+        optTriviaFact: '🔬 Life Facts & Science Trivia Only',
+        optTriviaJoke: '😄 Clean Humor & Workplace Jokes Only',
+        labelTriviaInterval: 'Exploration Interval',
+        tipTriviaInterval: 'The assistant will explore online and share interesting facts or jokes periodically',
+        optTrivia30m: 'Every 30 mins',
+        optTrivia60m: 'Every 60 mins (1 Hour, Recommended)',
+        optTrivia90m: 'Every 90 mins (1.5 Hours)',
+        optTrivia120m: 'Every 120 mins (2 Hours)',
+        labelTriviaSound: 'Play crisp chime sound on reminder',
+        triviaPreviewTitle: '100% Strict Content Safety Guardrails (Pure Online Fetch)',
+        triviaPreviewDesc: 'Built-in profanity and NSFW filtering ensuring all content is clean and safe. The assistant holds the Cyber Wisdom Lightbulb Orb 💡✨. If offline, notifications are silently skipped.',
+        btnExploreTrivia: '🎲 Explore Online Trivia Now (Live Preview)',
+
+        btnTestAll: '🔗 Test All Inboxes',
+        btnCheckNow: '🔄 Check All Inboxes Now',
+        btnSave: '💾 Save & Apply',
+
+        statusTesting: 'Testing connections, please wait... ⏳',
+        statusChecking: 'Checking now, please wait... ⏳',
+        statusSaveSuccess: (label) => `✅ Settings saved successfully! Polling started (every ${label}).`,
+        statusSaveFailed: (err) => `❌ Save failed: ${err}`,
+        statusElectronRequired: '⚠️ Please perform this action within the desktop assistant window'
+      }
+    };
+
+    const ipc = window.electronAPI || (typeof window.ipcRenderer !== 'undefined' ? window.ipcRenderer : null);
+
+    const providerDefaults = {
+      gmail: { host: 'imap.gmail.com', port: 993 },
+      outlook: { host: 'outlook.office365.com', port: 993 },
+      custom: { host: '', port: 993 }
+    };
+
+    let currentLanguage = 'zh-TW';
+    let detectedSystemTimezone = '';
+    let accountsList = [];
+    let calendarsList = [];
+    let alarmCustomPaths = [];
+    const alarmPreset = document.getElementById('alarm-preset');
+    const alarmUrl = document.getElementById('alarm-url');
+    const alarmDuration = document.getElementById('alarm-duration');
+    const alarmCustomSummary = document.getElementById('alarm-custom-summary');
+
+    // Email Elements
+    const enabledSwitch = document.getElementById('email-enabled');
+    const accountsContainer = document.getElementById('accounts-container');
+    const btnAddAccount = document.getElementById('btn-add-account');
+    const maxAgeSel = document.getElementById('rule-max-age');
+    const intervalSel = document.getElementById('rule-interval');
+    const soundCheck = document.getElementById('rule-sound');
+    const repeatCheck = document.getElementById('rule-repeat');
+    const emailStickyUnreadOnlyCheck = document.getElementById('email-sticky-unread-only');
+    const emailStickyMaxItemsInput = document.getElementById('email-sticky-max-items');
+    const emailPanelOpacityInput = document.getElementById('email-panel-opacity');
+    const emailPanelOpacityValue = document.getElementById('email-panel-opacity-value');
+    const btnTestAll = document.getElementById('btn-test-all');
+    const btnCheckNow = document.getElementById('btn-check-now');
+
+    // Calendar Elements
+    const calEnabledSwitch = document.getElementById('calendar-enabled');
+    const tzCurrentName = document.getElementById('tz-current-name');
+    const calendarsContainer = document.getElementById('calendars-container');
+    const btnAddCalendar = document.getElementById('btn-add-calendar');
+    const calAdvanceSel = document.getElementById('rule-cal-advance');
+    const calStickyDaysInput = document.getElementById('rule-cal-sticky-days');
+    const calStickyIntervalSel = document.getElementById('rule-cal-sticky-interval');
+    const calTomorrowHourSel = document.getElementById('rule-cal-tomorrow-hour');
+    const calIntervalSel = document.getElementById('rule-cal-interval');
+    const calSoundCheck = document.getElementById('rule-cal-sound');
+    const todoPanelOpacityInput = document.getElementById('todo-panel-opacity');
+    const calendarPanelOpacityInput = document.getElementById('calendar-panel-opacity');
+    const todoPanelOpacityValue = document.getElementById('todo-panel-opacity-value');
+    const calendarPanelOpacityValue = document.getElementById('calendar-panel-opacity-value');
+    const btnTestAllCal = document.getElementById('btn-test-all-cal');
+    const btnCheckCalNow = document.getElementById('btn-check-cal-now');
+
+    // Health Elements
+    const healthEnabledCheck = document.getElementById('health-enabled');
+    const healthIntervalSel = document.getElementById('health-interval');
+    const healthSoundCheck = document.getElementById('health-sound');
+    const btnTestHealth = document.getElementById('btn-test-health');
+
+    // Trivia Elements
+    const triviaEnabledCheck = document.getElementById('trivia-enabled');
+    const triviaCategorySel = document.getElementById('trivia-category');
+    const triviaIntervalSel = document.getElementById('trivia-interval');
+    const triviaSoundCheck = document.getElementById('trivia-sound');
+    const btnExploreTrivia = document.getElementById('btn-explore-trivia');
+    const triviaPreviewBox = document.getElementById('trivia-preview-box');
+    const trivResBadge = document.getElementById('triv-res-badge');
+    const trivResSource = document.getElementById('triv-res-source');
+    const trivResTitle = document.getElementById('triv-res-title');
+    const trivResContent = document.getElementById('triv-res-content');
+
+    // Common Elements
+    const btnSave = document.getElementById('btn-save');
+    const statusMsg = document.getElementById('status-msg');
+    const btnLangZh = document.getElementById('btn-lang-zh');
+    const btnLangEn = document.getElementById('btn-lang-en');
+
+    // Tab Switching
+    function switchTab(panelId) {
+      document.querySelectorAll('.tab-panel').forEach(panel => {
+        panel.classList.remove('active');
+        panel.style.display = 'none';
+      });
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+        btn.setAttribute('aria-selected', 'false');
+      });
+
+      const activePanel = document.getElementById(panelId);
+      if (activePanel) {
+        activePanel.classList.add('active');
+        activePanel.style.display = 'block';
+      }
+
+      const activeBtn = document.querySelector(`.tab-btn[data-tab="${panelId}"]`);
+      if (activeBtn) {
+        activeBtn.classList.add('active');
+        activeBtn.setAttribute('aria-selected', 'true');
+      }
+    }
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        switchTab(btn.dataset.tab);
+      });
+    });
+
+    // Language Switching
+    function applyLanguage(lang) {
+      if (lang !== 'zh-TW' && lang !== 'en') lang = 'zh-TW';
+      currentLanguage = lang;
+      const s = settingsLocales[lang] || settingsLocales['zh-TW'];
+
+      document.body.classList.toggle('lang-en', lang === 'en');
+      document.body.classList.toggle('lang-zh', lang === 'zh-TW');
+
+      document.title = s.windowTitle;
+      document.getElementById('header-title').textContent = s.headerTitle;
+      document.getElementById('header-subtitle').textContent = s.headerSubtitle;
+      document.getElementById('tab-label-email').textContent = s.tabEmail;
+      document.getElementById('tab-label-calendar').textContent = s.tabCalendar;
+      document.getElementById('tab-label-health').textContent = s.tabHealth;
+      document.getElementById('tab-label-trivia').textContent = s.tabTrivia;
+      document.getElementById('tab-label-alarm').textContent = s.tabSticky;
+      document.getElementById('label-enable-switch').textContent = '🔔 ' + s.enableSwitch;
+
+      // Email Section
+      document.getElementById('sec-title-accounts').textContent = s.sectionAccounts;
+      document.getElementById('sec-title-email-sticky').textContent = s.emailStickyAppearance;
+      document.getElementById('label-email-panel-opacity').innerHTML = `<strong>${s.emailPanelOpacity}</strong>`;
+      document.getElementById('label-email-sticky-max-items').innerHTML = `<strong>${s.emailStickyMaxItems}</strong>`;
+      document.getElementById('tip-email-sticky-max-items').textContent = s.emailStickyMaxItemsTip;
+      document.getElementById('label-email-sticky-unread-only').textContent = s.emailStickyUnreadOnly;
+      document.getElementById('btn-add-account-text').textContent = s.btnAddAccount;
+
+      const gTitle = document.getElementById('gmail-guide-title');
+      const gStep1 = document.getElementById('gmail-guide-step1');
+      const gLink = document.getElementById('gmail-guide-link');
+      const gStep3 = document.getElementById('gmail-guide-step3');
+      const gStep4 = document.getElementById('gmail-guide-step4');
+      if (gTitle) gTitle.textContent = s.gmailGuideTitle;
+      if (gStep1) gStep1.innerHTML = s.gmailGuideStep1;
+      if (gLink) gLink.textContent = s.gmailGuideStep2Link;
+      if (gStep3) gStep3.textContent = s.gmailGuideStep3;
+      if (gStep4) gStep4.innerHTML = s.gmailGuideStep4;
+
+      document.getElementById('sec-title-rules').textContent = s.sectionRules;
+      document.getElementById('label-max-age').innerHTML = `<strong>${s.labelMaxAge}</strong>`;
+      document.getElementById('tip-max-age').textContent = s.tipMaxAge;
+      document.getElementById('opt-age-30m').textContent = s.optMaxAge30m;
+      document.getElementById('opt-age-1h').textContent = s.optMaxAge1h;
+      document.getElementById('opt-age-2h').textContent = s.optMaxAge2h;
+      document.getElementById('opt-age-6h').textContent = s.optMaxAge6h;
+      document.getElementById('opt-age-12h').textContent = s.optMaxAge12h;
+      document.getElementById('opt-age-24h').textContent = s.optMaxAge24h;
+      document.getElementById('opt-age-48h').textContent = s.optMaxAge48h;
+
+      document.getElementById('label-interval').innerHTML = `<strong>${s.labelInterval}</strong>`;
+      document.getElementById('tip-interval').textContent = s.tipInterval;
+      document.getElementById('opt-int-1m').textContent = s.optInterval1m;
+      document.getElementById('opt-int-3m').textContent = s.optInterval3m;
+      document.getElementById('opt-int-5m').textContent = s.optInterval5m;
+      document.getElementById('opt-int-10m').textContent = s.optInterval10m;
+      document.getElementById('opt-int-15m').textContent = s.optInterval15m;
+      document.getElementById('opt-int-30m').textContent = s.optInterval30m;
+      document.getElementById('opt-int-60m').textContent = s.optInterval60m;
+
+      document.getElementById('label-sound').textContent = s.labelSound;
+      document.getElementById('label-repeat').textContent = s.labelRepeat;
+      btnTestAll.textContent = s.btnTestAll;
+      btnCheckNow.textContent = s.btnCheckNow;
+
+      // Calendar Section
+      document.getElementById('label-enable-calendar').textContent = s.enableCalendar;
+      document.getElementById('tz-label-title').textContent = s.tzLabelTitle;
+      if (tzCurrentName) {
+        if (detectedSystemTimezone) {
+          tzCurrentName.textContent = `${detectedSystemTimezone} ${s.tzNote}`;
+        } else {
+          tzCurrentName.textContent = lang === 'en' ? 'Reading Windows system timezone...' : '讀取 Windows 系統時區中...';
+        }
+      }
+      document.getElementById('sec-title-calendars').textContent = s.sectionCalendars;
+      document.getElementById('sec-title-panel-opacity').textContent = s.todoPanelAppearance;
+      document.getElementById('sec-title-calendar-opacity').textContent = s.calendarPanelAppearance;
+      document.getElementById('label-todo-panel-opacity').innerHTML = `<strong>${s.todoPanelOpacity}</strong>`;
+      document.getElementById('label-calendar-panel-opacity').innerHTML = `<strong>${s.calendarPanelOpacity}</strong>`;
+      document.getElementById('btn-add-calendar-text').textContent = s.btnAddCalendar;
+
+      const calGTitle = document.getElementById('cal-guide-title');
+      const calGStep1 = document.getElementById('cal-guide-step1');
+      const calGStep2 = document.getElementById('cal-guide-step2');
+      const calGStep3 = document.getElementById('cal-guide-step3');
+      const calGStep4 = document.getElementById('cal-guide-step4');
+      if (calGTitle) calGTitle.textContent = s.calGuideTitle;
+      if (calGStep1) calGStep1.innerHTML = s.calGuideStep1;
+      if (calGStep2) calGStep2.innerHTML = s.calGuideStep2;
+      if (calGStep3) calGStep3.innerHTML = s.calGuideStep3;
+      if (calGStep4) calGStep4.innerHTML = s.calGuideStep4;
+
+      document.getElementById('sec-title-cal-rules').textContent = s.sectionCalRules;
+      document.getElementById('sec-title-cal-sticky-rules').textContent = s.sectionCalStickyRules;
+      document.getElementById('label-cal-sticky-days').innerHTML = `<strong>${s.labelCalStickyDays}</strong>`;
+      document.getElementById('tip-cal-sticky-days').textContent = s.tipCalStickyDays;
+      document.getElementById('label-cal-sticky-interval').innerHTML = `<strong>${s.labelCalStickyInterval}</strong>`;
+      document.getElementById('tip-cal-sticky-interval').textContent = s.tipCalStickyInterval;
+      document.getElementById('label-cal-advance').innerHTML = `<strong>${s.labelCalAdvance}</strong>`;
+      document.getElementById('tip-cal-advance').textContent = s.tipCalAdvance;
+      document.getElementById('opt-cal-adv-5m').textContent = s.optCalAdv5m;
+      document.getElementById('opt-cal-adv-10m').textContent = s.optCalAdv10m;
+      document.getElementById('opt-cal-adv-15m').textContent = s.optCalAdv15m;
+      document.getElementById('opt-cal-adv-30m').textContent = s.optCalAdv30m;
+
+      document.getElementById('label-cal-tomorrow-hour').innerHTML = `<strong>${s.labelCalTomorrowHour}</strong>`;
+      document.getElementById('tip-cal-tomorrow-hour').textContent = s.tipCalTomorrowHour;
+      document.getElementById('opt-cal-tom-17').textContent = s.optCalTom17;
+      document.getElementById('opt-cal-tom-18').textContent = s.optCalTom18;
+      document.getElementById('opt-cal-tom-19').textContent = s.optCalTom19;
+      document.getElementById('opt-cal-tom-20').textContent = s.optCalTom20;
+      document.getElementById('opt-cal-tom-21').textContent = s.optCalTom21;
+      document.getElementById('opt-cal-tom-off').textContent = s.optCalTomOff;
+
+      document.getElementById('label-cal-interval').innerHTML = `<strong>${s.labelCalInterval}</strong>`;
+      document.getElementById('tip-cal-interval').textContent = s.tipCalInterval;
+      document.getElementById('opt-cal-int-5m').textContent = s.optCalInt5m;
+      document.getElementById('opt-cal-int-10m').textContent = s.optCalInt10m;
+      document.getElementById('opt-cal-int-15m').textContent = s.optCalInt15m;
+      document.getElementById('opt-cal-int-30m').textContent = s.optCalInt30m;
+      document.getElementById('opt-cal-int-60m').textContent = s.optCalInt60m;
+
+      document.getElementById('label-cal-sound').textContent = s.labelCalSound;
+      btnTestAllCal.textContent = s.btnTestAllCal;
+      btnCheckCalNow.textContent = s.btnCheckCalNow;
+
+      // Health Section
+      document.getElementById('label-enable-health').textContent = s.enableHealth;
+      document.getElementById('sec-title-health').textContent = s.sectionHealth;
+      document.getElementById('label-health-interval').innerHTML = `<strong>${s.labelHealthInterval}</strong>`;
+      document.getElementById('tip-health-interval').textContent = s.tipHealthInterval;
+      document.getElementById('opt-health-30m').textContent = s.optHealth30m;
+      document.getElementById('opt-health-45m').textContent = s.optHealth45m;
+      document.getElementById('opt-health-60m').textContent = s.optHealth60m;
+      document.getElementById('opt-health-90m').textContent = s.optHealth90m;
+      document.getElementById('opt-health-120m').textContent = s.optHealth120m;
+      document.getElementById('label-health-sound').textContent = s.labelHealthSound;
+      document.getElementById('health-preview-title').textContent = s.healthPreviewTitle;
+      document.getElementById('health-preview-desc').textContent = s.healthPreviewDesc;
+      btnTestHealth.textContent = s.btnTestHealth;
+
+      // Trivia Section
+      document.getElementById('tab-label-trivia').textContent = s.tabTrivia;
+      document.getElementById('label-enable-trivia').textContent = s.enableTrivia;
+      document.getElementById('sec-title-trivia').textContent = s.secTitleTrivia;
+      document.getElementById('label-trivia-category').innerHTML = `<strong>${s.labelTriviaCategory}</strong>`;
+      document.getElementById('tip-trivia-category').textContent = s.tipTriviaCategory;
+      document.getElementById('opt-trivia-all').textContent = s.optTriviaAll;
+      document.getElementById('opt-trivia-fact').textContent = s.optTriviaFact;
+      document.getElementById('opt-trivia-joke').textContent = s.optTriviaJoke;
+      document.getElementById('label-trivia-interval').innerHTML = `<strong>${s.labelTriviaInterval}</strong>`;
+      document.getElementById('tip-trivia-interval').textContent = s.tipTriviaInterval;
+      document.getElementById('opt-trivia-30m').textContent = s.optTrivia30m;
+      document.getElementById('opt-trivia-60m').textContent = s.optTrivia60m;
+      document.getElementById('opt-trivia-90m').textContent = s.optTrivia90m;
+      document.getElementById('opt-trivia-120m').textContent = s.optTrivia120m;
+      document.getElementById('label-trivia-sound').textContent = s.labelTriviaSound;
+      document.getElementById('trivia-preview-title').textContent = s.triviaPreviewTitle;
+      document.getElementById('trivia-preview-desc').textContent = s.triviaPreviewDesc;
+      btnExploreTrivia.textContent = s.btnExploreTrivia;
+
+      btnSave.textContent = s.btnSave;
+
+      btnLangZh.classList.toggle('active', lang === 'zh-TW');
+      btnLangEn.classList.toggle('active', lang === 'en');
+
+      renderAccountsList();
+      renderCalendarsList();
+    }
+
+    [btnLangZh, btnLangEn].forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const lang = btn.dataset.lang;
+        applyLanguage(lang);
+        if (ipc) {
+          try {
+            await ipc.invoke('set-language', lang);
+          } catch (e) {
+            console.error('Error invoking set-language:', e);
+          }
+        }
+      });
+    });
+
+    function showStatus(text, isError = false) {
+      statusMsg.className = 'status-msg ' + (isError ? 'error' : 'success');
+      statusMsg.textContent = text;
+    }
+
+    function escapeAttr(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    // =========================================================================
+    // Dynamic Email Accounts List
+    // =========================================================================
+    function renderAccountsList() {
+      const s = settingsLocales[currentLanguage] || settingsLocales['zh-TW'];
+      const categoryOptions = [
+        ['primary', s.emailCategoryPrimary],
+        ['purchases', s.emailCategoryPurchases],
+        ['social', s.emailCategorySocial],
+        ['updates', s.emailCategoryUpdates],
+        ['promotions', s.emailCategoryPromotions],
+        ['forums', s.emailCategoryForums]
+      ];
+      accountsContainer.innerHTML = '';
+
+      if (!accountsList || accountsList.length === 0) {
+        accountsList = [
+          {
+            id: 'acc-1',
+            name: currentLanguage === 'en' ? 'Main Inbox' : '主要信箱',
+            enabled: true,
+            provider: 'gmail',
+            host: 'imap.gmail.com',
+            port: 993,
+            secure: true,
+            assistantReminder: true,
+            importToSticky: false,
+            stickyCategories: categoryOptions.map(([value]) => value),
+            availableCustomLabels: [],
+            stickyCustomLabels: [],
+            includeArchivedLabeled: false,
+            user: '',
+            pass: ''
+          }
+        ];
+      }
+
+      accountsList.forEach((acc, index) => {
+        const card = document.createElement('div');
+        card.className = 'account-card';
+        card.dataset.id = acc.id;
+
+        const provider = acc.provider || 'gmail';
+        const selectedCategories = Array.isArray(acc.stickyCategories)
+          ? acc.stickyCategories
+          : categoryOptions.map(([value]) => value);
+        acc.stickyCategories = [...selectedCategories];
+        const availableCustomLabels = Array.isArray(acc.availableCustomLabels) ? acc.availableCustomLabels : [];
+        const selectedCustomLabels = Array.isArray(acc.stickyCustomLabels) ? acc.stickyCustomLabels : [];
+        acc.availableCustomLabels = [...availableCustomLabels];
+        acc.stickyCustomLabels = [...selectedCustomLabels];
+
+        card.innerHTML = `
+          <div class="account-card-header">
+            <div class="account-title-left">
+              <span class="account-badge">#${index + 1}</span>
+              <input type="text" class="account-name-input" value="${escapeAttr(acc.name || (currentLanguage === 'en' ? 'Inbox ' + (index+1) : '信箱 ' + (index+1)))}" placeholder="${s.placeholderAccountName}" title="${s.labelAccountName}">
+            </div>
+            <div class="account-actions-right">
+              <button type="button" class="btn-test-single" title="🔗 ${s.btnTestAccount}">🔗 ${s.btnTestAccount}</button>
+              <div class="switch-wrap" title="${s.accountSwitchLabel}">
+                <label class="switch small" for="acc-enable-${acc.id}">
+                  <input type="checkbox" id="acc-enable-${acc.id}" class="acc-enable-switch" ${acc.enabled !== false ? 'checked' : ''}>
+                  <span class="slider"></span>
+                </label>
+              </div>
+              ${accountsList.length > 1 ? `<button type="button" class="btn-del-account" title="${s.btnDeleteAccount}">🗑️</button>` : ''}
+            </div>
+          </div>
+
+          <div class="account-delivery-options">
+            <label class="switch-wrap" title="${s.importEmailSticky}">
+              <span>${s.importEmailSticky}</span>
+              <span class="switch small">
+                <input type="checkbox" class="acc-sticky-switch" ${acc.importToSticky === true ? 'checked' : ''}>
+                <span class="slider"></span>
+              </span>
+            </label>
+            <label class="switch-wrap" title="${s.assistantEmailReminder}">
+              <span>${s.assistantEmailReminder}</span>
+              <span class="switch small">
+                <input type="checkbox" class="acc-reminder-switch" ${acc.assistantReminder !== false ? 'checked' : ''}>
+                <span class="slider"></span>
+              </span>
+            </label>
+          </div>
+
+          <fieldset class="email-category-options" ${provider === 'gmail' ? '' : 'hidden'}>
+            <legend>${s.emailStickyCategories}</legend>
+            <div class="email-category-grid">
+              ${categoryOptions.map(([value, label]) => `
+                <label class="email-category-option">
+                  <input type="checkbox" value="${value}" ${selectedCategories.includes(value) ? 'checked' : ''}>
+                  <span>${label}</span>
+                </label>`).join('')}
+            </div>
+          </fieldset>
+
+          <div class="gmail-custom-labels" ${provider === 'gmail' ? '' : 'hidden'}>
+            <div class="gmail-custom-labels-header">
+              <strong>${s.customGmailLabels}</strong>
+              <button type="button" class="btn-sync-gmail-labels">🔄 ${s.syncGmailLabels}</button>
+            </div>
+            ${availableCustomLabels.length ? `
+              <div class="gmail-custom-label-grid">
+                ${availableCustomLabels.map(label => `
+                  <label class="email-category-option">
+                    <input type="checkbox" class="gmail-custom-label-input" data-label="${escapeAttr(label)}" ${selectedCustomLabels.includes(label) ? 'checked' : ''}>
+                    <span>${escapeAttr(label)}</span>
+                  </label>`).join('')}
+              </div>` : `<div class="gmail-label-empty">${s.noCustomGmailLabels}</div>`}
+            <label class="checkbox-wrap gmail-archived-option">
+              <input type="checkbox" class="gmail-include-archived" ${acc.includeArchivedLabeled === true ? 'checked' : ''}>
+              <span>${s.includeArchivedLabeled}</span>
+            </label>
+          </div>
+
+          <div class="provider-chips" role="radiogroup" aria-label="Email Provider">
+            <button type="button" class="chip ${provider === 'gmail' ? 'active' : ''}" data-provider="gmail" role="radio" aria-checked="${provider === 'gmail'}">Gmail</button>
+            <button type="button" class="chip ${provider === 'outlook' ? 'active' : ''}" data-provider="outlook" role="radio" aria-checked="${provider === 'outlook'}">Outlook / 365</button>
+            <button type="button" class="chip ${provider === 'custom' ? 'active' : ''}" data-provider="custom" role="radio" aria-checked="${provider === 'custom'}">${s.providerCustom}</button>
+          </div>
+
+          <div class="form-group">
+            <label for="acc-user-${acc.id}">${s.labelUser}</label>
+            <input type="email" id="acc-user-${acc.id}" class="acc-user-input" value="${escapeAttr(acc.user || '')}" autocomplete="email" placeholder="${s.placeholderUser}">
+          </div>
+
+          <div class="form-group">
+            <label for="acc-pass-${acc.id}">${s.labelPass}</label>
+            <input type="password" id="acc-pass-${acc.id}" class="acc-pass-input" value="${escapeAttr(acc.pass || '')}" autocomplete="current-password" placeholder="${s.placeholderPass}">
+          </div>
+
+          <div class="row">
+            <div class="col col-2">
+              <label for="acc-host-${acc.id}">${s.labelHost}</label>
+              <input type="text" id="acc-host-${acc.id}" class="acc-host-input" value="${escapeAttr(acc.host || providerDefaults[provider].host)}" autocomplete="off">
+            </div>
+            <div class="col">
+              <label for="acc-port-${acc.id}">${s.labelPort}</label>
+              <input type="number" id="acc-port-${acc.id}" class="acc-port-input" min="1" max="65535" value="${acc.port || providerDefaults[provider].port}">
+            </div>
+          </div>
+        `;
+
+        const nameInp = card.querySelector('.account-name-input');
+        const enableInp = card.querySelector('.acc-enable-switch');
+        const stickyInp = card.querySelector('.acc-sticky-switch');
+        const reminderInp = card.querySelector('.acc-reminder-switch');
+        const categoryFieldset = card.querySelector('.email-category-options');
+        const customLabelsPanel = card.querySelector('.gmail-custom-labels');
+        const customLabelInputs = card.querySelectorAll('.gmail-custom-label-input');
+        const includeArchivedInput = card.querySelector('.gmail-include-archived');
+        const syncLabelsButton = card.querySelector('.btn-sync-gmail-labels');
+        const chips = card.querySelectorAll('.chip');
+        const userInp = card.querySelector('.acc-user-input');
+        const passInp = card.querySelector('.acc-pass-input');
+        const hostInp = card.querySelector('.acc-host-input');
+        const portInp = card.querySelector('.acc-port-input');
+        const btnTestSingle = card.querySelector('.btn-test-single');
+        const btnDel = card.querySelector('.btn-del-account');
+
+        nameInp.addEventListener('input', (e) => { acc.name = e.target.value; });
+        enableInp.addEventListener('change', (e) => { acc.enabled = e.target.checked; });
+        stickyInp.addEventListener('change', (e) => { acc.importToSticky = e.target.checked; });
+        reminderInp.addEventListener('change', (e) => { acc.assistantReminder = e.target.checked; });
+        card.querySelectorAll('.email-category-grid .email-category-option input').forEach(input => {
+          input.addEventListener('change', () => {
+            acc.stickyCategories = [...card.querySelectorAll('.email-category-grid .email-category-option input')]
+              .filter(item => item.checked).map(item => item.value);
+          });
+        });
+        customLabelInputs.forEach(input => {
+          input.addEventListener('change', () => {
+            acc.stickyCustomLabels = [...customLabelInputs].filter(item => item.checked).map(item => item.dataset.label);
+          });
+        });
+        includeArchivedInput.addEventListener('change', event => { acc.includeArchivedLabeled = event.target.checked; });
+        syncLabelsButton.addEventListener('click', async () => {
+          if (!ipc) return;
+          syncLabelsButton.disabled = true;
+          syncLabelsButton.textContent = `⏳ ${s.syncingGmailLabels}`;
+          try {
+            const result = await ipc.invoke('email-list-labels', {
+              id: acc.id,
+              name: nameInp.value.trim(),
+              provider: acc.provider,
+              user: userInp.value.trim(),
+              pass: passInp.value.trim(),
+              host: hostInp.value.trim(),
+              port: parseInt(portInp.value, 10) || 993,
+              secure: true
+            });
+            if (!result || result.success === false) {
+              showStatus(`❌ ${(result && result.error) || 'Gmail 標籤同步失敗'}`, true);
+              return;
+            }
+            const labels = (result.labels || []).map(item => item.path).filter(Boolean);
+            acc.availableCustomLabels = labels;
+            acc.stickyCustomLabels = (acc.stickyCustomLabels || []).filter(label => labels.includes(label));
+            showStatus(currentLanguage === 'en'
+              ? `✅ Synced ${labels.length} custom Gmail label(s).`
+              : `✅ 已同步 ${labels.length} 個 Gmail 自訂標籤。`);
+            renderAccountsList();
+          } catch (err) {
+            showStatus(`❌ ${err.message}`, true);
+          } finally {
+            if (syncLabelsButton.isConnected) {
+              syncLabelsButton.disabled = false;
+              syncLabelsButton.textContent = `🔄 ${s.syncGmailLabels}`;
+            }
+          }
+        });
+        userInp.addEventListener('input', (e) => { acc.user = e.target.value; });
+        passInp.addEventListener('input', (e) => { acc.pass = e.target.value; });
+        hostInp.addEventListener('input', (e) => { acc.host = e.target.value; });
+        portInp.addEventListener('input', (e) => { acc.port = parseInt(e.target.value, 10) || 993; });
+
+        chips.forEach(chip => {
+          chip.addEventListener('click', () => {
+            chips.forEach(c => {
+              c.classList.remove('active');
+              c.setAttribute('aria-checked', 'false');
+            });
+            chip.classList.add('active');
+            chip.setAttribute('aria-checked', 'true');
+            const prov = chip.dataset.provider;
+            acc.provider = prov;
+            categoryFieldset.hidden = prov !== 'gmail';
+            customLabelsPanel.hidden = prov !== 'gmail';
+            if (providerDefaults[prov]) {
+              acc.host = providerDefaults[prov].host;
+              acc.port = providerDefaults[prov].port;
+              hostInp.value = acc.host;
+              portInp.value = acc.port;
+            }
+            const anyGmail = accountsList.some(a => (a.provider || 'gmail') === 'gmail');
+            const gGuide = document.getElementById('gmail-guide-box');
+            if (gGuide) gGuide.style.display = anyGmail ? 'block' : 'none';
+          });
+        });
+
+        if (btnDel) {
+          btnDel.addEventListener('click', () => {
+            if (confirm(s.deleteConfirm)) {
+              accountsList.splice(index, 1);
+              renderAccountsList();
+            }
+          });
+        }
+
+        btnTestSingle.addEventListener('click', async () => {
+          if (!ipc) {
+            showStatus(s.statusElectronRequired, true);
+            return;
+          }
+          showStatus(`⏳ [${acc.name || acc.user || '#' + (index+1)}] ${s.statusTesting}`);
+          try {
+            const currentAccData = {
+              provider: acc.provider,
+              name: nameInp.value.trim(),
+              user: userInp.value.trim(),
+              pass: passInp.value.trim(),
+              host: hostInp.value.trim(),
+              port: parseInt(portInp.value, 10) || 993,
+              secure: true
+            };
+            const res = await ipc.invoke('email-test-connection', currentAccData);
+            if (res.success) {
+              showStatus(`✅ [${currentAccData.name || currentAccData.user}] ` + res.message);
+            } else {
+              showStatus(`❌ [${currentAccData.name || currentAccData.user}] ` + res.error, true);
+            }
+          } catch (err) {
+            showStatus(`❌ [${acc.name}] ` + err.message, true);
+          }
+        });
+
+        accountsContainer.appendChild(card);
+      });
+
+      const hasGmail = accountsList.some(a => (a.provider || 'gmail') === 'gmail');
+      const globalGuide = document.getElementById('gmail-guide-box');
+      if (globalGuide) {
+        globalGuide.style.display = hasGmail ? 'block' : 'none';
+      }
+    }
+
+    // Add Account Button
+    btnAddAccount.addEventListener('click', () => {
+      const newId = 'acc-' + (Date.now());
+      accountsList.push({
+        id: newId,
+        name: currentLanguage === 'en' ? `Inbox ${accountsList.length + 1}` : `信箱 ${accountsList.length + 1}`,
+        enabled: true,
+        provider: 'gmail',
+        host: 'imap.gmail.com',
+        port: 993,
+        secure: true,
+        assistantReminder: true,
+        importToSticky: false,
+        stickyCategories: ['primary', 'purchases', 'social', 'updates', 'promotions', 'forums'],
+        availableCustomLabels: [],
+        stickyCustomLabels: [],
+        includeArchivedLabeled: false,
+        user: '',
+        pass: ''
+      });
+      renderAccountsList();
+    });
+
+    // =========================================================================
+    // Dynamic Google Calendars List
+    // =========================================================================
+    function renderCalendarsList() {
+      const s = settingsLocales[currentLanguage] || settingsLocales['zh-TW'];
+      calendarsContainer.innerHTML = '';
+
+      if (!calendarsList || calendarsList.length === 0) {
+        calendarsList = [
+          {
+            id: 'cal-1',
+            name: currentLanguage === 'en' ? 'Main Google Calendar' : '主要 Google 日曆',
+            color: '#38bdf8',
+            enabled: true,
+            assistantReminder: true,
+            importToSticky: false,
+            url: ''
+          }
+        ];
+      }
+
+      const colorPalette = ['#38bdf8', '#34d399', '#fbbf24', '#f472b6', '#a78bfa', '#fb7185'];
+
+      calendarsList.forEach((cal, index) => {
+        const card = document.createElement('div');
+        card.className = 'account-card';
+        card.dataset.id = cal.id;
+
+        const calColor = cal.color || colorPalette[index % colorPalette.length];
+
+        card.innerHTML = `
+          <div class="account-card-header">
+            <div class="account-title-left">
+              <span class="cal-badge" style="background: ${calColor}33; color: ${calColor};">
+                <span class="cal-color-dot" style="background: ${calColor};"></span>
+                #${index + 1}
+              </span>
+              <input type="text" class="account-name-input cal-name-input" value="${escapeAttr(cal.name || (currentLanguage === 'en' ? 'Calendar ' + (index+1) : '日曆 ' + (index+1)))}" placeholder="${s.placeholderCalName}" title="${s.labelCalName}">
+            </div>
+            <div class="account-actions-right">
+              <button type="button" class="btn-test-single btn-test-cal-single" title="${s.btnTestCal}">🔗 ${s.btnTestCal}</button>
+              <div class="switch-wrap" title="${s.enableCalendarSource}">
+                <span style="font-size:.72rem;white-space:nowrap">${s.enableCalendarSource}</span>
+                <label class="switch small" for="cal-enable-${cal.id}">
+                  <input type="checkbox" id="cal-enable-${cal.id}" class="cal-enable-switch" ${cal.enabled !== false ? 'checked' : ''}>
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <label class="switch-wrap" title="${s.importCalendarSticky}">
+                <span style="font-size:.72rem;white-space:nowrap">${s.importCalendarSticky}</span>
+                <span class="switch small">
+                  <input type="checkbox" class="cal-sticky-switch" ${cal.importToSticky === true ? 'checked' : ''}>
+                  <span class="slider"></span>
+                </span>
+              </label>
+              <label class="switch-wrap" title="${s.assistantCalendarReminder}">
+                <span style="font-size:.72rem;white-space:nowrap">${s.assistantCalendarReminder}</span>
+                <span class="switch small">
+                  <input type="checkbox" class="cal-reminder-switch" ${cal.assistantReminder !== false ? 'checked' : ''}>
+                  <span class="slider"></span>
+                </span>
+              </label>
+              ${calendarsList.length > 1 ? `<button type="button" class="btn-del-account btn-del-cal" title="${s.btnDeleteCal}">🗑️</button>` : ''}
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="cal-url-${cal.id}">${s.labelCalUrl}</label>
+            <input type="text" id="cal-url-${cal.id}" class="cal-url-input" value="${escapeAttr(cal.url || '')}" placeholder="${s.placeholderCalUrl}" autocomplete="off">
+          </div>
+        `;
+
+        const nameInp = card.querySelector('.cal-name-input');
+        const enableInp = card.querySelector('.cal-enable-switch');
+        const stickyInp = card.querySelector('.cal-sticky-switch');
+        const reminderInp = card.querySelector('.cal-reminder-switch');
+        const urlInp = card.querySelector('.cal-url-input');
+        const btnTestSingle = card.querySelector('.btn-test-cal-single');
+        const btnDel = card.querySelector('.btn-del-cal');
+
+        nameInp.addEventListener('input', (e) => { cal.name = e.target.value; });
+        enableInp.addEventListener('change', (e) => { cal.enabled = e.target.checked; });
+        stickyInp.addEventListener('change', (e) => { cal.importToSticky = e.target.checked; });
+        reminderInp.addEventListener('change', (e) => { cal.assistantReminder = e.target.checked; });
+        urlInp.addEventListener('input', (e) => { cal.url = e.target.value.trim(); });
+
+        if (btnDel) {
+          btnDel.addEventListener('click', () => {
+            if (confirm(s.deleteCalConfirm)) {
+              calendarsList.splice(index, 1);
+              renderCalendarsList();
+            }
+          });
+        }
+
+        btnTestSingle.addEventListener('click', async () => {
+          if (!ipc) {
+            showStatus(s.statusElectronRequired, true);
+            return;
+          }
+          showStatus(`⏳ [${cal.name || '#' + (index+1)}] ${s.statusTesting}`);
+          try {
+            const currentCalData = {
+              id: cal.id,
+              name: nameInp.value.trim(),
+              url: urlInp.value.trim(),
+              color: cal.color || '#38bdf8'
+            };
+            const res = await ipc.invoke('calendar-test-connection', currentCalData);
+            if (res.success) {
+              let msg = `✅ [${currentCalData.name}] ${res.message}`;
+              if (res.sampleEvents && res.sampleEvents.length > 0) {
+                msg += '\n📌 今日行程：\n' + res.sampleEvents.join('\n');
+              }
+              showStatus(msg);
+            } else {
+              showStatus(`❌ [${currentCalData.name}] ` + res.error, true);
+            }
+          } catch (err) {
+            showStatus(`❌ [${cal.name}] ` + err.message, true);
+          }
+        });
+
+        calendarsContainer.appendChild(card);
+      });
+    }
+
+    // Add Calendar Button
+    btnAddCalendar.addEventListener('click', () => {
+      const colorPalette = ['#38bdf8', '#34d399', '#fbbf24', '#f472b6', '#a78bfa', '#fb7185'];
+      const newId = 'cal-' + (Date.now());
+      calendarsList.push({
+        id: newId,
+        name: currentLanguage === 'en' ? `Google Calendar ${calendarsList.length + 1}` : `Google 日曆 ${calendarsList.length + 1}`,
+        color: colorPalette[calendarsList.length % colorPalette.length],
+        enabled: true,
+        assistantReminder: true,
+        importToSticky: false,
+        url: ''
+      });
+      renderCalendarsList();
+    });
+
+    // =========================================================================
+    // Data Gathering & Saving
+    // =========================================================================
+    function getEmailFormData() {
+      return {
+        language: currentLanguage,
+        enabled: enabledSwitch.checked,
+        accounts: accountsList.map(a => ({
+          id: a.id,
+          name: a.name || '主要信箱',
+          enabled: a.enabled !== false,
+          assistantReminder: a.assistantReminder !== false,
+          importToSticky: a.importToSticky === true,
+          stickyCategories: Array.isArray(a.stickyCategories) ? [...a.stickyCategories] : ['primary', 'purchases', 'social', 'updates', 'promotions', 'forums'],
+          availableCustomLabels: Array.isArray(a.availableCustomLabels) ? [...a.availableCustomLabels] : [],
+          stickyCustomLabels: Array.isArray(a.stickyCustomLabels) ? [...a.stickyCustomLabels] : [],
+          includeArchivedLabeled: a.includeArchivedLabeled === true,
+          provider: a.provider || 'gmail',
+          host: a.host || providerDefaults[a.provider || 'gmail'].host,
+          port: parseInt(a.port, 10) || 993,
+          secure: true,
+          user: (a.user || '').trim(),
+          pass: (a.pass || '').trim()
+        })),
+        rules: {
+          maxAgeHours: parseFloat(maxAgeSel.value) || 2,
+          checkIntervalMinutes: parseInt(intervalSel.value, 10) || 5,
+          soundEnabled: soundCheck.checked,
+          repeatNotification: repeatCheck.checked,
+          stickyUnreadOnly: emailStickyUnreadOnlyCheck.checked,
+          stickyMaxItems: Math.max(1, Math.min(30, parseInt(emailStickyMaxItemsInput.value, 10) || 8))
+        },
+        health: {
+          enabled: healthEnabledCheck.checked,
+          intervalMinutes: parseInt(healthIntervalSel.value, 10) || 45,
+          soundEnabled: healthSoundCheck.checked
+        }
+      };
+    }
+
+    function getCalendarFormData() {
+      return {
+        language: currentLanguage,
+        enabled: calEnabledSwitch.checked,
+        calendars: calendarsList.map(c => ({
+          id: c.id,
+          name: c.name || 'Google 日曆',
+          color: c.color || '#38bdf8',
+          enabled: c.enabled !== false,
+          assistantReminder: c.assistantReminder !== false,
+          importToSticky: c.importToSticky === true,
+          url: (c.url || '').trim()
+        })),
+        rules: {
+          stickyDisplayDays: Math.max(1, Math.min(30, parseInt(calStickyDaysInput.value, 10) || 7)),
+          stickyCheckIntervalMinutes: parseInt(calStickyIntervalSel.value, 10) || 15,
+          reminderCheckIntervalMinutes: parseInt(calIntervalSel.value, 10) || 15,
+          remindAdvanceMinutes: parseInt(calAdvanceSel.value, 10) || 15,
+          tomorrowPreviewHour: parseInt(calTomorrowHourSel.value, 10) || 18,
+          checkIntervalMinutes: parseInt(calIntervalSel.value, 10) || 15,
+          soundEnabled: calSoundCheck.checked
+        }
+      };
+    }
+
+    function getTriviaFormData() {
+      return {
+        enabled: triviaEnabledCheck.checked,
+        category: triviaCategorySel.value,
+        intervalMinutes: parseInt(triviaIntervalSel.value, 10) || 60,
+        soundEnabled: triviaSoundCheck.checked
+      };
+    }
+
+    function getAlarmFormData() {
+      return {
+        soundType: document.querySelector('input[name="alarm-sound-type"]:checked')?.value || 'preset',
+        preset: alarmPreset.value,
+        customPaths: alarmCustomPaths,
+        url: alarmUrl.value.trim(),
+        duration: alarmDuration.value
+      };
+    }
+
+    function renderAlarmPaths() {
+      alarmCustomSummary.textContent = alarmCustomPaths.length
+        ? `已讀取 ${alarmCustomPaths.length} 個音頻檔案，響鈴時隨機播放。`
+        : '尚未選擇音頻；資料夾內多首音頻將隨機播放。';
+    }
+
+    // Load Initial Config
+    async function loadConfig() {
+      if (!ipc) {
+        renderAccountsList();
+        renderCalendarsList();
+        return;
+      }
+      try {
+        const [emailCfg, calCfg, triviaCfg, alarmCfg, appVersion, panelOpacity] = await Promise.all([
+          ipc.invoke('email-get-config'),
+          ipc.invoke('calendar-get-config'),
+          ipc.invoke('trivia-get-config'),
+          ipc.invoke('alarm-get-config'),
+          ipc.invoke('get-app-version'),
+          ipc.invoke('get-panel-opacity')
+        ]);
+
+        if (panelOpacity) {
+          // The stored/CSS value is opacity, while the setting shown to users is transparency.
+          emailPanelOpacityInput.value = Math.round((1 - Number(panelOpacity.email ?? 1)) * 100);
+          todoPanelOpacityInput.value = Math.round((1 - Number(panelOpacity.todo ?? 1)) * 100);
+          calendarPanelOpacityInput.value = Math.round((1 - Number(panelOpacity.calendar ?? 1)) * 100);
+          emailPanelOpacityValue.textContent = `${emailPanelOpacityInput.value}%`;
+          todoPanelOpacityValue.textContent = `${todoPanelOpacityInput.value}%`;
+          calendarPanelOpacityValue.textContent = `${calendarPanelOpacityInput.value}%`;
+        }
+
+        const displayVersion = appVersion && appVersion.displayVersion
+          ? appVersion.displayVersion
+          : 'Ver.1.2.0';
+        document.getElementById('header-version').textContent = displayVersion;
+        document.getElementById('calendar-version').textContent = displayVersion;
+        document.getElementById('health-version').textContent = displayVersion;
+
+        if (emailCfg) {
+          if (emailCfg.language) {
+            applyLanguage(emailCfg.language);
+          } else {
+            applyLanguage('zh-TW');
+          }
+
+          enabledSwitch.checked = !!emailCfg.enabled;
+
+          if (Array.isArray(emailCfg.accounts) && emailCfg.accounts.length > 0) {
+            accountsList = JSON.parse(JSON.stringify(emailCfg.accounts));
+          } else if (emailCfg.account) {
+            accountsList = [
+              {
+                id: 'acc-1',
+                name: '主要信箱',
+                enabled: true,
+                ...emailCfg.account
+              }
+            ];
+          }
+
+          renderAccountsList();
+
+          if (emailCfg.rules) {
+            maxAgeSel.value = emailCfg.rules.maxAgeHours || '2';
+            intervalSel.value = emailCfg.rules.checkIntervalMinutes || '5';
+            soundCheck.checked = emailCfg.rules.soundEnabled !== false;
+            repeatCheck.checked = !!emailCfg.rules.repeatNotification;
+            emailStickyUnreadOnlyCheck.checked = emailCfg.rules.stickyUnreadOnly !== false;
+            emailStickyMaxItemsInput.value = Math.max(1, Math.min(30, parseInt(emailCfg.rules.stickyMaxItems, 10) || 8));
+          }
+
+          if (emailCfg.health) {
+            healthEnabledCheck.checked = emailCfg.health.enabled !== false;
+            healthIntervalSel.value = emailCfg.health.intervalMinutes || '45';
+            healthSoundCheck.checked = emailCfg.health.soundEnabled !== false;
+          }
+        }
+
+        if (calCfg) {
+          calEnabledSwitch.checked = calCfg.enabled !== false;
+          if (calCfg.systemTimezone) {
+            detectedSystemTimezone = calCfg.systemTimezone;
+            const s = settingsLocales[currentLanguage] || settingsLocales['zh-TW'];
+            tzCurrentName.textContent = `${detectedSystemTimezone} ${s.tzNote}`;
+          }
+
+          if (Array.isArray(calCfg.calendars) && calCfg.calendars.length > 0) {
+            calendarsList = JSON.parse(JSON.stringify(calCfg.calendars));
+          }
+          renderCalendarsList();
+
+          if (calCfg.rules) {
+            calStickyDaysInput.value = Math.max(1, Math.min(30, parseInt(calCfg.rules.stickyDisplayDays, 10) || 7));
+            calStickyIntervalSel.value = calCfg.rules.stickyCheckIntervalMinutes || calCfg.rules.checkIntervalMinutes || '15';
+            calAdvanceSel.value = calCfg.rules.remindAdvanceMinutes || '15';
+            calTomorrowHourSel.value = calCfg.rules.tomorrowPreviewHour !== undefined ? calCfg.rules.tomorrowPreviewHour : '18';
+            calIntervalSel.value = calCfg.rules.reminderCheckIntervalMinutes || calCfg.rules.checkIntervalMinutes || '15';
+            calSoundCheck.checked = calCfg.rules.soundEnabled !== false;
+          }
+        }
+
+        if (triviaCfg) {
+          triviaEnabledCheck.checked = triviaCfg.enabled !== false;
+          triviaCategorySel.value = triviaCfg.category || 'all';
+          triviaIntervalSel.value = triviaCfg.intervalMinutes || '60';
+          triviaSoundCheck.checked = triviaCfg.soundEnabled !== false;
+        }
+        if (alarmCfg) {
+          document.querySelector(`input[name="alarm-sound-type"][value="${alarmCfg.soundType || 'preset'}"]`)?.click();
+          alarmPreset.value = [...alarmPreset.options].some(option => option.value === alarmCfg.preset)
+            ? alarmCfg.preset
+            : 'notification-064';
+          alarmCustomPaths = Array.isArray(alarmCfg.customPaths) ? alarmCfg.customPaths : [];
+          alarmUrl.value = alarmCfg.url || '';
+          alarmDuration.value = alarmCfg.duration || '1';
+          renderAlarmPaths();
+        }
+      } catch (e) {
+        console.error('Error loading config:', e);
+        renderAccountsList();
+        renderCalendarsList();
+      }
+    }
+
+    // Test All Email Connections
+    btnTestAll.addEventListener('click', async () => {
+      const s = settingsLocales[currentLanguage] || settingsLocales['zh-TW'];
+      if (!ipc) {
+        showStatus(s.statusElectronRequired, true);
+        return;
+      }
+      const data = getEmailFormData();
+      const activeList = data.accounts.filter(a => a.enabled);
+      if (!activeList.length) {
+        showStatus(currentLanguage === 'en' ? '❌ No active email accounts found to test!' : '❌ 尚未設定任何已啟用的信箱帳號！', true);
+        return;
+      }
+      showStatus(s.statusTesting);
+      try {
+        const res = await ipc.invoke('email-test-all', activeList);
+        if (res.success) {
+          showStatus(`✅ ${res.message}`);
+        } else {
+          const isEn = currentLanguage === 'en';
+          let detail = `⚠️ ${res.message || (isEn ? 'Some inboxes failed connection test' : '部分信箱測試失敗')}\n`;
+          if (res.results) {
+            detail += res.results.map(r => `${r.success ? '✅' : '❌'} [${r.name}]: ${r.success ? (isEn ? 'Connected' : '連線正常') : r.error}`).join('\n');
+          }
+          showStatus(detail, !res.success);
+        }
+      } catch (err) {
+        showStatus('❌ ' + err.message, true);
+      }
+    });
+
+    // Check All Emails Now
+    btnCheckNow.addEventListener('click', async () => {
+      const s = settingsLocales[currentLanguage] || settingsLocales['zh-TW'];
+      if (!ipc) {
+        showStatus(s.statusElectronRequired, true);
+        return;
+      }
+      const data = getEmailFormData();
+      showStatus(s.statusChecking);
+      try {
+        if (data.accounts.some(a => a.user && a.pass)) {
+          await ipc.invoke('email-save-config', data);
+        }
+        const res = await ipc.invoke('email-check-now', data);
+        if (res.success) {
+          const isEn = currentLanguage === 'en';
+          if (res.newCount > 0) {
+            const msg = isEn
+              ? `✅ Success! Found ${res.newCount} new email(s) across inboxes. Notification sent! 📬`
+              : `✅ 檢查成功！在所有信箱中發現 ${res.newCount} 封新郵件，小助手已置換手持信件並發出通知！📬`;
+            showStatus(msg);
+          } else if (res.unreadCount > 0 && res.isRepeated) {
+            const msg = isEn
+              ? `🔔 Success! ${res.unreadCount} unread email(s) remaining across inboxes. Reminder sent!`
+              : `🔔 檢查成功！所有信箱目前尚有 ${res.unreadCount} 封未讀郵件，已再次發出提醒通知！`;
+            showStatus(msg);
+          } else if (res.unreadCount > 0) {
+            const msg = isEn
+              ? `ℹ️ Connections successful! ${res.unreadCount} unread email(s) in inboxes (already notified previously).`
+              : `ℹ️ 連線成功！所有信箱尚有 ${res.unreadCount} 封未讀郵件（已在先前提示過，如需每次重複提醒可勾選下方「未讀郵件重複提示」）。`;
+            showStatus(msg);
+          } else {
+            const hours = data.rules.maxAgeHours || 2;
+            const msg = isEn
+              ? `✅ Checked successfully!\nNo unread emails in the past ${hours} hour(s) across all accounts.\n(Assistant is monitoring for any new arrivals ✨)`
+              : `✅ 所有信箱連線與檢查成功！\n過去 ${hours} 小時內沒有新未讀郵件。\n（若有新信件到達，小助手將隨時為您通知 ✨）`;
+            showStatus(msg);
+          }
+        } else {
+          showStatus('❌ ' + (res.error || res.reason), true);
+        }
+      } catch (err) {
+        showStatus('❌ ' + err.message, true);
+      }
+    });
+
+    // Test All Calendars
+    btnTestAllCal.addEventListener('click', async () => {
+      const s = settingsLocales[currentLanguage] || settingsLocales['zh-TW'];
+      if (!ipc) {
+        showStatus(s.statusElectronRequired, true);
+        return;
+      }
+      const data = getCalendarFormData();
+      const activeList = data.calendars.filter(c => c.enabled && c.url);
+      const isEn = currentLanguage === 'en';
+      if (!activeList.length) {
+        showStatus(isEn ? '❌ No active Google Calendars configured with a URL!' : '❌ 尚未設定任何填妥 iCal 網址的已啟用日曆！', true);
+        return;
+      }
+      showStatus(s.statusTesting);
+      try {
+        let allResults = [];
+        for (const cal of activeList) {
+          const res = await ipc.invoke('calendar-test-connection', cal);
+          allResults.push({ name: cal.name, ...res });
+        }
+        const passedCount = allResults.filter(r => r.success).length;
+        let summaryText = isEn
+          ? `📅 Test completed: ${passedCount} / ${activeList.length} Google Calendars connected successfully!\n\n`
+          : `📅 測試完成：${passedCount} / ${activeList.length} 組 Google 日曆連線成功！\n\n`;
+        allResults.forEach(r => {
+          summaryText += isEn
+            ? `${r.success ? '✅' : '❌'} [${r.name}]: ${r.success ? `Today: ${r.todayCount} event(s) / Tomorrow: ${r.tomorrowCount} event(s)` : r.error}\n`
+            : `${r.success ? '✅' : '❌'} [${r.name}]: ${r.success ? `今日 ${r.todayCount} 個行程 / 明日 ${r.tomorrowCount} 個行程` : r.error}\n`;
+        });
+        showStatus(summaryText, passedCount < activeList.length);
+      } catch (err) {
+        showStatus('❌ ' + err.message, true);
+      }
+    });
+
+    // Check Calendar Agenda Now
+    btnCheckCalNow.addEventListener('click', async () => {
+      const s = settingsLocales[currentLanguage] || settingsLocales['zh-TW'];
+      if (!ipc) {
+        showStatus(s.statusElectronRequired, true);
+        return;
+      }
+      const data = getCalendarFormData();
+      showStatus(s.statusChecking);
+      try {
+        await ipc.invoke('calendar-save-config', data);
+        const res = await ipc.invoke('calendar-check-now');
+        if (res.success) {
+          const isEn = currentLanguage === 'en';
+          let msg = isEn
+            ? `✅ Google Calendar sync successful! (Timezone: ${res.timezone})\n📌 Today's agenda: ${res.todayCount} event(s)\n`
+            : `✅ 行事曆檢查成功！（時區: ${res.timezone}）\n📌 今日行程：${res.todayCount} 個\n`;
+          if (res.isTomorrowPreviewActive) {
+            msg += isEn
+              ? `🌙 Tomorrow's preview: ${res.tomorrowCount} event(s) (Evening preview time reached)\n`
+              : `🌙 明日預報：${res.tomorrowCount} 個（已超過明日預報時間點）\n`;
+          } else {
+            msg += isEn
+              ? `🌙 Tomorrow's preview inactive (Will preview after scheduled evening hour)\n`
+              : `🌙 明日預告時間未到（將於設定時間後開始提醒明日行程）\n`;
+          }
+          msg += isEn
+            ? `Assistant has synchronized today & tomorrow agenda overview to desktop pet! ✨`
+            : `小助手已向桌面寵物同步發出今日與明日行程總覽氣泡！✨`;
+          showStatus(msg);
+        } else {
+          showStatus('❌ ' + (res.error || res.reason), true);
+        }
+      } catch (err) {
+        showStatus('❌ ' + err.message, true);
+      }
+    });
+
+    // Test Water Reminder
+    btnTestHealth.addEventListener('click', async () => {
+      if (!ipc) {
+        const s = settingsLocales[currentLanguage] || settingsLocales['zh-TW'];
+        showStatus(s.statusElectronRequired, true);
+        return;
+      }
+      try {
+        const sound = healthSoundCheck.checked;
+        await ipc.invoke('health-test-reminder', { soundEnabled: sound });
+        const isEn = currentLanguage === 'en';
+        showStatus(isEn ? '🍵 Water reminder preview sent to desktop assistant!' : '🍵 已向小助手發送喝水久坐提醒預覽！');
+      } catch (err) {
+        showStatus('❌ ' + err.message, true);
+      }
+    });
+
+    // Explore Trivia & Jokes Now
+    btnExploreTrivia.addEventListener('click', async () => {
+      if (!ipc) {
+        const s = settingsLocales[currentLanguage] || settingsLocales['zh-TW'];
+        showStatus(s.statusElectronRequired, true);
+        return;
+      }
+      const isEn = currentLanguage === 'en';
+      showStatus(isEn ? '🌐 Exploring online knowledge and clean jokes... ⏳' : '🌐 正在線上探索最新生活知識與笑話... ⏳');
+      try {
+        const category = triviaCategorySel.value;
+        const res = await ipc.invoke('trivia-fetch-now', category);
+        if (res && res.success && res.data) {
+          const item = res.data;
+          triviaPreviewBox.style.display = 'block';
+          trivResBadge.textContent = item.categoryLabel || (item.type === 'fact' ? (isEn ? '💡 Life Fact' : '💡 生活知識') : (isEn ? '😄 Clean Joke' : '😄 幽默笑話'));
+          trivResSource.textContent = (isEn ? 'Source: ' : '來源：') + (item.source || 'Online');
+          const formattedContent = item.punchline && item.setup
+            ? `${item.setup}\n\n👉 ${item.punchline}`
+            : (item.content || '');
+          trivResContent.textContent = formattedContent;
+
+          // Also trigger simulated test on desktop pet
+          await ipc.invoke('trivia-test-reminder');
+          showStatus(isEn
+            ? '✨ Successfully explored online! Sent to desktop assistant!'
+            : '✨ 線上探索成功！已同步發送至桌面小助手手持燈泡球！💡');
+        } else {
+          triviaPreviewBox.style.display = 'none';
+          showStatus(isEn
+            ? '⚠️ Could not fetch from online endpoints. Please verify internet connection.'
+            : '⚠️ 線上獲取失敗或目前處於離線狀態，請確認網路連線是否正常 🌐', true);
+        }
+      } catch (err) {
+        showStatus('❌ ' + err.message, true);
+      }
+    });
+
+    // Save Config
+    const previewPanelOpacity = () => {
+      if (!ipc) return;
+      ipc.invoke('preview-panel-opacity', {
+        email: 1 - Number(emailPanelOpacityInput.value) / 100,
+        todo: 1 - Number(todoPanelOpacityInput.value) / 100,
+        calendar: 1 - Number(calendarPanelOpacityInput.value) / 100
+      }).catch(() => {});
+    };
+    for (const [input, output] of [[emailPanelOpacityInput, emailPanelOpacityValue], [todoPanelOpacityInput, todoPanelOpacityValue], [calendarPanelOpacityInput, calendarPanelOpacityValue]]) {
+      input.addEventListener('input', () => {
+        output.textContent = `${input.value}%`;
+        previewPanelOpacity();
+      });
+    }
+    for (const [id, kind] of [['alarm-choose-files', 'file'], ['alarm-choose-folder', 'folder']]) {
+      document.getElementById(id).addEventListener('click', async () => {
+        if (!ipc) return;
+        const result = await ipc.invoke('alarm-choose-audio', kind);
+        if (result?.success) {
+          alarmCustomPaths = result.paths || [];
+          document.querySelector('input[name="alarm-sound-type"][value="custom"]').checked = true;
+          renderAlarmPaths();
+        }
+      });
+    }
+    document.getElementById('alarm-test').addEventListener('click', async event => {
+      if (!ipc) return;
+      const button = event.currentTarget;
+      button.disabled = true;
+      try {
+        // Every preview is exclusive: stop the previous native player,
+        // YouTube resolver and renderer state before preparing the next one.
+        await ipc.invoke('alarm-stop-test');
+        showStatus('⏳ 正在準備鬧鐘音訊；目前播放中的音效已中斷...');
+        const saved = await ipc.invoke('alarm-save-config', getAlarmFormData());
+        if (!saved || saved.success === false) {
+          showStatus(`❌ ${(saved && saved.error) || '鬧鐘音訊設定失敗'}`, true);
+          return;
+        }
+        await ipc.invoke('alarm-test');
+        showStatus('⏰ 已將鬧鐘測試送至桌面小助手，可按右側「中斷測試」停止。');
+      } finally {
+        button.disabled = false;
+      }
+    });
+    document.getElementById('alarm-stop-test').addEventListener('click', async () => {
+      if (!ipc) return;
+      await ipc.invoke('alarm-stop-test');
+      showStatus('⏹ 鬧鐘測試已中斷，桌面小助手已恢復科技球。');
+    });
+
+    btnSave.addEventListener('click', async () => {
+      const s = settingsLocales[currentLanguage] || settingsLocales['zh-TW'];
+      if (!ipc) {
+        showStatus(s.statusElectronRequired, true);
+        return;
+      }
+      const emailData = getEmailFormData();
+      const calData = getCalendarFormData();
+      const triviaData = getTriviaFormData();
+      const alarmData = getAlarmFormData();
+      try {
+        const [emailRes, calRes, triviaRes, alarmRes, opacityRes] = await Promise.all([
+          ipc.invoke('email-save-config', emailData),
+          ipc.invoke('calendar-save-config', calData),
+          ipc.invoke('trivia-save-config', triviaData),
+          ipc.invoke('alarm-save-config', alarmData),
+          ipc.invoke('set-panel-opacity', {
+            // Convert user-facing transparency back to the CSS opacity persisted by the app.
+            email: 1 - Number(emailPanelOpacityInput.value) / 100,
+            todo: 1 - Number(todoPanelOpacityInput.value) / 100,
+            calendar: 1 - Number(calendarPanelOpacityInput.value) / 100
+          })
+        ]);
+        if (emailRes.success && (!calRes || calRes.success !== false) && (!triviaRes || triviaRes.success !== false) && (!alarmRes || alarmRes.success !== false) && (!opacityRes || opacityRes.success !== false)) {
+          const min = emailData.rules.checkIntervalMinutes;
+          const label = currentLanguage === 'en'
+            ? (min >= 60 ? `${min / 60} hour(s)` : `${min} min(s)`)
+            : (min >= 60 ? `${min / 60} 小時` : `${min} 分鐘`);
+          showStatus(s.statusSaveSuccess(label));
+        } else {
+          const errMsg = (emailRes && emailRes.error) || (calRes && calRes.error) || (triviaRes && triviaRes.error) || 'Save failed';
+          showStatus(s.statusSaveFailed(errMsg), true);
+        }
+      } catch (err) {
+        showStatus(s.statusSaveFailed(err.message), true);
+      }
+    });
+
+    if (ipc) {
+      ipc.on('language-changed', (event, lang) => {
+        applyLanguage(lang);
+      });
+    }
+
+    applyLanguage('zh-TW');
+    switchTab('panel-email');
+    loadConfig();
+  </script>
+</body>
+
+</html>

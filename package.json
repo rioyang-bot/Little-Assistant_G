@@ -1,0 +1,86 @@
+{
+  "name": "METech-desktop-assistant",
+  "version": "1.2.0",
+  "description": "MEtech Bear Desktop Animated Assistant with 3D Rotating Globe",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "test": "npm run test:unit",
+    "test:unit": "node --test scratch/test-translation.cjs scratch/test-trivia-service.cjs scratch/test-zh-trivia.cjs scratch/test-storage-utils.cjs scratch/test-version-utils.cjs scratch/test-sticky-notes-service.cjs scratch/test-layout-utils.cjs scratch/test-calendar-service.cjs scratch/test-email-service.cjs",
+    "test:electron": "npm run build && electron scratch/test-drag-simulate.cjs && electron scratch/test-docking.cjs && electron scratch/test-sticky-notes-ui.cjs",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "vite build && electron electron/main.cjs",
+    "desktop": "vite build && electron electron/main.cjs",
+    "electron": "electron electron/main.cjs",
+    "pack": "vite build && electron-builder --dir",
+    "dist": "vite build && electron-builder --win",
+    "dist:portable": "vite build && electron-builder --win portable",
+    "dist:nsis": "vite build && electron-builder --win nsis"
+  },
+  "build": {
+    "appId": "com.metech.bear.desktop.assistant",
+    "productName": "METech小助手",
+    "executableName": "METech-desktop-assistant",
+    "copyright": "Copyright © 2026 METech",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/youtube-dl-exec/bin/**",
+      "assets/alarm-sounds/**"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "METech小助手",
+      "runAfterFinish": true,
+      "multiLanguageInstaller": true,
+      "displayLanguageSelector": true,
+      "include": "build/installer.nsh",
+      "installerLanguages": [
+        "zh_TW",
+        "en_US"
+      ]
+    },
+    "portable": {
+      "artifactName": "${productName}-Portable-${version}.${ext}"
+    }
+  },
+  "keywords": [
+    "desktop-pet",
+    "assistant",
+    "threejs",
+    "3d-animation"
+  ],
+  "author": "METech",
+  "license": "MIT",
+  "dependencies": {
+    "imapflow": "^1.7.6",
+    "mailparser": "^3.9.17",
+    "node-ical": "^0.27.1",
+    "pngjs": "^7.0.0",
+    "three": "^0.180.0",
+    "vite": "^5.0.0",
+    "youtube-dl-exec": "^3.1.13"
+  },
+  "devDependencies": {
+    "electron": "^44.0.0",
+    "electron-builder": "^26.15.3"
+  }
+}
