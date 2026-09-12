@@ -134,6 +134,21 @@ app.whenReady().then(async () => {
     assert.equal(initial.stickySizeInitialized, true);
     assert.equal(initial.toolbarButtonsMatch, true);
 
+    for (const [status, expected] of [
+      ['checking', '正在檢查更新'],
+      ['current', '目前已是最新版本'],
+      ['error', '無法檢查更新']
+    ]) {
+      win.webContents.send('update-status', { status, manual: true });
+      await new Promise(resolve => setTimeout(resolve, 30));
+      const speech = await win.webContents.executeJavaScript(`document.getElementById('speech-text').textContent`);
+      assert.match(speech, new RegExp(expected));
+    }
+    const beforeBackgroundCheck = await win.webContents.executeJavaScript(`document.getElementById('speech-text').textContent`);
+    win.webContents.send('update-status', { status: 'checking', manual: false });
+    await new Promise(resolve => setTimeout(resolve, 30));
+    assert.equal(await win.webContents.executeJavaScript(`document.getElementById('speech-text').textContent`), beforeBackgroundCheck);
+
     win.webContents.send('settings-window-visibility', true);
     await new Promise(resolve => setTimeout(resolve, 100));
     const settingsShortcutPreview = await win.webContents.executeJavaScript(`({

@@ -26,6 +26,14 @@ test('installed builds check the configured update provider', async () => {
   fixture.service.stop();
 });
 
+test('automatic update check is scheduled once after startup without a repeating interval', () => {
+  const fixture = createService(true);
+  fixture.service.start(true);
+  assert.notEqual(fixture.service.checkTimer, null);
+  assert.equal(Object.hasOwn(fixture.service, 'intervalTimer'), false);
+  fixture.service.stop();
+});
+
 test('development builds skip remote update checks', async () => {
   const fixture = createService(false);
   const result = await fixture.service.check(true);
@@ -41,5 +49,18 @@ test('downloaded updates notify the UI and can restart to install', async () => 
   assert.equal(fixture.service.install().success, true);
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(fixture.installs, 1);
+  fixture.service.stop();
+});
+
+test('manual checks are identified for immediate assistant feedback', () => {
+  const fixture = createService(true);
+  fixture.service.manualCheckPending = true;
+  fixture.updater.emit('checking-for-update');
+  fixture.updater.emit('update-not-available', { version: '1.6.0' });
+  assert.deepEqual(fixture.sent, [
+    ['update-status', { status: 'checking', manual: true }],
+    ['update-status', { status: 'current', version: '1.6.0', manual: true }]
+  ]);
+  assert.equal(fixture.service.manualCheckPending, false);
   fixture.service.stop();
 });

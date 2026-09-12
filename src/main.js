@@ -1332,10 +1332,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     ipcRenderer.on('update-status', (event, state = {}) => {
-      if (state.status !== 'downloaded') return;
-      say(currentLang === 'en'
-        ? `Version ${state.version} is ready and will install after restart.`
-        : `${state.version} 版已下載完成，重新啟動後會自動安裝。`, 5000);
+      if (state.status === 'downloaded') {
+        say(currentLang === 'en'
+          ? `Version ${state.version} is ready and will install after restart.`
+          : `${state.version} 版已下載完成，重新啟動後會自動安裝。`, 5000);
+        return;
+      }
+      if (!state.manual) return;
+      const messages = currentLang === 'en'
+        ? {
+            checking: 'Checking for updates… 🔍',
+            current: 'You already have the latest version. ✅',
+            available: `Version ${state.version} is available and downloading now. ⬇️`,
+            error: 'Unable to check for updates. Please check your connection and try again. ⚠️',
+            development: 'Update checks are available only in the installed app.',
+            portable: 'Automatic updates are unavailable in the portable edition.'
+          }
+        : {
+            checking: '正在檢查更新… 🔍',
+            current: '目前已是最新版本。✅',
+            available: `已找到 ${state.version} 版，現在開始下載。⬇️`,
+            error: '無法檢查更新，請確認網路後再試一次。⚠️',
+            development: '只有安裝版可以檢查更新。',
+            portable: '免安裝版不支援自動更新。'
+          };
+      if (messages[state.status]) say(messages[state.status], state.status === 'checking' ? 2500 : 4000);
     });
 
     ipcRenderer.on('trivia-fetch-failed', (event, data) => {

@@ -6,23 +6,32 @@ class UpdateService {
     this.getLanguage = getLanguage;
     this.enabled = true;
     this.checkTimer = null;
-    this.intervalTimer = null;
     this.downloaded = false;
+    this.manualCheckPending = false;
     this.bindEvents();
   }
 
   bindEvents() {
     this.autoUpdater.autoDownload = true;
     this.autoUpdater.autoInstallOnAppQuit = true;
-    this.autoUpdater.on('checking-for-update', () => this.sendStatus('checking'));
-    this.autoUpdater.on('update-available', info => this.sendStatus('available', { version: info.version }));
-    this.autoUpdater.on('update-not-available', info => this.sendStatus('current', { version: info?.version || this.app.getVersion() }));
+    this.autoUpdater.on('checking-for-update', () => this.sendStatus('checking', { manual: this.manualCheckPending }));
+    this.autoUpdater.on('update-available', info => {
+      this.sendStatus('available', { version: info.version, manual: this.manualCheckPending });
+      this.manualCheckPending = false;
+    });
+    this.autoUpdater.on('update-not-available', info => {
+      this.sendStatus('current', { version: info?.version || this.app.getVersion(), manual: this.manualCheckPending });
+      this.manualCheckPending = false;
+    });
     this.autoUpdater.on('download-progress', progress => this.sendStatus('downloading', { percent: Math.round(progress.percent || 0) }));
     this.autoUpdater.on('update-downloaded', info => {
       this.downloaded = true;
       this.sendStatus('downloaded', { version: info.version });
     });
-    this.autoUpdater.on('error', error => this.sendStatus('error', { message: error?.message || String(error) }));
+    this.autoUpdater.on('error', error => {
+      this.sendStatus('error', { message: error?.message || String(error), manual: this.manualCheckPending });
+      this.manualCheckPending = false;
+    });
   }
 
   sendStatus(status, detail = {}) {
@@ -38,17 +47,13 @@ class UpdateService {
     this.enabled = enabled !== false;
     if (!this.enabled || !this.isSupportedBuild()) return;
     clearTimeout(this.checkTimer);
-    clearInterval(this.intervalTimer);
     this.checkTimer = setTimeout(() => this.check(false), 30000);
-    this.intervalTimer = setInterval(() => this.check(false), 6 * 60 * 60 * 1000);
   }
 
   setEnabled(enabled) {
     this.enabled = enabled !== false;
     clearTimeout(this.checkTimer);
-    clearInterval(this.intervalTimer);
     this.checkTimer = null;
-    this.intervalTimer = null;
     if (this.enabled) this.start(true);
     return this.enabled;
   }
@@ -57,15 +62,17 @@ class UpdateService {
     if (!this.isSupportedBuild()) {
       const code = this.app.isPackaged ? 'portable' : 'development';
       const result = { success: false, code, message: 'Updates are checked only in the installed app.' };
-      if (manual) this.sendStatus(code, result);
+      if (manual) this.sendStatus(code, { ...result, manual: true });
       return result;
     }
     if (!this.enabled && !manual) return { success: false, code: 'disabled' };
+    this.manualCheckPending = manual === true;
     try {
       await this.autoUpdater.checkForUpdates();
       return { success: true };
     } catch (error) {
-      this.sendStatus('error', { message: error.message });
+      if (this.manualCheckPending) this.sendStatus('error', { message: error.message, manual: true });
+      this.manualCheckPending = false;
       return { success: false, error: error.message };
     }
   }
@@ -78,9 +85,7 @@ class UpdateService {
 
   stop() {
     clearTimeout(this.checkTimer);
-    clearInterval(this.intervalTimer);
     this.checkTimer = null;
-    this.intervalTimer = null;
   }
 }
 
