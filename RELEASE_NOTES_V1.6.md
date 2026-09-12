@@ -61,9 +61,9 @@
 
 ## 發布檔案
 
-- `METech小助手 Setup 1.6.0.exe`：Windows x64 安裝版，143,545,901 bytes（約 136.90 MiB）。
+- `METech-desktop-assistant-Setup-1.6.0.exe`：Windows x64 安裝版，143,545,901 bytes（約 136.90 MiB）。
   - SHA-256：`686A62DB3B78D664DADDD202B3920B1A92B19CC8246FD0DAE694BE68DE6ED5E4`
-- `METech小助手-Portable-1.6.0.exe`：Windows x64 免安裝版，143,314,634 bytes（約 136.68 MiB）。
+- `METech-desktop-assistant-Portable-1.6.0.exe`：Windows x64 免安裝版，143,314,634 bytes（約 136.68 MiB）。
   - SHA-256：`4E009D065C0759088B3ABF81640D97AC949E05645BEF4BF8058E55BEDC6F60CD`
 - `SHA256SUMS-1.6.0.txt`：兩個執行檔的 SHA-256 校驗碼。
 - 安裝版與免安裝版目前均未使用程式碼簽章（Authenticode：NotSigned）。
