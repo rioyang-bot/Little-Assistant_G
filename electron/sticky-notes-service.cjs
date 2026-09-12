@@ -12,6 +12,15 @@ function getNotesFilePath() {
   return getStoragePath('sticky-notes.json');
 }
 
+function normalizeViewState(value) {
+  return {
+    dismissed: value?.dismissed === true,
+    expandedNoteIds: [...new Set(Array.isArray(value?.expandedNoteIds)
+      ? value.expandedNoteIds.filter(id => typeof id === 'string' && id.length > 0 && id.length <= 100)
+      : [])].slice(0, MAX_NOTES)
+  };
+}
+
 function sanitizeText(value, maxLength) {
   return String(value || '').trim().slice(0, maxLength);
 }
@@ -75,6 +84,7 @@ function normalizeNote(note) {
 class StickyNotesService {
   constructor() {
     this.notes = this.load();
+    this.viewState = this.loadViewState();
     // Completed notes from earlier builds are intentionally discarded.
     this.persist();
     this.setupIpc();
@@ -102,12 +112,42 @@ class StickyNotesService {
     fs.writeFileSync(notesFile, JSON.stringify(this.notes, null, 2), 'utf8');
   }
 
+  loadViewState() {
+    try {
+      const file = getStoragePath('sticky-notes-view.json');
+      if (fs.existsSync(file)) return normalizeViewState(JSON.parse(fs.readFileSync(file, 'utf8')));
+    } catch (error) {
+      console.error('Failed to load sticky note view state:', error.message);
+    }
+    return normalizeViewState(null);
+  }
+
+  saveViewState(input) {
+    if (!input || typeof input.dismissed !== 'boolean' || !Array.isArray(input.expandedNoteIds)) {
+      return { success: false, error: '無效的便利貼顯示設定' };
+    }
+    const state = normalizeViewState(input);
+    const noteIds = new Set(this.notes.map(note => note.id));
+    state.expandedNoteIds = state.expandedNoteIds.filter(id => noteIds.has(id));
+    try {
+      const file = getStoragePath('sticky-notes-view.json');
+      fs.writeFileSync(`${file}.tmp`, JSON.stringify(state, null, 2), 'utf8');
+      fs.renameSync(`${file}.tmp`, file);
+      this.viewState = state;
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to save sticky note view state:', error.message);
+      return { success: false, error: '無法儲存便利貼顯示設定' };
+    }
+  }
+
   getSnapshot() {
     const priority = { red: 0, amber: 1, blue: 2 };
     const byPriorityThenNewest = (a, b) =>
       (priority[a.color] ?? priority.blue) - (priority[b.color] ?? priority.blue)
       || b.updatedAt - a.updatedAt;
     return {
+      viewState: normalizeViewState(this.viewState),
       active: [...this.notes].sort(byPriorityThenNewest)
     };
   }
@@ -195,6 +235,7 @@ class StickyNotesService {
 
   setupIpc() {
     ipcMain.handle('sticky-notes-list', () => this.getSnapshot());
+    ipcMain.handle('sticky-notes-save-view', (event, input) => this.saveViewState(input));
     ipcMain.handle('sticky-notes-create', (event, input) => this.create(input));
     ipcMain.handle('sticky-notes-update', (event, input = {}) => this.update(String(input.id || ''), input));
     ipcMain.handle('sticky-notes-complete', (event, id) => this.complete(String(id || '')));

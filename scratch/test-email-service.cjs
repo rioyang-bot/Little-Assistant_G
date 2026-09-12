@@ -22,6 +22,14 @@ test('email sticky notes keep polling when assistant email reminders are disable
   assert.equal(service.hasPollingSource(), true);
 });
 
+test('legacy master switch no longer blocks an account dialogue reminder', () => {
+  const service = serviceWith({
+    enabled: false,
+    accounts: [{ enabled: true, user: 'user@example.test', pass: 'secret', host: 'imap.example.test', assistantReminder: true, importToSticky: false }]
+  });
+  assert.equal(service.hasPollingSource(), true);
+});
+
 test('legacy Gmail accounts default to every supported sticky category', () => {
   assert.deepEqual(normalizeStickyCategories(undefined), ['primary', 'purchases', 'social', 'updates', 'promotions', 'forums']);
   assert.equal(isGmailAccount({ host: 'imap.gmail.com' }), true);

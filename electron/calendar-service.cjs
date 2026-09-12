@@ -12,7 +12,6 @@ function getConfigFilePath() {
 
 const DEFAULT_CONFIG = {
   language: 'zh-TW',
-  enabled: true,
   calendars: [
     {
       id: 'cal-1',
@@ -70,7 +69,6 @@ class CalendarService {
         const data = JSON.parse(fs.readFileSync(configFile, 'utf8'));
         return {
           language: data.language || DEFAULT_CONFIG.language,
-          enabled: data.enabled !== undefined ? !!data.enabled : DEFAULT_CONFIG.enabled,
           calendars: Array.isArray(data.calendars) && data.calendars.length > 0 ? data.calendars : DEFAULT_CONFIG.calendars,
           rules: {
             ...DEFAULT_CONFIG.rules,
@@ -111,7 +109,9 @@ class CalendarService {
         calendars: mergedConfig.calendars,
         rules: mergedConfig.rules
       };
-      if (mergedConfig.enabled !== undefined) diskConfig.enabled = mergedConfig.enabled;
+      // Calendar dialogue reminders are controlled per calendar. Remove the
+      // retired master switch value while migrating existing configuration.
+      delete diskConfig.enabled;
       if (mergedConfig.notifiedEventIds) diskConfig.notifiedEventIds = mergedConfig.notifiedEventIds;
 
       fs.writeFileSync(configFile, JSON.stringify(diskConfig, null, 2), 'utf8');
@@ -435,7 +435,7 @@ class CalendarService {
       const reminderCalendarIds = new Set(activeCalendars
         .filter(calendar => calendar.assistantReminder !== false)
         .map(calendar => calendar.id));
-      const newUpcoming = (!processReminders || this.config.enabled === false) ? [] : allUpcoming.filter(ev =>
+      const newUpcoming = !processReminders ? [] : allUpcoming.filter(ev =>
         reminderCalendarIds.has(ev.calendarId) && !this.config.notifiedEventIds.includes(ev.id));
 
       if (mainWindow && !mainWindow.isDestroyed()) {
@@ -608,7 +608,7 @@ class CalendarService {
   }
 
   hasReminderSyncSource() {
-    return this.config.enabled !== false && (this.config.calendars || [])
+    return (this.config.calendars || [])
       .some(calendar => calendar.enabled !== false && calendar.assistantReminder !== false && calendar.url);
   }
 

@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 
 export class BallRenderer {
-  constructor(canvasId) {
+  constructor(canvasId, onSpeedChange = () => {}) {
+    this.onSpeedChange = onSpeedChange;
     this.canvas = document.getElementById(canvasId);
     this.container = this.canvas.parentElement;
     this.speedMultiplier = 1.2;
@@ -180,7 +181,8 @@ export class BallRenderer {
     this.canvas.addEventListener('wheel', (e) => {
       e.preventDefault();
       const delta = Math.sign(e.deltaY) * -0.2;
-      this.setSpeedMultiplier(Math.max(0.2, Math.min(5.0, this.speedMultiplier + delta)));
+      this.setSpeedMultiplier(Number(Math.max(0.2, Math.min(5.0, this.speedMultiplier + delta)).toFixed(1)));
+      this.onSpeedChange(this.speedMultiplier);
     }, { passive: false });
   }
 

@@ -82,10 +82,10 @@ html, body {
 .assistant-panels-stack {
   position: absolute;
   right: 8px;
-  bottom: calc(var(--bear-size, 190px) + 8px);
+  bottom: calc(var(--bear-size, 190px) + 8px + var(--dialogue-space, 0px));
   z-index: 70;
   width: min(max(var(--assistant-panel-width, 314px), var(--sticky-board-width, 314px)), calc(100% - 16px));
-  max-height: calc(100% - var(--bear-size, 190px) - 16px);
+  max-height: max(0px, calc(100% - var(--bear-size, 190px) - 16px - var(--dialogue-space, 0px)));
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -175,11 +175,10 @@ html, body {
 }
 
 .sticky-notes-board.composing {
-  position: absolute;
-  inset: 0;
+  position: relative;
   width: 100%;
   z-index: 120;
-  min-height: min(var(--sticky-form-height, 250px), calc(100vh - var(--bear-size, 190px) - 16px));
+  min-height: max(0px, min(var(--sticky-form-height, 250px), calc(100vh - var(--bear-size, 190px) - 16px - var(--dialogue-space, 0px))));
   border-color: rgba(56, 189, 248, 0.72);
   background: #08101f;
   box-shadow: none;
@@ -397,6 +396,10 @@ html, body {
   gap: 6px;
 }
 
+.pet-wrapper.move-mode .sticky-expand-button {
+  cursor: pointer;
+}
+
 .sticky-note-subject {
   flex: 1;
   min-width: 0;
@@ -454,7 +457,6 @@ html, body {
   display: flex;
   align-items: flex-start;
   gap: 6px;
-  cursor: pointer;
 }
 
 .sticky-item-check {
@@ -598,19 +600,31 @@ html, body {
 }
 
 .sticky-note-form {
-  position: absolute;
-  inset: 0;
+  position: relative;
   z-index: 2;
   display: none;
+  flex: 0 1 auto;
   flex-direction: column;
   gap: 7px;
   padding: 9px;
+  max-height: var(--sticky-form-height, 400px);
   overflow-y: auto;
+  border-top: 1px solid rgba(56, 189, 248, 0.3);
   background: #08101f;
 }
 
 .sticky-note-form.visible {
   display: flex;
+}
+
+.sticky-natural-row { display:flex; gap:5px; }
+.sticky-natural-row input { min-width:0; flex:1; padding:6px 8px; border:1px solid rgba(56,189,248,.42); border-radius:7px; color:#e0f2fe; background:rgba(15,23,42,.92); font-size:.58rem; outline:none; user-select:text; -webkit-user-select:text; }
+.sticky-natural-row input:focus { border-color:#38bdf8; box-shadow:0 0 0 2px rgba(56,189,248,.13); }
+.sticky-natural-row button { flex:0 0 auto; padding:5px 8px; border:1px solid rgba(192,132,252,.55); border-radius:7px; color:#f5e8ff; background:rgba(126,34,206,.55); font-size:.56rem; cursor:pointer; }
+.sticky-natural-row button:disabled { opacity:.55; cursor:wait; }
+
+.sticky-notes-board.composing .sticky-empty-state.visible {
+  display: none;
 }
 
 .sticky-form-header {
@@ -964,6 +978,10 @@ html, body {
   box-sizing: border-box;
 }
 
+/* Assistant transparency uses a filter so the bubble's own show/hide opacity
+   animation can continue independently. */
+.speech-bubble { transition-property: opacity, transform, filter; }
+
 .pet-wrapper.dock-left .speech-bubble {
   left: 8px;
   right: auto;
@@ -978,6 +996,24 @@ html, body {
   opacity: 1;
   transform: translateY(0) scale(1);
   pointer-events: auto;
+}
+
+/* Keep room for notes above even a long notification on a short display. */
+.pet-wrapper:has(.assistant-panels-stack > .visible) .speech-bubble {
+  max-height: max(42px, calc((100vh - var(--bear-size, 190px) - 26px) / 2));
+  overflow-y: auto;
+}
+
+.pet-wrapper:has(.assistant-panels-stack > .visible) .speech-bubble .bubble-content {
+  flex-shrink: 0;
+}
+
+.pet-wrapper:has(.speech-bubble.show) .assistant-panels-stack > section.visible {
+  min-height: 32px;
+}
+
+.pet-wrapper:has(.speech-bubble.show) .sticky-notes-board.composing {
+  flex-basis: var(--sticky-form-height, 400px);
 }
 
 .speech-bubble.mail-mode {
@@ -1253,7 +1289,7 @@ html, body {
   max-width: var(--bear-size, 190px);
   max-height: var(--bear-size, 190px);
   aspect-ratio: 1 / 1;
-  margin-right: 42px;
+  margin-right: 18px;
   margin-left: auto;
   margin-bottom: 2px;
   align-self: flex-end;
@@ -1261,6 +1297,30 @@ html, body {
   transform-origin: bottom right;
   flex-shrink: 0;
   transition: margin 0.25s ease, align-self 0.25s ease;
+}
+
+.assistant-visual-layer {
+  position: absolute;
+  inset: 0;
+  opacity: 1;
+  visibility: visible;
+  filter: opacity(1);
+  transition: opacity 0.18s ease, filter 0.16s ease;
+}
+
+body.assistant-hidden .bear-character-layer {
+  animation: none;
+  transform: none;
+}
+
+body.assistant-hidden .assistant-visual-layer {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+body.assistant-hidden .laptop-notes-trigger {
+  display: none;
 }
 
 .pet-wrapper.dock-left .bear-character-layer {
@@ -1271,7 +1331,7 @@ html, body {
 }
 
 .pet-wrapper.dock-right .bear-character-layer {
-  margin-right: 42px;
+  margin-right: 18px;
   margin-left: auto;
   align-self: flex-end;
   transform-origin: bottom right;
@@ -1284,6 +1344,11 @@ html, body {
   50% {
     transform: translateY(-3px) scale(1.018);
   }
+}
+
+.bear-character-layer.shortcut-menu-open {
+  animation: none;
+  transform: none;
 }
 
 .bear-body {
@@ -1896,6 +1961,409 @@ html, body {
   filter: none;
   transition: filter 0.2s ease;
 }
+
+.laptop-quick-menu {
+  position: absolute;
+  left: -29%;
+  top: 13%;
+  width: 82px;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: 74px;
+  align-content: start;
+  gap: 3px;
+  padding: 4px;
+  max-height: min(360px, calc(100vh - 24px));
+  overflow-y: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(12px, 8px) scale(0.92);
+  transform-origin: right center;
+  transition: opacity 0.18s ease, transform 0.2s ease;
+}
+
+.laptop-dynamic-actions { display: contents; }
+
+.pet-wrapper.dock-right .laptop-quick-menu {
+  left: auto;
+  right: calc(100% + 4px);
+}
+
+.pet-wrapper.dock-left .laptop-quick-menu {
+  left: calc(100% + 4px);
+  right: auto;
+}
+
+.laptop-quick-menu.visible {
+  pointer-events: auto;
+  opacity: 1;
+  transform: translate(0, 0) scale(1);
+}
+
+.laptop-quick-action {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  width: 74px;
+  max-width: 74px;
+  min-height: 25px;
+  height: 25px;
+  padding: 2px 5px 2px 2px;
+  border: 1px solid rgba(125, 211, 252, 0.72);
+  border-radius: 18px;
+  background: rgba(8, 20, 38, 0.92);
+  color: #f8fafc;
+  box-shadow: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+  opacity: var(--shortcut-opacity, 1);
+}
+
+.laptop-quick-action[draggable="true"] { cursor: pointer; }
+.laptop-quick-action.shortcut-dragging { opacity: 0.38; cursor: grabbing; }
+.laptop-quick-action.shortcut-drag-target { outline: 2px solid #fbbf24; outline-offset: 1px; }
+
+.laptop-quick-action:nth-child(2),
+.laptop-quick-action:nth-child(3) { margin-left: 0; }
+
+.laptop-action-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #0ea5e9;
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+  font-size: 13px;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
+  overflow: hidden;
+}
+
+.laptop-action-icon img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.laptop-quick-action:hover .laptop-action-icon {
+  transform: scale(1.08);
+  box-shadow: 0 0 7px rgba(125, 211, 252, 0.9), 0 0 13px rgba(56, 189, 248, 0.5);
+  filter: brightness(1.12);
+}
+
+.laptop-action-label {
+  position: static;
+  flex: 1 1 0;
+  min-width: 0;
+  width: auto;
+  height: auto;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  clip: auto;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 0;
+}
+
+.action-email .laptop-action-icon { background: #22c55e; }
+.action-calendar .laptop-action-icon { background: #f97316; }
+.action-custom .laptop-action-icon {
+  background: var(--shortcut-logo-color, #0ea5e9);
+  color: var(--shortcut-logo-foreground, #fff);
+  box-shadow: none;
+  font-weight: 850;
+}
+.laptop-quick-action .laptop-action-icon.has-image { background: transparent; }
+
+/* Mini assistant: keep the shortcut rail completely beside the bear. */
+body.size-mini .pet-wrapper.dock-right .laptop-quick-menu {
+  left: auto;
+  right: calc(100% - 15px);
+  top: 1%;
+  width: 92px;
+}
+
+body.size-mini .pet-wrapper.dock-left .laptop-quick-menu {
+  left: calc(100% - 15px);
+  right: auto;
+  top: 1%;
+  width: 92px;
+}
+
+body.size-mini .laptop-quick-menu,
+body.size-std .laptop-quick-menu {
+  grid-template-columns: 25px;
+  grid-auto-rows: 25px;
+  gap: 3px;
+  padding: 4px;
+  overflow-x: hidden;
+}
+
+body.size-mini .laptop-quick-action,
+body.size-std .laptop-quick-action {
+  width: 25px;
+  max-width: 25px;
+  min-height: 25px;
+  height: 25px;
+  gap: 0;
+  padding: 1px;
+  border-radius: 50%;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: 0;
+  grid-row: var(--shortcut-grid-row, auto);
+  grid-column: var(--shortcut-grid-column, auto);
+}
+
+body.size-mini .laptop-action-icon,
+body.size-std .laptop-action-icon {
+  flex-basis: 23px;
+  width: 23px;
+  height: 23px;
+  font-size: 11px;
+}
+
+body.size-mini .laptop-quick-action {
+  width: 24px;
+  max-width: 24px;
+  min-height: 24px;
+  height: 24px;
+}
+
+body.size-mini .laptop-action-icon {
+  flex-basis: 22px;
+  width: 22px;
+  height: 22px;
+}
+
+body.size-mini .laptop-quick-menu {
+  width: 92px;
+}
+
+body.size-mini .laptop-action-label,
+body.size-std .laptop-action-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+body.size-mini .laptop-quick-action:nth-child(n),
+body.size-std .laptop-quick-action:nth-child(n) { margin-left: 0; }
+
+body.size-std .laptop-quick-menu { width: 92px; }
+
+body.size-std .pet-wrapper.dock-right .laptop-quick-menu {
+  left: auto;
+  right: calc(100% - 24px);
+}
+
+body.size-std .pet-wrapper.dock-left .laptop-quick-menu {
+  left: calc(100% - 24px);
+  right: auto;
+}
+
+body.size-lg .laptop-quick-menu {
+  width: 112px;
+  grid-template-columns: 104px;
+  top: -2%;
+}
+
+body.size-mini .laptop-quick-menu.has-overflow-actions,
+body.size-std .laptop-quick-menu.has-overflow-actions,
+body.size-lg .laptop-quick-menu.has-overflow-actions {
+  top: auto;
+  bottom: 0;
+}
+
+body.size-lg .pet-wrapper.dock-right .laptop-quick-menu {
+  left: auto;
+  right: calc(100% - 31px);
+}
+
+body.size-lg .pet-wrapper.dock-left .laptop-quick-menu {
+  left: calc(100% - 31px);
+  right: auto;
+}
+
+body.size-lg .laptop-quick-action {
+  width: 104px;
+  max-width: 104px;
+  gap: 6px;
+  padding-right: 7px;
+  font-size: 10px;
+}
+
+body.size-lg .laptop-quick-menu.compact-overflow-actions .laptop-quick-action {
+  width: 24px;
+  max-width: 24px;
+  min-height: 24px;
+  height: 24px;
+  gap: 0;
+  padding: 1px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  font-size: 0;
+}
+
+body.size-lg .laptop-quick-menu.compact-overflow-actions .laptop-action-icon {
+  flex-basis: 22px;
+  width: 22px;
+  height: 22px;
+}
+
+body.size-lg .laptop-quick-menu.compact-overflow-actions .laptop-action-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+/* Anchor hidden-mode shortcuts to the viewport itself. This keeps the rail at
+   the true right edge even when the bear was previously docked on the left. */
+body.assistant-hidden.size-mini .pet-wrapper > .laptop-quick-menu,
+body.assistant-hidden.size-std .pet-wrapper > .laptop-quick-menu,
+body.assistant-hidden.size-lg .pet-wrapper > .laptop-quick-menu,
+body.assistant-hidden .pet-wrapper > .laptop-quick-menu {
+  position: fixed;
+  left: auto;
+  right: 10px;
+  top: calc(100vh - var(--bear-size, 190px));
+  bottom: auto;
+  max-height: var(--bear-size, 190px);
+  z-index: 95;
+  transform-origin: right bottom;
+}
+
+.laptop-action-chevron {
+  margin-left: auto;
+  font-size: 16px;
+  line-height: 1;
+  transition: transform 0.16s ease;
+}
+
+.action-custom[aria-expanded="true"] .laptop-action-chevron {
+  transform: rotate(90deg);
+}
+
+.laptop-custom-panel {
+  display: none;
+  width: 154px;
+  padding: 5px;
+  border: 1px solid rgba(125, 211, 252, 0.52);
+  border-radius: 10px;
+  background: rgba(6, 16, 30, 0.96);
+  box-shadow: 0 5px 16px rgba(2, 8, 23, 0.46);
+}
+
+.laptop-custom-panel.visible { display: block; }
+
+.laptop-shortcut-list {
+  display: grid;
+  gap: 2px;
+  max-height: 112px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.laptop-shortcut-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 2px;
+}
+
+.laptop-shortcut-open,
+.laptop-shortcut-remove,
+.laptop-shortcut-tools button,
+.laptop-website-actions button {
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #e2e8f0;
+  font: 700 9px/1.2 inherit;
+  cursor: pointer;
+}
+
+.laptop-shortcut-open {
+  min-width: 0;
+  padding: 5px 4px;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.laptop-shortcut-open:hover,
+.laptop-shortcut-open:focus-visible { background: rgba(56, 189, 248, 0.16); outline: none; }
+.laptop-shortcut-remove { width: 20px; height: 20px; color: #94a3b8; font-size: 14px; }
+.laptop-shortcut-remove:hover { color: #fca5a5; background: rgba(239, 68, 68, 0.13); }
+
+.laptop-shortcut-empty {
+  padding: 7px 3px;
+  color: #94a3b8;
+  font-size: 9px;
+  text-align: center;
+}
+
+.laptop-shortcut-empty[hidden] { display: none; }
+
+.laptop-shortcut-tools {
+  display: flex;
+  gap: 3px;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.laptop-shortcut-tools button {
+  flex: 1;
+  padding: 4px 2px;
+  color: #7dd3fc;
+  background: rgba(56, 189, 248, 0.1);
+}
+
+.laptop-website-form {
+  display: none;
+  gap: 3px;
+  margin-top: 4px;
+}
+
+.laptop-website-form.visible { display: grid; }
+
+.laptop-website-form input {
+  width: 100%;
+  min-width: 0;
+  padding: 5px 6px;
+  border: 1px solid rgba(125, 211, 252, 0.34);
+  border-radius: 6px;
+  outline: none;
+  background: rgba(15, 23, 42, 0.9);
+  color: #f8fafc;
+  font: 500 9px/1.2 inherit;
+  user-select: text;
+}
+
+.laptop-website-form input:focus { border-color: #7dd3fc; }
+.laptop-website-actions { display: flex; gap: 3px; }
+.laptop-website-actions button { flex: 1; padding: 4px; background: rgba(56, 189, 248, 0.13); }
 
 .laptop-hit-outline {
   width: 100%;

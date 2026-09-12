@@ -16,12 +16,38 @@
       <span class="subtitle" id="header-subtitle">集中管理郵箱、日曆、健康、生活資訊與鬧鐘</span>
     </div>
     <div class="header-actions">
-      <span class="version-badge header-version-badge" id="header-version">Ver.1.2.0</span>
+      <span class="version-badge header-version-badge" id="header-version">Ver.1.6.0</span>
       <div class="lang-switcher">
         <button type="button" class="lang-btn active" data-lang="zh-TW" id="btn-lang-zh">繁中</button>
         <button type="button" class="lang-btn" data-lang="en" id="btn-lang-en">EN</button>
       </div>
     </div>
+  </div>
+
+  <div class="section overview-assistant-settings">
+    <div class="section-title" id="assistant-opacity-title">🧸 小助手外觀</div>
+    <div class="rule-item">
+      <div class="rule-label"><label for="assistant-opacity" id="assistant-opacity-label"><strong>小助手整體透明度</strong></label></div>
+      <div style="display:flex;align-items:center;gap:8px;min-width:210px">
+        <input id="assistant-opacity" type="range" min="0" max="70" step="5" value="0" style="flex:1">
+        <output id="assistant-opacity-value">0%</output>
+      </div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-label"><label for="focus-duration" id="focus-mode-label"><strong>🎯 勿擾／專注模式</strong></label><div class="tip" id="focus-mode-tip">啟用時暫停郵件、行事曆、健康與生活資訊提醒，便利貼鬧鐘仍會響起。</div></div>
+      <div class="btn-row" style="margin:0">
+        <select id="focus-duration" class="rule-input"><option value="0">關閉</option><option value="30">30 分鐘</option><option value="60">1 小時</option><option value="120">2 小時</option><option value="tomorrow">到明天上午 8:00</option></select>
+        <button type="button" class="action-btn btn-secondary" id="focus-apply">套用</button>
+      </div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-label"><label for="auto-update-enabled" id="auto-update-label"><strong>🔄 自動更新</strong></label><div class="tip" id="auto-update-tip">安裝版會從 GitHub Releases 自動檢查並下載新版本。</div></div>
+      <div class="btn-row" style="margin:0;align-items:center">
+        <label class="switch" for="auto-update-enabled"><input type="checkbox" id="auto-update-enabled" checked><span class="slider"></span></label>
+        <button type="button" class="action-btn btn-secondary" id="check-updates-now">立即檢查</button>
+      </div>
+    </div>
+    <div id="update-status" class="tip" role="status"></div>
   </div>
 
   <!-- Navigation Tabs -->
@@ -43,9 +69,11 @@
       <span id="tab-label-trivia">生活知識與笑話</span>
     </button>
     <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="panel-alarm" id="tab-btn-alarm"><span>📝</span><span id="tab-label-alarm">便利貼</span></button>
+    <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="panel-shortcuts" id="tab-btn-shortcuts"><span>🚀</span><span id="tab-label-shortcuts">快捷捷徑</span></button>
   </div>
 
   <div id="panel-alarm" class="tab-panel">
+    <div class="feature-intro"><span aria-hidden="true">ⓘ</span><span id="intro-alarm">設定待辦便利貼、鬧鐘時間與提醒鈴聲。</span></div>
     <div class="section">
       <div class="section-title" id="sec-title-panel-opacity">📝 待辦便利貼外觀</div>
       <div class="rule-item">
@@ -57,10 +85,10 @@
       </div>
     </div>
     <div class="section">
-      <div class="section-title">📝 便利貼提醒鈴聲設定</div>
-      <div class="tip" style="margin-bottom:12px">便利貼設定的時間到達後，會依此處選擇播放鈴聲。</div>
-      <label class="checkbox-wrap"><input type="radio" name="alarm-sound-type" value="preset" checked><span>系統預設鈴聲</span></label>
-      <div class="rule-item"><div class="rule-label"><strong>選擇內建鈴聲</strong></div><select id="alarm-preset" class="rule-input">
+      <div class="section-title" id="alarm-section-title">📝 便利貼提醒鈴聲設定</div>
+      <div class="tip" id="alarm-section-tip" style="margin-bottom:12px">便利貼設定的時間到達後，會依此處選擇播放鈴聲。</div>
+      <label class="checkbox-wrap"><input type="radio" name="alarm-sound-type" value="preset" checked><span id="alarm-label-preset">系統預設鈴聲</span></label>
+      <div class="rule-item"><div class="rule-label"><strong id="alarm-label-select-preset">選擇內建鈴聲</strong></div><select id="alarm-preset" class="rule-input">
         <option value="notification-064">預設鈴聲01</option>
         <option value="cheerful-harp">預設鈴聲02</option>
         <option value="ringtone-088">預設鈴聲03</option>
@@ -74,10 +102,10 @@
         <option value="ringtone-042">預設鈴聲11</option>
         <option value="notification-066">預設鈴聲12</option>
       </select></div>
-      <label class="checkbox-wrap"><input type="radio" name="alarm-sound-type" value="custom"><span>自訂音頻檔案或資料夾</span></label>
+      <label class="checkbox-wrap"><input type="radio" name="alarm-sound-type" value="custom"><span id="alarm-label-custom">自訂音頻檔案或資料夾</span></label>
       <div class="btn-row"><button type="button" class="action-btn btn-secondary" id="alarm-choose-files">選擇音頻檔案</button><button type="button" class="action-btn btn-secondary" id="alarm-choose-folder">選擇資料夾</button></div>
       <div id="alarm-custom-summary" class="tip">尚未選擇音頻；資料夾內多首音頻將隨機播放。</div>
-      <label class="checkbox-wrap"><input type="radio" name="alarm-sound-type" value="url"><span>自訂網址（支援直接音訊網址與 YouTube）</span></label>
+      <label class="checkbox-wrap"><input type="radio" name="alarm-sound-type" value="url"><span id="alarm-label-url">自訂網址（支援直接音訊網址與 YouTube）</span></label>
       <input id="alarm-url" class="text-input" type="url" placeholder="https://www.youtube.com/watch?v=..." style="width:100%;margin:8px 0 14px">
       <div class="rule-item"><div class="rule-label"><strong>鬧鐘響鈴時間</strong><div class="tip">時間到後自動切斷，或持續播放至點擊鬧鐘球。</div></div><select id="alarm-duration" class="rule-input"><option value="1">1 分鐘</option><option value="5">5 分鐘</option><option value="10">10 分鐘</option><option value="continuous">持續重複播放</option></select></div>
       <div class="btn-row">
@@ -91,19 +119,8 @@
        Tab Panel 1: Email Settings (Multi-Account Support)
        ====================================================================== -->
   <div id="panel-email" class="tab-panel active">
+    <div class="feature-intro"><span aria-hidden="true">ⓘ</span><span id="intro-email">連接多組信箱，分別設定小助手提醒與郵件便利貼。</span></div>
     <!-- Master Switch Card -->
-    <div class="master-switch-card">
-      <span class="master-switch-label" id="label-enable-switch">
-        🔔 啟用小助手郵件自動對話提醒
-      </span>
-      <div class="switch-wrap">
-        <label class="switch" for="email-enabled" aria-label="Toggle email monitoring">
-          <input type="checkbox" id="email-enabled">
-          <span class="slider"></span>
-        </label>
-      </div>
-    </div>
-
     <div class="section">
       <div class="section-title" id="sec-title-email-sticky">📧 郵件便利貼設定</div>
       <div class="rule-item">
@@ -223,20 +240,7 @@
        Tab Panel 2: Google Calendar Settings (Multi-Account & Timezone)
        ====================================================================== -->
   <div id="panel-calendar" class="tab-panel">
-    <!-- Master Calendar Switch Card -->
-    <div class="master-switch-card">
-      <span class="master-switch-label" id="label-enable-calendar">
-        📅 啟用小助手行程對話提醒
-      </span>
-      <span class="version-badge" id="calendar-version">Ver.1.2.0</span>
-      <div class="switch-wrap">
-        <label class="switch" for="calendar-enabled" aria-label="Toggle calendar monitoring">
-          <input type="checkbox" id="calendar-enabled" checked>
-          <span class="slider"></span>
-        </label>
-      </div>
-    </div>
-
+    <div class="feature-intro"><span aria-hidden="true">ⓘ</span><span id="intro-calendar">匯入多組 Google 日曆，分別設定行程提醒與行事曆便利貼。</span></div>
     <!-- Timezone Banner -->
     <div class="timezone-banner" id="cal-timezone-badge">
       <span class="timezone-icon">🌍</span>
@@ -378,12 +382,13 @@
        Tab Panel 3: Health & Rest Settings
        ====================================================================== -->
   <div id="panel-health" class="tab-panel">
+    <div class="feature-intro"><span aria-hidden="true">ⓘ</span><span id="intro-health">定時提醒喝水、休息與伸展，幫助維持工作健康。</span></div>
     <!-- Master Health Switch Card -->
     <div class="master-switch-card">
       <span class="master-switch-label" id="label-enable-health">
         🍵 啟用定時喝水與伸展提醒
       </span>
-      <span class="version-badge" id="health-version">Ver.1.2.0</span>
+      <span class="version-badge" id="health-version">Ver.1.6.0</span>
       <div class="switch-wrap">
         <label class="switch" for="health-enabled" aria-label="Toggle health reminder">
           <input type="checkbox" id="health-enabled" checked>
@@ -440,6 +445,7 @@
        Tab Panel 4: Online Trivia & Clean Jokes Settings
        ====================================================================== -->
   <div id="panel-trivia" class="tab-panel">
+    <div class="feature-intro"><span aria-hidden="true">ⓘ</span><span id="intro-trivia">定時探索生活知識或趣味笑話，並由小助手主動分享。</span></div>
     <!-- Master Trivia Switch Card -->
     <div class="master-switch-card">
       <span class="master-switch-label" id="label-enable-trivia">
@@ -520,6 +526,95 @@
     </div>
   </div>
 
+  <div id="panel-shortcuts" class="tab-panel">
+    <div class="feature-intro shortcut-feature-intro"><span aria-hidden="true">ⓘ</span><span id="intro-shortcuts">新增應用程式或網站快捷，設定 Logo、順序及各快捷使用的瀏覽器。</span></div>
+    <div class="section shortcut-appearance-section">
+      <div class="section-title" id="shortcut-opacity-title">🚀 快捷列外觀</div>
+      <div class="rule-item">
+        <div class="rule-label"><label for="shortcut-opacity" id="shortcut-opacity-label"><strong>快捷列整體透明度</strong></label></div>
+        <div style="display:flex;align-items:center;gap:8px;min-width:210px">
+          <input id="shortcut-opacity" type="range" min="0" max="70" step="5" value="0" style="flex:1">
+          <output id="shortcut-opacity-value">0%</output>
+        </div>
+      </div>
+    </div>
+    <div class="section shortcut-browser-section">
+      <div class="section-title" id="browser-settings-title">🌐 各快捷使用的瀏覽器</div>
+      <div class="tip" id="browser-settings-tip" style="margin-bottom:12px">系統會自動列出已安裝的常見瀏覽器，可為每個信箱、日曆與網站捷徑分別選擇；未指定時使用 Windows 預設瀏覽器。</div>
+      <div id="browser-settings-list" class="browser-settings-list"></div>
+      <div id="browser-settings-empty" class="tip browser-settings-empty">目前沒有可設定瀏覽器的項目。</div>
+      <div id="browser-settings-feedback" class="tip browser-settings-feedback"></div>
+    </div>
+    <div class="section shortcut-list-section">
+      <div class="section-title" id="shortcut-section-title">🚀 筆電快捷捷徑</div>
+      <div class="tip" id="shortcut-section-tip" style="margin-bottom:12px">在此新增應用程式或網站；儲存後會直接顯示在筆電彈出選單。筆電快捷總數最多 20 個（包含固定入口）。</div>
+      <div id="shortcut-settings-list" class="shortcut-settings-list"></div>
+      <div id="shortcut-settings-empty" class="tip shortcut-settings-empty">尚未新增自訂捷徑。</div>
+    </div>
+    <div class="section shortcut-editor">
+      <div class="section-title" id="shortcut-editor-title">＋ 新增捷徑</div>
+      <div class="shortcut-type-switch">
+        <label><input type="radio" name="shortcut-type" value="app" checked> <span id="shortcut-type-app-label">應用程式</span></label>
+        <label><input type="radio" name="shortcut-type" value="website"> <span id="shortcut-type-website-label">網站</span></label>
+      </div>
+      <label class="shortcut-field"><span id="shortcut-name-label">顯示名稱</span><input id="shortcut-name" class="text-input" type="text" maxlength="40" placeholder="例如：公司系統"></label>
+      <div id="shortcut-app-target" class="shortcut-target-row">
+        <button type="button" id="shortcut-choose-app" class="action-btn btn-secondary">選擇應用程式</button>
+        <span id="shortcut-app-path" class="tip">尚未選擇</span>
+      </div>
+      <label id="shortcut-website-target" class="shortcut-field" hidden><span id="shortcut-url-label">網站網址</span><input id="shortcut-url" class="text-input" type="url" maxlength="500" placeholder="https://example.com"></label>
+      <div class="shortcut-field">
+        <span id="shortcut-image-label">自訂 Logo 圖片（選填）</span>
+        <div id="shortcut-logo-description" class="tip shortcut-logo-description">建議使用 1:1 正方形圖片（至少 128×128px）。支援 PNG、JPG、WebP，檔案上限 10MB；圖片會自動置中裁切並保存。未上傳時將使用英文字母 Logo。</div>
+        <details class="shortcut-ai-logo-help">
+          <summary id="shortcut-ai-logo-title">✨ AI Logo 生成建議</summary>
+          <div id="shortcut-ai-logo-tip" class="tip">複製下列提示詞到圖片生成 AI，內容會自動代入目前的快捷名稱。</div>
+          <textarea id="shortcut-ai-logo-prompt" class="shortcut-ai-logo-prompt" readonly aria-label="AI Logo 生成提示詞"></textarea>
+          <button type="button" id="shortcut-copy-ai-logo-prompt" class="action-btn btn-secondary">📋 複製 AI 提示詞</button>
+        </details>
+        <div class="shortcut-logo-row">
+          <div id="shortcut-logo-preview" class="shortcut-logo-preview" aria-hidden="true">A</div>
+          <button type="button" id="shortcut-choose-logo" class="action-btn btn-secondary">選擇圖片</button>
+          <button type="button" id="shortcut-clear-logo" class="action-btn btn-secondary" hidden>移除圖片</button>
+          <span id="shortcut-logo-tip" class="tip">支援 PNG、JPG、WebP；會自動置中裁切。</span>
+        </div>
+      </div>
+      <label class="shortcut-field"><span id="shortcut-letter-label">Logo 英文字母</span><select id="shortcut-letter" class="rule-input" aria-label="Logo 英文字母">
+        <option>A</option><option>B</option><option>C</option><option>D</option><option>E</option><option>F</option><option>G</option>
+        <option>H</option><option>I</option><option>J</option><option>K</option><option>L</option><option>M</option><option>N</option>
+        <option>O</option><option>P</option><option>Q</option><option>R</option><option>S</option><option>T</option><option>U</option>
+        <option>V</option><option>W</option><option>X</option><option>Y</option><option>Z</option>
+      </select></label>
+      <div class="shortcut-field"><span id="shortcut-color-label">圓形 Logo 底色</span><div id="shortcut-color-picker" class="shortcut-color-picker" aria-label="Logo 底色調色盤">
+        <button type="button" class="selected" data-shortcut-color="#0ea5e9" style="--swatch:#0ea5e9"></button>
+        <button type="button" data-shortcut-color="#2563eb" style="--swatch:#2563eb"></button>
+        <button type="button" data-shortcut-color="#4f46e5" style="--swatch:#4f46e5"></button>
+        <button type="button" data-shortcut-color="#7c3aed" style="--swatch:#7c3aed"></button>
+        <button type="button" data-shortcut-color="#c026d3" style="--swatch:#c026d3"></button>
+        <button type="button" data-shortcut-color="#db2777" style="--swatch:#db2777"></button>
+        <button type="button" data-shortcut-color="#e11d48" style="--swatch:#e11d48"></button>
+        <button type="button" data-shortcut-color="#ea580c" style="--swatch:#ea580c"></button>
+        <button type="button" data-shortcut-color="#d97706" style="--swatch:#d97706"></button>
+        <button type="button" data-shortcut-color="#16a34a" style="--swatch:#16a34a"></button>
+        <button type="button" data-shortcut-color="#0d9488" style="--swatch:#0d9488"></button>
+        <button type="button" data-shortcut-color="#475569" style="--swatch:#475569"></button>
+        <button type="button" data-shortcut-color="#ffffff" style="--swatch:#ffffff"></button>
+        <button type="button" data-shortcut-color="#e2e8f0" style="--swatch:#e2e8f0"></button>
+        <button type="button" data-shortcut-color="#bae6fd" style="--swatch:#bae6fd"></button>
+        <button type="button" data-shortcut-color="#bfdbfe" style="--swatch:#bfdbfe"></button>
+        <button type="button" data-shortcut-color="#ddd6fe" style="--swatch:#ddd6fe"></button>
+        <button type="button" data-shortcut-color="#fbcfe8" style="--swatch:#fbcfe8"></button>
+        <button type="button" data-shortcut-color="#fde68a" style="--swatch:#fde68a"></button>
+        <button type="button" data-shortcut-color="#bbf7d0" style="--swatch:#bbf7d0"></button>
+      </div></div>
+      <div class="shortcut-editor-actions">
+        <button type="button" id="shortcut-add" class="action-btn btn-primary">＋ 新增至筆電快捷</button>
+        <button type="button" id="shortcut-edit-cancel" class="action-btn btn-secondary" hidden>取消編輯</button>
+      </div>
+      <div id="shortcut-editor-error" class="status-msg"></div>
+    </div>
+  </div>
+
   <!-- Status Message -->
   <div id="status-msg" class="status-msg"></div>
 
@@ -542,7 +637,12 @@
         tabHealth: '喝水健康提醒',
         tabTrivia: '生活知識與笑話',
         tabSticky: '便利貼',
-        enableSwitch: '啟用小助手郵件自動對話提醒',
+        introEmail: '連接多組信箱，分別設定小助手提醒與郵件便利貼。',
+        introCalendar: '匯入多組 Google 日曆，分別設定行程提醒與行事曆便利貼。',
+        introHealth: '定時提醒喝水、休息與伸展，幫助維持工作健康。',
+        introTrivia: '定時探索生活知識或趣味笑話，並由小助手主動分享。',
+        introSticky: '設定待辦便利貼、鬧鐘時間與提醒鈴聲。',
+        introShortcuts: '新增應用程式或網站快捷，設定 Logo、順序及各快捷使用的瀏覽器。',
         sectionAccounts: '👤 多組郵箱帳號設定',
         btnAddAccount: '新增信箱帳號',
         accountSwitchLabel: '啟用此信箱',
@@ -611,7 +711,6 @@
         labelSound: '收到新郵件時播放提示音 (無跳躍動作)',
         labelRepeat: '未讀郵件重複提示 (若信箱仍有未讀郵件，每次排程檢查時再次提示，避免漏看)',
 
-        enableCalendar: '📅 啟用小助手行程自動對話提醒',
         tzLabelTitle: '系統時區自動適應：',
         tzNote: '(隨 Windows 作業系統自動切換)',
         sectionCalendars: '📅 多組 Google 日曆帳號',
@@ -725,7 +824,12 @@
         tabHealth: 'Health Reminders',
         tabTrivia: 'Trivia & Jokes',
         tabSticky: 'Sticky Notes',
-        enableSwitch: 'Enable assistant email dialogue reminders',
+        introEmail: 'Connect multiple inboxes and configure Assistant reminders and email sticky notes for each one.',
+        introCalendar: 'Import multiple Google calendars and configure event reminders and calendar sticky notes independently.',
+        introHealth: 'Schedule water, rest, and stretching reminders to support healthier work habits.',
+        introTrivia: 'Periodically explore useful facts or clean jokes and let the Assistant share them proactively.',
+        introSticky: 'Configure to-do sticky notes, alarm times, and reminder sounds.',
+        introShortcuts: 'Add application or website shortcuts and configure their Logo, order, and preferred browser.',
         sectionAccounts: '👤 Multiple Email Accounts',
         btnAddAccount: 'Add Email Account',
         accountSwitchLabel: 'Enable Account',
@@ -794,7 +898,6 @@
         labelSound: 'Play notification sound when new email arrives (No bounce)',
         labelRepeat: 'Repeat unread reminders on each scheduled check until read',
 
-        enableCalendar: '📅 Enable assistant calendar dialogue reminders',
         tzLabelTitle: 'System Timezone Adaptation:',
         tzNote: '(Auto-sync with Windows OS)',
         sectionCalendars: '📅 Multiple Google Calendars',
@@ -918,7 +1021,6 @@
     const alarmCustomSummary = document.getElementById('alarm-custom-summary');
 
     // Email Elements
-    const enabledSwitch = document.getElementById('email-enabled');
     const accountsContainer = document.getElementById('accounts-container');
     const btnAddAccount = document.getElementById('btn-add-account');
     const maxAgeSel = document.getElementById('rule-max-age');
@@ -933,7 +1035,6 @@
     const btnCheckNow = document.getElementById('btn-check-now');
 
     // Calendar Elements
-    const calEnabledSwitch = document.getElementById('calendar-enabled');
     const tzCurrentName = document.getElementById('tz-current-name');
     const calendarsContainer = document.getElementById('calendars-container');
     const btnAddCalendar = document.getElementById('btn-add-calendar');
@@ -947,6 +1048,16 @@
     const calendarPanelOpacityInput = document.getElementById('calendar-panel-opacity');
     const todoPanelOpacityValue = document.getElementById('todo-panel-opacity-value');
     const calendarPanelOpacityValue = document.getElementById('calendar-panel-opacity-value');
+    const shortcutOpacityInput = document.getElementById('shortcut-opacity');
+    const shortcutOpacityValue = document.getElementById('shortcut-opacity-value');
+    const assistantOpacityInput = document.getElementById('assistant-opacity');
+    const assistantOpacityValue = document.getElementById('assistant-opacity-value');
+    const focusDuration = document.getElementById('focus-duration');
+    const focusApply = document.getElementById('focus-apply');
+    const autoUpdateEnabledCheck = document.getElementById('auto-update-enabled');
+    const checkUpdatesNow = document.getElementById('check-updates-now');
+    const updateStatus = document.getElementById('update-status');
+    let updateReadyToInstall = false;
     const btnTestAllCal = document.getElementById('btn-test-all-cal');
     const btnCheckCalNow = document.getElementById('btn-check-cal-now');
 
@@ -978,7 +1089,6 @@
     function switchTab(panelId) {
       document.querySelectorAll('.tab-panel').forEach(panel => {
         panel.classList.remove('active');
-        panel.style.display = 'none';
       });
       document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.classList.remove('active');
@@ -988,7 +1098,6 @@
       const activePanel = document.getElementById(panelId);
       if (activePanel) {
         activePanel.classList.add('active');
-        activePanel.style.display = 'block';
       }
 
       const activeBtn = document.querySelector(`.tab-btn[data-tab="${panelId}"]`);
@@ -996,12 +1105,544 @@
         activeBtn.classList.add('active');
         activeBtn.setAttribute('aria-selected', 'true');
       }
+      if (panelId === 'panel-shortcuts') renderBrowserSettings();
     }
 
     document.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         switchTab(btn.dataset.tab);
       });
+    });
+
+    let selectedShortcutColor = '#0ea5e9';
+    let selectedShortcutAppPath = '';
+    let selectedShortcutLogoPath = '';
+    let selectedShortcutLogoUrl = '';
+    let editingShortcutId = '';
+    let shortcutDrafts = [];
+    let fixedShortcutDrafts = [];
+    let shortcutLimit = 20;
+    let shortcutMenuLimit = 20;
+    let shortcutFixedActionCount = 0;
+    let browserAssignmentDrafts = {};
+    let installedBrowserOptions = [];
+
+    async function loadShortcutSettings() {
+      if (!ipc) return;
+      const data = await ipc.invoke('laptop-get-shortcut-settings');
+      fixedShortcutDrafts = data?.fixedShortcuts || [];
+      shortcutDrafts = Array.isArray(data?.shortcuts) ? data.shortcuts.map(shortcut => ({ ...shortcut })) : [];
+      shortcutLimit = Number.isFinite(Number(data?.maxShortcuts)) ? Math.max(0, Number(data.maxShortcuts)) : 20;
+      shortcutMenuLimit = Number(data?.maxMenuActions) || 20;
+      shortcutFixedActionCount = Number(data?.fixedActionCount) || 0;
+      browserAssignmentDrafts = data?.browserAssignments && typeof data.browserAssignments === 'object'
+        ? { ...data.browserAssignments }
+        : {};
+      installedBrowserOptions = Array.isArray(data?.installedBrowsers)
+        ? data.installedBrowsers.filter(browser => browser?.name && browser?.path).map(browser => ({ ...browser }))
+        : [];
+      renderShortcutSettings();
+    }
+
+    function getBrowserSettingEntries() {
+      const isEn = currentLanguage === 'en';
+      return [
+        ...accountsList.map((account, index) => ({
+          key: `email:${account.id}`,
+          type: isEn ? 'Email' : '信箱',
+          name: account.name || account.user || (isEn ? `Inbox ${index + 1}` : `信箱 ${index + 1}`)
+        })),
+        ...calendarsList.map((calendar, index) => ({
+          key: `calendar:${calendar.id}`,
+          type: isEn ? 'Calendar' : '日曆',
+          name: calendar.name || (isEn ? `Calendar ${index + 1}` : `日曆 ${index + 1}`)
+        })),
+        ...shortcutDrafts.filter(shortcut => shortcut.type === 'website').map(shortcut => ({
+          key: `custom:${shortcut.id}`,
+          type: isEn ? 'Website' : '網站',
+          name: shortcut.name
+        }))
+      ];
+    }
+
+    function getBrowserAssignmentsForSave() {
+      const validKeys = new Set(getBrowserSettingEntries().map(entry => entry.key));
+      return Object.fromEntries(Object.entries(browserAssignmentDrafts)
+        .filter(([key, browserPath]) => validKeys.has(key) && String(browserPath || '').trim()));
+    }
+
+    function renderBrowserSettings() {
+      const list = document.getElementById('browser-settings-list');
+      const empty = document.getElementById('browser-settings-empty');
+      if (!list || !empty) return;
+      const isEn = currentLanguage === 'en';
+      const entries = getBrowserSettingEntries();
+      list.replaceChildren();
+      empty.hidden = entries.length > 0;
+
+      for (const entry of entries) {
+        const browserPath = String(browserAssignmentDrafts[entry.key] || '');
+        const row = document.createElement('div');
+        row.className = 'browser-setting-row';
+
+        const info = document.createElement('div');
+        info.className = 'browser-setting-info';
+        const heading = document.createElement('div');
+        heading.className = 'browser-setting-heading';
+        const type = document.createElement('span');
+        type.className = 'browser-setting-type';
+        type.textContent = entry.type;
+        const name = document.createElement('strong');
+        name.className = 'browser-setting-name';
+        name.textContent = entry.name;
+        heading.append(type, name);
+        const selected = document.createElement('div');
+        selected.className = 'browser-setting-path';
+        selected.textContent = browserPath
+          ? (browserPath.split(/[\\/]/).pop() || browserPath)
+          : (isEn ? 'Windows default browser' : 'Windows 預設瀏覽器');
+        selected.title = browserPath || selected.textContent;
+        info.append(heading, selected);
+
+        const select = document.createElement('select');
+        select.className = 'browser-setting-select';
+        select.dataset.browserSelectKey = entry.key;
+        select.setAttribute('aria-label', isEn ? `Browser for ${entry.name}` : `${entry.name} 使用的瀏覽器`);
+        const appendOption = (value, label) => {
+          const option = document.createElement('option');
+          option.value = value;
+          option.textContent = label;
+          select.appendChild(option);
+        };
+        appendOption('', isEn ? 'Windows default' : 'Windows 預設');
+        for (const browser of installedBrowserOptions) appendOption(browser.path, browser.name);
+        const matchedBrowser = installedBrowserOptions.find(browser => browser.path.toLowerCase() === browserPath.toLowerCase());
+        if (browserPath && !matchedBrowser) {
+          appendOption(browserPath, `${isEn ? 'Custom' : '自訂'} · ${browserPath.split(/[\\/]/).pop() || browserPath}`);
+        }
+        appendOption('__browse__', isEn ? 'Choose another browser…' : '選擇其他瀏覽器…');
+        select.value = matchedBrowser?.path || browserPath;
+
+        row.append(info, select);
+        list.appendChild(row);
+      }
+    }
+
+    function renderShortcutSettings() {
+      const isEn = currentLanguage === 'en';
+      const list = document.getElementById('shortcut-settings-list');
+      const empty = document.getElementById('shortcut-settings-empty');
+      list.replaceChildren();
+      empty.hidden = shortcutDrafts.length + fixedShortcutDrafts.length > 0;
+      const addButton = document.getElementById('shortcut-add');
+      addButton.disabled = !editingShortcutId && shortcutDrafts.length >= shortcutLimit;
+      addButton.textContent = editingShortcutId
+        ? (isEn ? 'Save shortcut changes' : '儲存快捷變更')
+        : shortcutDrafts.length >= shortcutLimit
+        ? (isEn ? `Total limit reached (${shortcutMenuLimit})` : `已達快捷總數 ${shortcutMenuLimit} 個上限`)
+        : (isEn ? '+ Add to laptop shortcuts' : '＋ 新增至筆電快捷');
+      for (const shortcut of [...fixedShortcutDrafts, ...shortcutDrafts]) {
+        const card = document.createElement('div');
+        card.className = 'shortcut-settings-card';
+        card.draggable = !shortcut.fixed;
+        if (!shortcut.fixed) card.dataset.shortcutId = shortcut.id;
+        card.title = shortcut.fixed ? '' : (isEn ? 'Drag to reorder' : '拖曳調整位置');
+        const dragHandle = document.createElement('span');
+        dragHandle.className = 'shortcut-drag-handle';
+        dragHandle.textContent = shortcut.fixed ? '' : '⋮⋮';
+        dragHandle.setAttribute('aria-hidden', 'true');
+        const icon = document.createElement('div');
+        icon.className = 'shortcut-settings-icon';
+        icon.style.background = shortcut.logoUrl ? 'transparent' : (shortcut.color || '#0ea5e9');
+        icon.style.color = getShortcutTextColor(shortcut.color);
+        if (shortcut.logoUrl) {
+          const image = document.createElement('img');
+          image.src = shortcut.logoUrl;
+          image.alt = '';
+          image.draggable = false;
+          icon.appendChild(image);
+        } else {
+          icon.textContent = shortcut.letter || 'A';
+        }
+        const info = document.createElement('div');
+        info.className = 'shortcut-settings-info';
+        const name = document.createElement('div');
+        name.className = 'shortcut-settings-name';
+        name.textContent = shortcut.name;
+        const kind = document.createElement('div');
+        kind.className = 'shortcut-settings-kind';
+        kind.textContent = shortcut.fixed ? (isEn ? 'Built-in shortcut' : '內建快捷') : shortcut.type === 'website'
+          ? (isEn ? 'Website' : '網站')
+          : (isEn ? 'Application' : '應用程式');
+        info.append(name, kind);
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'action-btn btn-danger shortcut-settings-remove';
+        remove.dataset.shortcutRemoveId = shortcut.id;
+        remove.textContent = isEn ? 'Remove' : '移除';
+        const logoButton = document.createElement('button');
+        logoButton.type = 'button';
+        logoButton.className = 'action-btn btn-secondary shortcut-settings-logo';
+        logoButton.dataset.shortcutLogoId = shortcut.id;
+        logoButton.textContent = isEn ? 'Logo' : 'Logo';
+        const actions = document.createElement('div');
+        actions.className = 'shortcut-settings-actions';
+        const edit = document.createElement('button');
+        edit.type = 'button';
+        edit.className = 'action-btn btn-secondary shortcut-settings-edit';
+        edit.dataset.shortcutEditId = shortcut.id;
+        edit.textContent = isEn ? 'Edit' : '編輯';
+        if (!shortcut.fixed) actions.append(edit);
+        actions.append(logoButton);
+        if (shortcut.logoUrl) {
+          const clearLogo = document.createElement('button');
+          clearLogo.type = 'button';
+          clearLogo.className = 'action-btn btn-secondary shortcut-settings-clear-logo';
+          clearLogo.dataset.shortcutClearLogoId = shortcut.id;
+          clearLogo.textContent = isEn ? 'Clear' : '清除';
+          actions.appendChild(clearLogo);
+        }
+        if (!shortcut.fixed) actions.appendChild(remove);
+        card.append(dragHandle, icon, info, actions);
+        list.appendChild(card);
+      }
+      renderBrowserSettings();
+    }
+
+    function renderShortcutLogoPreview() {
+      const preview = document.getElementById('shortcut-logo-preview');
+      const clearButton = document.getElementById('shortcut-clear-logo');
+      preview.replaceChildren();
+      const colorPicker = document.getElementById('shortcut-color-picker');
+      preview.style.background = selectedShortcutLogoUrl ? 'transparent' : selectedShortcutColor;
+      preview.style.color = getShortcutTextColor(selectedShortcutColor);
+      colorPicker.classList.toggle('disabled', !!selectedShortcutLogoUrl);
+      colorPicker.setAttribute('aria-disabled', String(!!selectedShortcutLogoUrl));
+      if (selectedShortcutLogoUrl) {
+        const image = document.createElement('img');
+        image.src = selectedShortcutLogoUrl;
+        image.alt = '';
+        image.draggable = false;
+        preview.appendChild(image);
+        clearButton.hidden = false;
+      } else {
+        preview.textContent = document.getElementById('shortcut-letter').value || 'A';
+        clearButton.hidden = true;
+      }
+    }
+
+    function getShortcutTextColor(color) {
+      const hex = String(color || '').replace('#', '');
+      if (!/^[0-9a-f]{6}$/i.test(hex)) return '#ffffff';
+      const r = parseInt(hex.slice(0, 2), 16);
+      const g = parseInt(hex.slice(2, 4), 16);
+      const b = parseInt(hex.slice(4, 6), 16);
+      return (r * 299 + g * 587 + b * 114) / 1000 > 170 ? '#0f172a' : '#ffffff';
+    }
+
+    function getShortcutLogoPrompt() {
+      const logoText = document.getElementById('shortcut-name').value.trim() || 'ERP';
+      if (currentLanguage === 'en') {
+        return `Create a software shortcut logo.\n\nText: ${logoText}\nPurpose: Desktop assistant shortcut button\nFinal size: 125×125 pixels\nBackground: Transparent\nDesign: Use only the exact text "${logoText}"; do not add, omit, or reorder characters\nTypography: Bold, simple, and highly legible\nComposition: Center and enlarge the text, leaving an 8–10 pixel safe margin\nColors: Bright blue with a small violet accent\nEffect: Subtle technology feel; at most one simple line accent\nRequirement: Must remain readable at 32×32 pixels\nAvoid: 3D, complex emblems, thin lines, small text, extra text, black background, strong glow\nOutput: 125×125 transparent PNG`;
+      }
+      return `請製作一張軟體快捷 Logo。\n\n文字：${logoText}\n用途：桌面小助手的快捷按鈕\n最終尺寸：125×125 像素\n背景：透明\n設計：只使用「${logoText}」文字，不可增加、省略或改變順序\n字體：粗體、簡潔、容易辨識\n構圖：文字置中並盡量放大，四周保留 8～10 像素安全距離\n顏色：亮藍色，搭配少量紫色點綴\n效果：輕微科技感，最多加入一道簡單線條\n要求：縮小到 32×32 像素時仍能清楚辨識\n避免：3D、複雜圖騰、細線、小字、額外文字、黑色背景、強烈光暈\n輸出：125×125 PNG，透明背景`;
+    }
+
+    function renderShortcutLogoPrompt() {
+      document.getElementById('shortcut-ai-logo-prompt').value = getShortcutLogoPrompt();
+    }
+
+    function resetShortcutEditor(preserveType = false) {
+      const currentType = preserveType
+        ? (document.querySelector('input[name="shortcut-type"]:checked')?.value || 'app')
+        : 'app';
+      editingShortcutId = '';
+      document.getElementById('shortcut-editor-title').textContent = currentLanguage === 'en' ? '+ Add shortcut' : '＋ 新增捷徑';
+      document.querySelector(`input[name="shortcut-type"][value="${currentType}"]`).checked = true;
+      document.getElementById('shortcut-app-target').hidden = currentType === 'website';
+      document.getElementById('shortcut-website-target').hidden = currentType !== 'website';
+      document.getElementById('shortcut-name').value = '';
+      document.getElementById('shortcut-url').value = '';
+      document.getElementById('shortcut-letter').value = 'A';
+      document.getElementById('shortcut-app-path').textContent = currentLanguage === 'en' ? 'Not selected' : '尚未選擇';
+      document.getElementById('shortcut-edit-cancel').hidden = true;
+      selectedShortcutAppPath = '';
+      selectedShortcutLogoPath = '';
+      selectedShortcutLogoUrl = '';
+      selectedShortcutColor = '#0ea5e9';
+      document.querySelectorAll('[data-shortcut-color]').forEach(item => item.classList.toggle('selected', item.dataset.shortcutColor === selectedShortcutColor));
+      renderShortcutLogoPreview();
+      renderShortcutLogoPrompt();
+      renderShortcutSettings();
+    }
+
+    function editShortcut(shortcut) {
+      if (!shortcut) return;
+      editingShortcutId = shortcut.id;
+      const isWebsite = shortcut.type === 'website';
+      document.getElementById('shortcut-editor-title').textContent = currentLanguage === 'en' ? 'Edit shortcut' : '編輯捷徑';
+      document.querySelector(`input[name="shortcut-type"][value="${shortcut.type}"]`).checked = true;
+      document.getElementById('shortcut-app-target').hidden = isWebsite;
+      document.getElementById('shortcut-website-target').hidden = !isWebsite;
+      document.getElementById('shortcut-name').value = shortcut.name || '';
+      document.getElementById('shortcut-url').value = isWebsite ? (shortcut.target || '') : '';
+      document.getElementById('shortcut-letter').value = shortcut.letter || 'A';
+      selectedShortcutAppPath = isWebsite ? '' : (shortcut.target || '');
+      document.getElementById('shortcut-app-path').textContent = selectedShortcutAppPath || (currentLanguage === 'en' ? 'Not selected' : '尚未選擇');
+      selectedShortcutLogoPath = shortcut.logoPath || '';
+      selectedShortcutLogoUrl = shortcut.logoUrl || '';
+      selectedShortcutColor = shortcut.color || '#0ea5e9';
+      document.querySelectorAll('[data-shortcut-color]').forEach(item => item.classList.toggle('selected', item.dataset.shortcutColor === selectedShortcutColor));
+      document.getElementById('shortcut-edit-cancel').hidden = false;
+      renderShortcutLogoPreview();
+      renderShortcutLogoPrompt();
+      renderShortcutSettings();
+      document.querySelector('.shortcut-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    document.getElementById('browser-settings-list').addEventListener('change', async event => {
+      const select = event.target.closest('[data-browser-select-key]');
+      if (!select) return;
+      const feedback = document.getElementById('browser-settings-feedback');
+      const assignmentKey = select.dataset.browserSelectKey;
+      if (select.value === '__browse__') {
+        if (!ipc) return;
+        const result = await ipc.invoke('laptop-choose-browser');
+        if (result?.canceled || !result?.path) {
+          renderBrowserSettings();
+          return;
+        }
+        browserAssignmentDrafts[assignmentKey] = result.path;
+      } else if (select.value) {
+        browserAssignmentDrafts[assignmentKey] = select.value;
+      } else {
+        delete browserAssignmentDrafts[assignmentKey];
+      }
+      feedback.textContent = currentLanguage === 'en'
+        ? 'Browser changed in the draft. Click Save & Apply to activate it.'
+        : '瀏覽器已在草稿中變更，請點選「儲存並套用」才會生效。';
+      renderBrowserSettings();
+    });
+
+    let draggedShortcutId = '';
+    const shortcutSettingsList = document.getElementById('shortcut-settings-list');
+    shortcutSettingsList.addEventListener('dragstart', event => {
+      const card = event.target.closest('[data-shortcut-id]');
+      if (!card) return;
+      draggedShortcutId = card.dataset.shortcutId;
+      card.classList.add('dragging');
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', draggedShortcutId);
+    });
+    shortcutSettingsList.addEventListener('dragover', event => {
+      const card = event.target.closest('[data-shortcut-id]');
+      if (!card || card.dataset.shortcutId === draggedShortcutId) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      shortcutSettingsList.querySelectorAll('.drag-over').forEach(item => item.classList.remove('drag-over'));
+      card.classList.add('drag-over');
+    });
+    shortcutSettingsList.addEventListener('drop', event => {
+      const targetCard = event.target.closest('[data-shortcut-id]');
+      if (!targetCard || !draggedShortcutId || targetCard.dataset.shortcutId === draggedShortcutId) return;
+      event.preventDefault();
+      const sourceIndex = shortcutDrafts.findIndex(item => item.id === draggedShortcutId);
+      let targetIndex = shortcutDrafts.findIndex(item => item.id === targetCard.dataset.shortcutId);
+      if (sourceIndex < 0 || targetIndex < 0) return;
+      const [moved] = shortcutDrafts.splice(sourceIndex, 1);
+      if (sourceIndex < targetIndex) targetIndex -= 1;
+      const rect = targetCard.getBoundingClientRect();
+      if (event.clientY > rect.top + rect.height / 2) targetIndex += 1;
+      shortcutDrafts.splice(targetIndex, 0, moved);
+      const status = document.getElementById('shortcut-editor-error');
+      status.textContent = currentLanguage === 'en'
+        ? 'Shortcut order updated in the draft. Click Save & Apply to activate it.'
+        : '捷徑順序已在草稿中更新，請點選「儲存並套用」才會生效。';
+      status.classList.remove('error');
+      draggedShortcutId = '';
+      renderShortcutSettings();
+    });
+    shortcutSettingsList.addEventListener('dragend', () => {
+      draggedShortcutId = '';
+      shortcutSettingsList.querySelectorAll('.dragging, .drag-over').forEach(item => item.classList.remove('dragging', 'drag-over'));
+    });
+
+    document.querySelectorAll('input[name="shortcut-type"]').forEach(input => {
+      input.addEventListener('change', () => {
+        const isWebsite = input.value === 'website' && input.checked;
+        if (!input.checked) return;
+        document.getElementById('shortcut-app-target').hidden = isWebsite;
+        document.getElementById('shortcut-website-target').hidden = !isWebsite;
+      });
+    });
+    document.getElementById('shortcut-color-picker').addEventListener('click', event => {
+      const button = event.target.closest('[data-shortcut-color]');
+      if (!button || selectedShortcutLogoUrl) return;
+      selectedShortcutColor = button.dataset.shortcutColor;
+      document.querySelectorAll('[data-shortcut-color]').forEach(item => item.classList.toggle('selected', item === button));
+      renderShortcutLogoPreview();
+    });
+    document.getElementById('shortcut-letter').addEventListener('change', renderShortcutLogoPreview);
+    document.getElementById('shortcut-name').addEventListener('input', renderShortcutLogoPrompt);
+    document.getElementById('shortcut-copy-ai-logo-prompt').addEventListener('click', async () => {
+      const prompt = document.getElementById('shortcut-ai-logo-prompt');
+      const button = document.getElementById('shortcut-copy-ai-logo-prompt');
+      try {
+        if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(prompt.value);
+        else {
+          prompt.select();
+          document.execCommand('copy');
+          prompt.setSelectionRange(0, 0);
+        }
+        button.textContent = currentLanguage === 'en' ? '✓ Copied' : '✓ 已複製';
+        setTimeout(() => {
+          button.textContent = currentLanguage === 'en' ? '📋 Copy AI prompt' : '📋 複製 AI 提示詞';
+        }, 1600);
+      } catch (error) {
+        const errorBox = document.getElementById('shortcut-editor-error');
+        errorBox.textContent = currentLanguage === 'en'
+          ? 'Unable to copy automatically. Select and copy the prompt manually.'
+          : '無法自動複製，請選取提示詞後手動複製。';
+        errorBox.classList.add('error');
+      }
+    });
+    document.getElementById('shortcut-choose-logo').addEventListener('click', async () => {
+      if (!ipc) return;
+      const result = await ipc.invoke('laptop-choose-shortcut-logo');
+      if (result?.canceled) return;
+      const errorBox = document.getElementById('shortcut-editor-error');
+      if (!result?.ok) {
+        errorBox.textContent = result?.error || (currentLanguage === 'en' ? 'Unable to load that image.' : '無法載入該圖片。');
+        errorBox.classList.add('error');
+        return;
+      }
+      selectedShortcutLogoPath = result.logoPath || '';
+      selectedShortcutLogoUrl = result.logoUrl || '';
+      errorBox.textContent = '';
+      errorBox.classList.remove('error');
+      renderShortcutLogoPreview();
+    });
+    document.getElementById('shortcut-clear-logo').addEventListener('click', () => {
+      selectedShortcutLogoPath = '';
+      selectedShortcutLogoUrl = '';
+      renderShortcutLogoPreview();
+    });
+    document.getElementById('shortcut-choose-app').addEventListener('click', async () => {
+      if (!ipc) return;
+      const result = await ipc.invoke('laptop-choose-custom-app');
+      if (result?.canceled) return;
+      selectedShortcutAppPath = result.target;
+      document.getElementById('shortcut-app-path').textContent = result.target;
+      const nameInput = document.getElementById('shortcut-name');
+      if (!nameInput.value) nameInput.value = result.suggestedName || '';
+    });
+    document.getElementById('shortcut-add').addEventListener('click', async () => {
+      const type = document.querySelector('input[name="shortcut-type"]:checked').value;
+      const name = document.getElementById('shortcut-name').value.trim();
+      const target = type === 'website' ? document.getElementById('shortcut-url').value.trim() : selectedShortcutAppPath;
+      const errorBox = document.getElementById('shortcut-editor-error');
+      if (!name || !target) {
+        errorBox.textContent = currentLanguage === 'en'
+          ? 'Enter a display name and choose an application or enter a website URL.'
+          : '請填寫顯示名稱並選擇程式或輸入網站網址。';
+        errorBox.classList.add('error');
+        return;
+      }
+      if (!editingShortcutId && shortcutDrafts.length >= shortcutLimit) {
+        errorBox.textContent = currentLanguage === 'en'
+          ? `Laptop shortcuts are limited to ${shortcutMenuLimit} total (${shortcutFixedActionCount} fixed entries included).`
+          : `筆電快捷總數最多 ${shortcutMenuLimit} 個（包含 ${shortcutFixedActionCount} 個固定入口）。`;
+        errorBox.classList.add('error');
+        return;
+      }
+      if (type === 'website') {
+        try {
+          const parsed = new URL(target);
+          if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error();
+        } catch (error) {
+          errorBox.textContent = currentLanguage === 'en'
+            ? 'Enter a valid HTTP or HTTPS website URL.'
+            : '請輸入有效的 HTTP 或 HTTPS 網站網址。';
+          errorBox.classList.add('error');
+          return;
+        }
+      }
+      const shortcutData = {
+        id: editingShortcutId || `shortcut-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        type,
+        name,
+        target,
+        letter: document.getElementById('shortcut-letter').value,
+        color: selectedShortcutColor,
+        logoPath: selectedShortcutLogoPath,
+        logoUrl: selectedShortcutLogoUrl
+      };
+      const editingIndex = shortcutDrafts.findIndex(shortcut => shortcut.id === editingShortcutId);
+      if (editingIndex >= 0) shortcutDrafts.splice(editingIndex, 1, shortcutData);
+      else shortcutDrafts.push(shortcutData);
+      errorBox.textContent = editingIndex >= 0
+        ? (currentLanguage === 'en' ? 'Shortcut updated in the draft. Click Save & Apply to activate it.' : '捷徑已在草稿中更新，請點選「儲存並套用」才會生效。')
+        : (currentLanguage === 'en' ? 'Shortcut added to the draft. Click Save & Apply to activate it.' : '捷徑已加入草稿，請點選「儲存並套用」才會生效。');
+      errorBox.classList.remove('error');
+      resetShortcutEditor(true);
+    });
+    document.getElementById('shortcut-edit-cancel').addEventListener('click', () => resetShortcutEditor());
+    document.getElementById('shortcut-settings-list').addEventListener('click', async event => {
+      const editButton = event.target.closest('[data-shortcut-edit-id]');
+      if (editButton) {
+        editShortcut(shortcutDrafts.find(item => item.id === editButton.dataset.shortcutEditId));
+        return;
+      }
+      const logoButton = event.target.closest('[data-shortcut-logo-id]');
+      if (logoButton) {
+        if (!ipc) return;
+        const result = await ipc.invoke('laptop-choose-shortcut-logo');
+        if (result?.canceled) return;
+        const errorBox = document.getElementById('shortcut-editor-error');
+        if (!result?.ok) {
+          errorBox.textContent = result?.error || (currentLanguage === 'en' ? 'Unable to load that image.' : '無法載入該圖片。');
+          errorBox.classList.add('error');
+          return;
+        }
+        const shortcut = [...fixedShortcutDrafts, ...shortcutDrafts].find(item => item.id === logoButton.dataset.shortcutLogoId);
+        if (shortcut) {
+          shortcut.logoPath = result.logoPath || '';
+          shortcut.logoUrl = result.logoUrl || '';
+          errorBox.textContent = currentLanguage === 'en'
+            ? 'Logo updated in the draft. Click Save & Apply to activate it.'
+            : 'Logo 已在草稿中更新，請點選「儲存並套用」才會生效。';
+          errorBox.classList.remove('error');
+          renderShortcutSettings();
+        }
+        return;
+      }
+      const clearLogoButton = event.target.closest('[data-shortcut-clear-logo-id]');
+      if (clearLogoButton) {
+        const shortcut = [...fixedShortcutDrafts, ...shortcutDrafts].find(item => item.id === clearLogoButton.dataset.shortcutClearLogoId);
+        if (shortcut) {
+          shortcut.logoPath = '';
+          shortcut.logoUrl = '';
+          const errorBox = document.getElementById('shortcut-editor-error');
+          errorBox.textContent = currentLanguage === 'en'
+            ? 'Logo removed in the draft. Click Save & Apply to activate it.'
+            : 'Logo 已在草稿中清除，請點選「儲存並套用」才會生效。';
+          errorBox.classList.remove('error');
+          renderShortcutSettings();
+        }
+        return;
+      }
+      const button = event.target.closest('[data-shortcut-remove-id]');
+      if (!button) return;
+      const removedEditingShortcut = editingShortcutId === button.dataset.shortcutRemoveId;
+      shortcutDrafts = shortcutDrafts.filter(shortcut => shortcut.id !== button.dataset.shortcutRemoveId);
+      delete browserAssignmentDrafts[`custom:${button.dataset.shortcutRemoveId}`];
+      const errorBox = document.getElementById('shortcut-editor-error');
+      errorBox.textContent = currentLanguage === 'en'
+        ? 'Shortcut removed from the draft. Click Save & Apply to activate it.'
+        : '捷徑已從草稿移除，請點選「儲存並套用」才會生效。';
+      errorBox.classList.remove('error');
+      if (removedEditingShortcut) resetShortcutEditor();
+      else renderShortcutSettings();
     });
 
     // Language Switching
@@ -1021,7 +1662,101 @@
       document.getElementById('tab-label-health').textContent = s.tabHealth;
       document.getElementById('tab-label-trivia').textContent = s.tabTrivia;
       document.getElementById('tab-label-alarm').textContent = s.tabSticky;
-      document.getElementById('label-enable-switch').textContent = '🔔 ' + s.enableSwitch;
+      document.getElementById('tab-label-shortcuts').textContent = lang === 'en' ? 'Laptop shortcuts' : '快捷捷徑';
+      document.getElementById('intro-email').textContent = s.introEmail;
+      document.getElementById('intro-calendar').textContent = s.introCalendar;
+      document.getElementById('intro-health').textContent = s.introHealth;
+      document.getElementById('intro-trivia').textContent = s.introTrivia;
+      document.getElementById('intro-alarm').textContent = s.introSticky;
+      document.getElementById('intro-shortcuts').textContent = s.introShortcuts;
+
+      const extra = lang === 'en' ? {
+        alarmTitle: '📝 Sticky-note alarm sound', alarmTip: 'When a sticky-note alarm is due, the selected sound will play.',
+        preset: 'Built-in sound', selectPreset: 'Choose a built-in sound', custom: 'Custom audio files or folder',
+        chooseFiles: 'Choose audio files', chooseFolder: 'Choose folder', noAudio: 'No audio selected; multiple files in a folder will play at random.',
+        url: 'Custom URL (direct audio URLs and YouTube supported)', duration: 'Alarm duration', durationTip: 'Stop automatically after this time, or keep playing until the alarm orb is clicked.',
+        test: '⏰ Test alarm', stopTest: '⏹ Stop test', shortcutTitle: '🚀 Laptop shortcuts',
+        shortcutTip: 'Add applications or websites here and drag the cards to reorder them. Changes appear in the laptop menu after Save & Apply. The laptop menu is limited to 20 total shortcuts, including fixed entries.',
+        empty: 'No custom shortcuts yet.', editor: '+ Add shortcut', app: 'Application', website: 'Website', name: 'Display name',
+        namePlaceholder: 'e.g. Company portal', chooseApp: 'Choose application', notSelected: 'Not selected', websiteUrl: 'Website URL',
+        image: 'Custom logo image (optional)', logoDescription: 'For best results, use a square 1:1 image of at least 128×128 px. PNG, JPG, and WebP files up to 10 MB are supported; images are centered, cropped, and saved automatically. Without an image, the letter logo is used.', chooseLogo: 'Choose image', clearLogo: 'Remove image', logoTip: 'The preview shows how the Logo will appear in the shortcut menu.',
+        letter: 'Logo letter', color: 'Circular logo color', add: '+ Add to laptop shortcuts'
+      } : {
+        alarmTitle: '📝 便利貼提醒鈴聲設定', alarmTip: '便利貼設定的時間到達後，會依此處選擇播放鈴聲。',
+        preset: '系統預設鈴聲', selectPreset: '選擇內建鈴聲', custom: '自訂音頻檔案或資料夾',
+        chooseFiles: '選擇音頻檔案', chooseFolder: '選擇資料夾', noAudio: '尚未選擇音頻；資料夾內多首音頻將隨機播放。',
+        url: '自訂網址（支援直接音訊網址與 YouTube）', duration: '鬧鐘響鈴時間', durationTip: '時間到後自動切斷，或持續播放至點擊鬧鐘球。',
+        test: '⏰ 測試鬧鐘效果', stopTest: '⏹ 中斷測試', shortcutTitle: '🚀 筆電快捷捷徑',
+        shortcutTip: '在此新增應用程式或網站，並可拖曳卡片調整位置；儲存後會直接顯示在筆電彈出選單。筆電快捷總數最多 20 個（包含固定入口）。',
+        empty: '尚未新增自訂捷徑。', editor: '＋ 新增捷徑', app: '應用程式', website: '網站', name: '顯示名稱',
+        namePlaceholder: '例如：公司系統', chooseApp: '選擇應用程式', notSelected: '尚未選擇', websiteUrl: '網站網址',
+        image: '自訂 Logo 圖片（選填）', logoDescription: '建議使用 1:1 正方形圖片（至少 128×128px）。支援 PNG、JPG、WebP，檔案上限 10MB；圖片會自動置中裁切並保存。未上傳時將使用英文字母 Logo。', chooseLogo: '選擇圖片', clearLogo: '移除圖片', logoTip: '預覽圖即為快捷選單中的 Logo 顯示效果。',
+        letter: 'Logo 英文字母', color: '圓形 Logo 底色', add: '＋ 新增至筆電快捷'
+      };
+      document.getElementById('alarm-section-title').textContent = extra.alarmTitle;
+      document.getElementById('alarm-section-tip').textContent = extra.alarmTip;
+      document.getElementById('alarm-label-preset').textContent = extra.preset;
+      document.getElementById('alarm-label-select-preset').textContent = extra.selectPreset;
+      document.getElementById('alarm-label-custom').textContent = extra.custom;
+      document.getElementById('alarm-choose-files').textContent = extra.chooseFiles;
+      document.getElementById('alarm-choose-folder').textContent = extra.chooseFolder;
+      document.getElementById('alarm-label-url').textContent = extra.url;
+      document.getElementById('alarm-test').textContent = extra.test;
+      document.getElementById('alarm-stop-test').textContent = extra.stopTest;
+      document.querySelector('#alarm-duration').closest('.rule-item').querySelector('strong').textContent = extra.duration;
+      document.querySelector('#alarm-duration').closest('.rule-item').querySelector('.tip').textContent = extra.durationTip;
+      [...document.getElementById('alarm-preset').options].forEach((option, index) => { option.textContent = lang === 'en' ? `Built-in sound ${String(index + 1).padStart(2, '0')}` : `預設鈴聲${String(index + 1).padStart(2, '0')}`; });
+      const durationLabels = lang === 'en' ? ['1 minute', '5 minutes', '10 minutes', 'Keep playing'] : ['1 分鐘', '5 分鐘', '10 分鐘', '持續重複播放'];
+      [...document.getElementById('alarm-duration').options].forEach((option, index) => { option.textContent = durationLabels[index]; });
+      renderAlarmPaths();
+      document.getElementById('shortcut-section-title').textContent = extra.shortcutTitle;
+      document.getElementById('shortcut-opacity-title').textContent = lang === 'en' ? '🚀 Shortcut appearance' : '🚀 快捷列外觀';
+      document.getElementById('shortcut-opacity-label').innerHTML = `<strong>${lang === 'en' ? 'Shortcut transparency' : '快捷列整體透明度'}</strong>`;
+      document.getElementById('browser-settings-title').textContent = lang === 'en' ? '🌐 Browser for each shortcut' : '🌐 各快捷使用的瀏覽器';
+      document.getElementById('browser-settings-tip').textContent = lang === 'en'
+        ? 'Installed common browsers are detected automatically. Choose one separately for each email, calendar, and website shortcut; unassigned items use the Windows default browser.'
+        : '系統會自動列出已安裝的常見瀏覽器，可為每個信箱、日曆與網站捷徑分別選擇；未指定時使用 Windows 預設瀏覽器。';
+      document.getElementById('browser-settings-empty').textContent = lang === 'en'
+        ? 'There are no items that can be assigned a browser.'
+        : '目前沒有可設定瀏覽器的項目。';
+      document.getElementById('browser-settings-feedback').textContent = '';
+      document.getElementById('assistant-opacity-title').textContent = lang === 'en' ? '🧸 Assistant appearance' : '🧸 小助手外觀';
+      document.getElementById('assistant-opacity-label').innerHTML = `<strong>${lang === 'en' ? 'Assistant transparency' : '小助手整體透明度'}</strong>`;
+      document.getElementById('focus-mode-label').innerHTML = `<strong>${lang === 'en' ? '🎯 Do Not Disturb / Focus mode' : '🎯 勿擾／專注模式'}</strong>`;
+      document.getElementById('focus-mode-tip').textContent = lang === 'en' ? 'Pauses email, calendar, wellness and trivia alerts. Explicit sticky-note alarms still ring.' : '啟用時暫停郵件、行事曆、健康與生活資訊提醒，便利貼鬧鐘仍會響起。';
+      document.getElementById('auto-update-label').innerHTML = `<strong>${lang === 'en' ? '🔄 Automatic updates' : '🔄 自動更新'}</strong>`;
+      document.getElementById('auto-update-tip').textContent = lang === 'en' ? 'The installed app checks GitHub Releases and downloads new versions automatically.' : '安裝版會從 GitHub Releases 自動檢查並下載新版本。';
+      focusApply.textContent = lang === 'en' ? 'Apply' : '套用';
+      checkUpdatesNow.textContent = lang === 'en' ? 'Check now' : '立即檢查';
+      [...focusDuration.options].forEach((option, index) => { option.textContent = (lang === 'en' ? ['Off', '30 minutes', '1 hour', '2 hours', 'Until 8:00 AM tomorrow'] : ['關閉', '30 分鐘', '1 小時', '2 小時', '到明天上午 8:00'])[index]; });
+      document.getElementById('shortcut-section-tip').textContent = extra.shortcutTip;
+      document.getElementById('shortcut-settings-empty').textContent = extra.empty;
+      document.getElementById('shortcut-editor-title').textContent = editingShortcutId
+        ? (currentLanguage === 'en' ? 'Edit shortcut' : '編輯捷徑')
+        : extra.editor;
+      document.getElementById('shortcut-type-app-label').textContent = extra.app;
+      document.getElementById('shortcut-type-website-label').textContent = extra.website;
+      document.getElementById('shortcut-name-label').textContent = extra.name;
+      document.getElementById('shortcut-name').placeholder = extra.namePlaceholder;
+      document.getElementById('shortcut-choose-app').textContent = extra.chooseApp;
+      if (!selectedShortcutAppPath) document.getElementById('shortcut-app-path').textContent = extra.notSelected;
+      document.getElementById('shortcut-url-label').textContent = extra.websiteUrl;
+      document.getElementById('shortcut-image-label').textContent = extra.image;
+      document.getElementById('shortcut-logo-description').textContent = extra.logoDescription;
+      document.getElementById('shortcut-choose-logo').textContent = extra.chooseLogo;
+      document.getElementById('shortcut-clear-logo').textContent = extra.clearLogo;
+      document.getElementById('shortcut-logo-tip').textContent = extra.logoTip;
+      document.getElementById('shortcut-letter-label').textContent = extra.letter;
+      document.getElementById('shortcut-color-label').textContent = extra.color;
+      document.getElementById('shortcut-edit-cancel').textContent = currentLanguage === 'en' ? 'Cancel editing' : '取消編輯';
+      document.getElementById('shortcut-ai-logo-title').textContent = currentLanguage === 'en' ? '✨ AI Logo prompt suggestion' : '✨ AI Logo 生成建議';
+      document.getElementById('shortcut-ai-logo-tip').textContent = currentLanguage === 'en'
+        ? 'Copy this prompt into an image-generation AI. The current shortcut name is inserted automatically.'
+        : '複製下列提示詞到圖片生成 AI，內容會自動代入目前的快捷名稱。';
+      document.getElementById('shortcut-copy-ai-logo-prompt').textContent = currentLanguage === 'en' ? '📋 Copy AI prompt' : '📋 複製 AI 提示詞';
+      renderShortcutLogoPrompt();
+      renderShortcutLogoPreview();
+      renderShortcutSettings();
 
       // Email Section
       document.getElementById('sec-title-accounts').textContent = s.sectionAccounts;
@@ -1034,11 +1769,13 @@
 
       const gTitle = document.getElementById('gmail-guide-title');
       const gStep1 = document.getElementById('gmail-guide-step1');
+      const gStep2 = document.getElementById('gmail-guide-step2');
       const gLink = document.getElementById('gmail-guide-link');
       const gStep3 = document.getElementById('gmail-guide-step3');
       const gStep4 = document.getElementById('gmail-guide-step4');
       if (gTitle) gTitle.textContent = s.gmailGuideTitle;
       if (gStep1) gStep1.innerHTML = s.gmailGuideStep1;
+      if (gStep2 && gStep2.firstChild) gStep2.firstChild.textContent = s.gmailGuideStep2;
       if (gLink) gLink.textContent = s.gmailGuideStep2Link;
       if (gStep3) gStep3.textContent = s.gmailGuideStep3;
       if (gStep4) gStep4.innerHTML = s.gmailGuideStep4;
@@ -1070,7 +1807,6 @@
       btnCheckNow.textContent = s.btnCheckNow;
 
       // Calendar Section
-      document.getElementById('label-enable-calendar').textContent = s.enableCalendar;
       document.getElementById('tz-label-title').textContent = s.tzLabelTitle;
       if (tzCurrentName) {
         if (detectedSystemTimezone) {
@@ -1126,6 +1862,10 @@
       document.getElementById('opt-cal-int-15m').textContent = s.optCalInt15m;
       document.getElementById('opt-cal-int-30m').textContent = s.optCalInt30m;
       document.getElementById('opt-cal-int-60m').textContent = s.optCalInt60m;
+      const stickyIntervalLabels = lang === 'en'
+        ? ['Every 5 mins', 'Every 10 mins', 'Every 15 mins', 'Every 30 mins', 'Every 1 hour']
+        : ['每 5 分鐘', '每 10 分鐘', '每 15 分鐘', '每 30 分鐘', '每 1 小時'];
+      [...calStickyIntervalSel.options].forEach((option, index) => { option.textContent = stickyIntervalLabels[index]; });
 
       document.getElementById('label-cal-sound').textContent = s.labelCalSound;
       btnTestAllCal.textContent = s.btnTestAllCal;
@@ -1164,6 +1904,8 @@
       document.getElementById('label-trivia-sound').textContent = s.labelTriviaSound;
       document.getElementById('trivia-preview-title').textContent = s.triviaPreviewTitle;
       document.getElementById('trivia-preview-desc').textContent = s.triviaPreviewDesc;
+      document.getElementById('triv-res-badge').textContent = lang === 'en' ? '💡 Life Fact' : '💡 生活知識';
+      document.getElementById('triv-res-source').textContent = lang === 'en' ? 'Source: Online' : '來源：Online';
       btnExploreTrivia.textContent = s.btnExploreTrivia;
 
       btnSave.textContent = s.btnSave;
@@ -1663,7 +2405,6 @@
     function getEmailFormData() {
       return {
         language: currentLanguage,
-        enabled: enabledSwitch.checked,
         accounts: accountsList.map(a => ({
           id: a.id,
           name: a.name || '主要信箱',
@@ -1700,7 +2441,6 @@
     function getCalendarFormData() {
       return {
         language: currentLanguage,
-        enabled: calEnabledSwitch.checked,
         calendars: calendarsList.map(c => ({
           id: c.id,
           name: c.name || 'Google 日曆',
@@ -1743,8 +2483,12 @@
 
     function renderAlarmPaths() {
       alarmCustomSummary.textContent = alarmCustomPaths.length
-        ? `已讀取 ${alarmCustomPaths.length} 個音頻檔案，響鈴時隨機播放。`
-        : '尚未選擇音頻；資料夾內多首音頻將隨機播放。';
+        ? (currentLanguage === 'en'
+          ? `${alarmCustomPaths.length} audio file(s) loaded; one will be selected at random when the alarm rings.`
+          : `已讀取 ${alarmCustomPaths.length} 個音頻檔案，響鈴時隨機播放。`)
+        : (currentLanguage === 'en'
+          ? 'No audio selected; multiple files in a folder will play at random.'
+          : '尚未選擇音頻；資料夾內多首音頻將隨機播放。');
     }
 
     // Load Initial Config
@@ -1755,30 +2499,38 @@
         return;
       }
       try {
-        const [emailCfg, calCfg, triviaCfg, alarmCfg, appVersion, panelOpacity] = await Promise.all([
+        const [emailCfg, calCfg, triviaCfg, alarmCfg, appVersion, panelOpacity, focusState, updateSettings] = await Promise.all([
           ipc.invoke('email-get-config'),
           ipc.invoke('calendar-get-config'),
           ipc.invoke('trivia-get-config'),
           ipc.invoke('alarm-get-config'),
           ipc.invoke('get-app-version'),
-          ipc.invoke('get-panel-opacity')
+          ipc.invoke('get-panel-opacity'),
+          ipc.invoke('get-focus-mode'),
+          ipc.invoke('get-update-settings')
         ]);
+
+        focusDuration.value = focusState?.active ? '30' : '0';
+        autoUpdateEnabledCheck.checked = updateSettings?.enabled !== false;
 
         if (panelOpacity) {
           // The stored/CSS value is opacity, while the setting shown to users is transparency.
           emailPanelOpacityInput.value = Math.round((1 - Number(panelOpacity.email ?? 1)) * 100);
           todoPanelOpacityInput.value = Math.round((1 - Number(panelOpacity.todo ?? 1)) * 100);
           calendarPanelOpacityInput.value = Math.round((1 - Number(panelOpacity.calendar ?? 1)) * 100);
+          shortcutOpacityInput.value = Math.round((1 - Number(panelOpacity.shortcut ?? 1)) * 100);
+          assistantOpacityInput.value = Math.round((1 - Number(panelOpacity.assistant ?? 1)) * 100);
           emailPanelOpacityValue.textContent = `${emailPanelOpacityInput.value}%`;
           todoPanelOpacityValue.textContent = `${todoPanelOpacityInput.value}%`;
           calendarPanelOpacityValue.textContent = `${calendarPanelOpacityInput.value}%`;
+          shortcutOpacityValue.textContent = `${shortcutOpacityInput.value}%`;
+          assistantOpacityValue.textContent = `${assistantOpacityInput.value}%`;
         }
 
         const displayVersion = appVersion && appVersion.displayVersion
           ? appVersion.displayVersion
-          : 'Ver.1.2.0';
+          : 'Ver.1.6.0';
         document.getElementById('header-version').textContent = displayVersion;
-        document.getElementById('calendar-version').textContent = displayVersion;
         document.getElementById('health-version').textContent = displayVersion;
 
         if (emailCfg) {
@@ -1787,8 +2539,6 @@
           } else {
             applyLanguage('zh-TW');
           }
-
-          enabledSwitch.checked = !!emailCfg.enabled;
 
           if (Array.isArray(emailCfg.accounts) && emailCfg.accounts.length > 0) {
             accountsList = JSON.parse(JSON.stringify(emailCfg.accounts));
@@ -1822,7 +2572,6 @@
         }
 
         if (calCfg) {
-          calEnabledSwitch.checked = calCfg.enabled !== false;
           if (calCfg.systemTimezone) {
             detectedSystemTimezone = calCfg.systemTimezone;
             const s = settingsLocales[currentLanguage] || settingsLocales['zh-TW'];
@@ -2079,10 +2828,12 @@
       ipc.invoke('preview-panel-opacity', {
         email: 1 - Number(emailPanelOpacityInput.value) / 100,
         todo: 1 - Number(todoPanelOpacityInput.value) / 100,
-        calendar: 1 - Number(calendarPanelOpacityInput.value) / 100
+        calendar: 1 - Number(calendarPanelOpacityInput.value) / 100,
+        shortcut: 1 - Number(shortcutOpacityInput.value) / 100,
+        assistant: 1 - Number(assistantOpacityInput.value) / 100
       }).catch(() => {});
     };
-    for (const [input, output] of [[emailPanelOpacityInput, emailPanelOpacityValue], [todoPanelOpacityInput, todoPanelOpacityValue], [calendarPanelOpacityInput, calendarPanelOpacityValue]]) {
+    for (const [input, output] of [[emailPanelOpacityInput, emailPanelOpacityValue], [todoPanelOpacityInput, todoPanelOpacityValue], [calendarPanelOpacityInput, calendarPanelOpacityValue], [shortcutOpacityInput, shortcutOpacityValue], [assistantOpacityInput, assistantOpacityValue]]) {
       input.addEventListener('input', () => {
         output.textContent = `${input.value}%`;
         previewPanelOpacity();
@@ -2107,14 +2858,18 @@
         // Every preview is exclusive: stop the previous native player,
         // YouTube resolver and renderer state before preparing the next one.
         await ipc.invoke('alarm-stop-test');
-        showStatus('⏳ 正在準備鬧鐘音訊；目前播放中的音效已中斷...');
+        showStatus(currentLanguage === 'en'
+          ? '⏳ Preparing alarm audio; any sound currently playing has been stopped...'
+          : '⏳ 正在準備鬧鐘音訊；目前播放中的音效已中斷...');
         const saved = await ipc.invoke('alarm-save-config', getAlarmFormData());
         if (!saved || saved.success === false) {
-          showStatus(`❌ ${(saved && saved.error) || '鬧鐘音訊設定失敗'}`, true);
+          showStatus(`❌ ${(saved && saved.error) || (currentLanguage === 'en' ? 'Failed to configure alarm audio' : '鬧鐘音訊設定失敗')}`, true);
           return;
         }
         await ipc.invoke('alarm-test');
-        showStatus('⏰ 已將鬧鐘測試送至桌面小助手，可按右側「中斷測試」停止。');
+        showStatus(currentLanguage === 'en'
+          ? '⏰ The alarm preview is playing in the desktop assistant. Use Stop test to end it.'
+          : '⏰ 已將鬧鐘測試送至桌面小助手，可按右側「中斷測試」停止。');
       } finally {
         button.disabled = false;
       }
@@ -2122,7 +2877,36 @@
     document.getElementById('alarm-stop-test').addEventListener('click', async () => {
       if (!ipc) return;
       await ipc.invoke('alarm-stop-test');
-      showStatus('⏹ 鬧鐘測試已中斷，桌面小助手已恢復科技球。');
+      showStatus(currentLanguage === 'en'
+        ? '⏹ Alarm preview stopped. The desktop assistant has returned to the tech orb.'
+        : '⏹ 鬧鐘測試已中斷，桌面小助手已恢復科技球。');
+    });
+
+    focusApply.addEventListener('click', async () => {
+      if (!ipc) return;
+      const untilTomorrow = focusDuration.value === 'tomorrow';
+      const result = await ipc.invoke('set-focus-mode', {
+        minutes: untilTomorrow ? 0 : Number(focusDuration.value),
+        untilTomorrow
+      });
+      showStatus(result?.active
+        ? (currentLanguage === 'en' ? '🎯 Focus mode enabled.' : '🎯 已啟用專注模式。')
+        : (currentLanguage === 'en' ? '🔔 Focus mode disabled.' : '🔔 已關閉專注模式。'));
+    });
+
+    autoUpdateEnabledCheck.addEventListener('change', async () => {
+      if (!ipc) return;
+      await ipc.invoke('set-update-settings', { enabled: autoUpdateEnabledCheck.checked });
+    });
+
+    checkUpdatesNow.addEventListener('click', async () => {
+      if (!ipc) return;
+      if (updateReadyToInstall) {
+        await ipc.invoke('install-update');
+        return;
+      }
+      updateStatus.textContent = currentLanguage === 'en' ? 'Checking for updates…' : '正在檢查更新…';
+      await ipc.invoke('check-for-updates');
     });
 
     btnSave.addEventListener('click', async () => {
@@ -2136,7 +2920,7 @@
       const triviaData = getTriviaFormData();
       const alarmData = getAlarmFormData();
       try {
-        const [emailRes, calRes, triviaRes, alarmRes, opacityRes] = await Promise.all([
+        const [emailRes, calRes, triviaRes, alarmRes, opacityRes, shortcutRes, browserRes] = await Promise.all([
           ipc.invoke('email-save-config', emailData),
           ipc.invoke('calendar-save-config', calData),
           ipc.invoke('trivia-save-config', triviaData),
@@ -2145,17 +2929,22 @@
             // Convert user-facing transparency back to the CSS opacity persisted by the app.
             email: 1 - Number(emailPanelOpacityInput.value) / 100,
             todo: 1 - Number(todoPanelOpacityInput.value) / 100,
-            calendar: 1 - Number(calendarPanelOpacityInput.value) / 100
-          })
+            calendar: 1 - Number(calendarPanelOpacityInput.value) / 100,
+            shortcut: 1 - Number(shortcutOpacityInput.value) / 100,
+            assistant: 1 - Number(assistantOpacityInput.value) / 100
+          }),
+          ipc.invoke('laptop-replace-shortcuts', { shortcuts: shortcutDrafts, fixedShortcuts: fixedShortcutDrafts }),
+          ipc.invoke('laptop-save-browser-settings', getBrowserAssignmentsForSave())
         ]);
-        if (emailRes.success && (!calRes || calRes.success !== false) && (!triviaRes || triviaRes.success !== false) && (!alarmRes || alarmRes.success !== false) && (!opacityRes || opacityRes.success !== false)) {
+        if (emailRes.success && (!calRes || calRes.success !== false) && (!triviaRes || triviaRes.success !== false) && (!alarmRes || alarmRes.success !== false) && (!opacityRes || opacityRes.success !== false) && shortcutRes?.ok && browserRes?.ok) {
           const min = emailData.rules.checkIntervalMinutes;
           const label = currentLanguage === 'en'
             ? (min >= 60 ? `${min / 60} hour(s)` : `${min} min(s)`)
             : (min >= 60 ? `${min / 60} 小時` : `${min} 分鐘`);
           showStatus(s.statusSaveSuccess(label));
+          await loadShortcutSettings();
         } else {
-          const errMsg = (emailRes && emailRes.error) || (calRes && calRes.error) || (triviaRes && triviaRes.error) || 'Save failed';
+          const errMsg = (emailRes && emailRes.error) || (calRes && calRes.error) || (triviaRes && triviaRes.error) || (shortcutRes && shortcutRes.error) || (browserRes && browserRes.error) || 'Save failed';
           showStatus(s.statusSaveFailed(errMsg), true);
         }
       } catch (err) {
@@ -2167,11 +2956,33 @@
       ipc.on('language-changed', (event, lang) => {
         applyLanguage(lang);
       });
+      ipc.on('focus-mode-updated', (event, state = {}) => {
+        focusDuration.value = state.active ? '30' : '0';
+      });
+      ipc.on('update-status', (event, state = {}) => {
+        const en = currentLanguage === 'en';
+        const messages = {
+          checking: en ? 'Checking for updates…' : '正在檢查更新…',
+          available: en ? `Version ${state.version} is available and downloading.` : `已找到 ${state.version} 版，正在下載。`,
+          current: en ? 'You already have the latest version.' : '目前已是最新版本。',
+          downloading: en ? `Downloading… ${state.percent || 0}%` : `正在下載… ${state.percent || 0}%`,
+          downloaded: en ? `Version ${state.version} is ready. Restart to install.` : `${state.version} 版已就緒，可立即重新啟動安裝。`,
+          development: en ? 'Update checks run only in the installed app.' : '僅安裝版會檢查更新。',
+          portable: en ? 'Automatic updates are unavailable in the portable edition.' : '免安裝版不支援自動更新。',
+          error: en ? `Update check failed: ${state.message || ''}` : `更新檢查失敗：${state.message || ''}`
+        };
+        updateStatus.textContent = messages[state.status] || '';
+        updateReadyToInstall = state.status === 'downloaded';
+        checkUpdatesNow.textContent = updateReadyToInstall
+          ? (en ? 'Restart and install' : '重新啟動並安裝')
+          : (en ? 'Check now' : '立即檢查');
+      });
     }
 
     applyLanguage('zh-TW');
     switchTab('panel-email');
     loadConfig();
+    loadShortcutSettings();
   </script>
 </body>
 

@@ -15,7 +15,9 @@ if (!ipcRenderer) {
 
 document.addEventListener('DOMContentLoaded', async () => {
   // 1. Initialize 3D WebGL Ball Renderer
-  const ballRenderer = new BallRenderer('ball-canvas');
+  const ballRenderer = new BallRenderer('ball-canvas', speed => {
+    ipcRenderer?.send('ball-speed-changed', speed);
+  });
 
   // 2. Elements
   const petContainer = document.getElementById('pet-container');
@@ -37,7 +39,45 @@ document.addEventListener('DOMContentLoaded', async () => {
   const stickyNotesBoard = document.getElementById('sticky-notes-board');
   const stickyReopenTab = document.getElementById('sticky-reopen-tab');
   const laptopNotesTrigger = document.getElementById('laptop-notes-trigger');
+  const laptopQuickMenu = document.getElementById('laptop-quick-menu');
+  const laptopQuickMenuHome = laptopQuickMenu?.parentElement || null;
+  // Reserve the bubble's full layout height, independent of its entrance scale.
+  // Observers also cover replacement notifications, font changes and resizing.
+  let dialogueFadeTimer = null;
+  const syncDialogueSpace = () => {
+    const shown = speechBubble.classList.contains('show');
+    // Keep the space until the fading bubble has actually disappeared.
+    if (!shown && Number.parseFloat(getComputedStyle(speechBubble).opacity) > 0) {
+      // Hidden Electron windows may skip transitionend. Match the 300ms CSS
+      // fade with a fallback, cancelled if another notification replaces it.
+      if (dialogueFadeTimer === null) dialogueFadeTimer = setTimeout(() => {
+        dialogueFadeTimer = null;
+        if (!speechBubble.classList.contains('show')) petContainer.style.setProperty('--dialogue-space', '0px');
+      }, 350);
+      return;
+    }
+    clearTimeout(dialogueFadeTimer);
+    dialogueFadeTimer = null;
+    const space = shown ? speechBubble.offsetHeight + 10 : 0;
+    petContainer.style.setProperty('--dialogue-space', `${space}px`);
+  };
+  speechBubble.addEventListener('transitionend', event => {
+    if (event.target === speechBubble && event.propertyName === 'opacity') syncDialogueSpace();
+  });
+  new ResizeObserver(syncDialogueSpace).observe(speechBubble);
+  new MutationObserver(syncDialogueSpace).observe(speechBubble, {
+    attributes: true, attributeFilter: ['class'], childList: true, subtree: true, characterData: true
+  });
+  syncDialogueSpace();
   let stickyNotesController = null;
+  let currentAssistantSize = 'std';
+  let laptopShortcutOrder = [];
+  let draggedLaptopShortcutKey = '';
+  let suppressLaptopShortcutClick = false;
+  let laptopDragOriginalOrder = [];
+  let laptopDragCommitted = false;
+  let laptopDragPreviewIndex = -1;
+  let isAssistantVisible = true;
 
   // Language state
   let currentLang = 'zh-TW';
@@ -56,6 +96,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (calendarContainer) calendarContainer.setAttribute('title', loc.tooltips.calendar);
     if (triviaContainer) triviaContainer.setAttribute('title', loc.tooltips.trivia);
     if (alarmContainer) alarmContainer.setAttribute('title', currentLang === 'en' ? 'Click to stop alarm' : '點擊停止鬧鐘並恢復科技球');
+    if (laptopNotesTrigger) {
+      const title = currentLang === 'en' ? 'Open laptop shortcuts' : '開啟筆電快捷功能';
+      laptopNotesTrigger.title = title;
+      laptopNotesTrigger.setAttribute('aria-label', title);
+    }
+    const laptopLabels = currentLang === 'en'
+      ? { sticky: 'Sticky note' }
+      : { sticky: '便利貼' };
+    for (const button of laptopQuickMenu?.querySelectorAll('[data-laptop-action]') || []) {
+      const label = button.querySelector('.laptop-action-label');
+      const text = laptopLabels[button.dataset.laptopAction] || '';
+      if (label) label.textContent = text;
+      if (text) {
+        button.dataset.fullLabel = text;
+        button.dataset.largeLabel = text;
+        button.title = text;
+        button.setAttribute('aria-label', text);
+      }
+    }
+    updateLaptopLabelDisplay();
     if (stickyNotesController) stickyNotesController.applyLanguage();
   };
 
@@ -71,20 +131,310 @@ document.addEventListener('DOMContentLoaded', async () => {
   stickyNotesController = new StickyNotesController(ipcRenderer, () => currentLang);
   stickyNotesController.init();
 
+  const closeLaptopMenu = (forceClose = false) => {
+    if (!isAssistantVisible && forceClose !== true) return;
+    laptopQuickMenu?.classList.remove('visible');
+    bearCharacter?.classList.remove('shortcut-menu-open');
+    laptopNotesTrigger?.setAttribute('aria-expanded', 'false');
+  };
+
+  function updateLaptopLabelDisplay() {
+    const usesCompactLargeGrid = currentAssistantSize === 'lg' && laptopQuickMenu?.classList.contains('compact-overflow-actions');
+    const showLabel = currentAssistantSize === 'lg' && !usesCompactLargeGrid;
+    for (const button of laptopQuickMenu?.querySelectorAll('.laptop-quick-action') || []) {
+      const labelNode = button.querySelector('.laptop-action-label');
+      const fullLabel = button.dataset.fullLabel || button.title || labelNode?.textContent || '';
+      if (!fullLabel || !labelNode) continue;
+      button.dataset.fullLabel = fullLabel;
+      const displayLabel = currentAssistantSize === 'lg' && button.dataset.largeLabel
+        ? button.dataset.largeLabel
+        : fullLabel;
+      labelNode.textContent = showLabel ? displayLabel : '';
+      button.title = fullLabel;
+      button.setAttribute('aria-label', fullLabel);
+    }
+  }
+
+  function updateLaptopGridPlacement() {
+    const actions = [...(laptopQuickMenu?.querySelectorAll('.laptop-quick-action') || [])];
+    const orderIndex = new Map(laptopShortcutOrder.map((key, index) => [key, index]));
+    actions.sort((left, right) => {
+      const leftIndex = orderIndex.has(left.dataset.shortcutOrderKey) ? orderIndex.get(left.dataset.shortcutOrderKey) : Number.MAX_SAFE_INTEGER;
+      const rightIndex = orderIndex.has(right.dataset.shortcutOrderKey) ? orderIndex.get(right.dataset.shortcutOrderKey) : Number.MAX_SAFE_INTEGER;
+      return leftIndex - rightIndex;
+    });
+    laptopShortcutOrder = actions.map(button => button.dataset.shortcutOrderKey);
+    const isLarge = currentAssistantSize === 'lg';
+    const usesCompactLargeGrid = isLarge && actions.length > 9;
+    const rowLimit = isLarge ? 9 : 5;
+    const cellWidth = usesCompactLargeGrid ? 24 : (isLarge ? 104 : (currentAssistantSize === 'mini' ? 24 : 25));
+    const cellHeight = usesCompactLargeGrid ? 24 : (isLarge ? 25 : cellWidth);
+    const gap = isLarge ? 2 : 3;
+    const columnCount = Math.max(1, Math.ceil(actions.length / rowLimit));
+    const menuWidth = (columnCount * cellWidth) + ((columnCount - 1) * gap) + 8;
+    laptopQuickMenu?.classList.toggle('has-overflow-actions', columnCount > 1);
+    laptopQuickMenu?.classList.toggle('compact-overflow-actions', usesCompactLargeGrid);
+    if (laptopQuickMenu) {
+      laptopQuickMenu.style.width = `${menuWidth}px`;
+      laptopQuickMenu.style.gridTemplateColumns = `repeat(${columnCount}, ${cellWidth}px)`;
+      laptopQuickMenu.style.gridAutoRows = `${cellHeight}px`;
+      laptopQuickMenu.style.gap = `${gap}px`;
+    }
+    actions.forEach((button, index) => {
+      const row = (index % rowLimit) + 1;
+      const column = columnCount - Math.floor(index / rowLimit);
+      button.style.setProperty('--shortcut-grid-row', String(row));
+      button.style.setProperty('--shortcut-grid-column', String(column));
+      button.style.gridRow = String(row);
+      button.style.gridColumn = String(column);
+      button.style.order = String(index);
+    });
+    updateLaptopLabelDisplay();
+  }
+
+  const getShortcutTextColor = color => {
+    const hex = String(color || '').replace('#', '');
+    if (!/^[0-9a-f]{6}$/i.test(hex)) return '#ffffff';
+    const red = parseInt(hex.slice(0, 2), 16);
+    const green = parseInt(hex.slice(2, 4), 16);
+    const blue = parseInt(hex.slice(4, 6), 16);
+    return (red * 299 + green * 587 + blue * 114) / 1000 > 170 ? '#0f172a' : '#ffffff';
+  };
+
+  const createLaptopActionButton = ({ label, largeLabel = '', icon, iconColor = '', iconImageUrl = '', className = '', dataset = {} }) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `laptop-quick-action ${className}`.trim();
+    button.setAttribute('role', 'menuitem');
+    button.title = label;
+    button.setAttribute('aria-label', label);
+    button.dataset.fullLabel = label;
+    button.draggable = true;
+    if (largeLabel) button.dataset.largeLabel = largeLabel;
+    Object.assign(button.dataset, dataset);
+    const iconNode = document.createElement('span');
+    iconNode.className = 'laptop-action-icon';
+    iconNode.setAttribute('aria-hidden', 'true');
+    if (iconImageUrl) {
+      const image = document.createElement('img');
+      image.src = iconImageUrl;
+      image.alt = '';
+      image.draggable = false;
+      iconNode.classList.add('has-image');
+      iconNode.appendChild(image);
+    } else {
+      iconNode.textContent = icon;
+    }
+    if (iconColor) {
+      iconNode.style.setProperty('--shortcut-logo-color', iconColor);
+      iconNode.style.setProperty('--shortcut-logo-foreground', getShortcutTextColor(iconColor));
+    }
+    const labelNode = document.createElement('span');
+    labelNode.className = 'laptop-action-label';
+    const showLabel = currentAssistantSize === 'lg';
+    const displayLabel = currentAssistantSize === 'lg' && largeLabel ? largeLabel : label;
+    labelNode.textContent = showLabel ? displayLabel : '';
+    button.append(iconNode, labelNode);
+    return button;
+  };
+
+  const refreshLaptopShortcuts = async () => {
+    if (!ipcRenderer || !laptopQuickMenu) return;
+    try {
+      const data = await ipcRenderer.invoke('laptop-get-shortcuts');
+      const stickyIcon = laptopQuickMenu.querySelector('[data-laptop-action="sticky"] .laptop-action-icon');
+      if (stickyIcon) {
+        stickyIcon.replaceChildren();
+        stickyIcon.classList.toggle('has-image', !!data?.fixedLogos?.sticky);
+        if (data?.fixedLogos?.sticky) {
+          const image = document.createElement('img');
+          image.src = data.fixedLogos.sticky;
+          image.alt = '';
+          image.draggable = false;
+          stickyIcon.appendChild(image);
+        } else stickyIcon.textContent = '📝';
+      }
+      laptopShortcutOrder = Array.isArray(data?.order) ? data.order.map(String) : [];
+      const accountActions = document.getElementById('laptop-account-actions');
+      const shortcutActions = document.getElementById('laptop-shortcut-actions');
+      accountActions?.replaceChildren();
+      shortcutActions?.replaceChildren();
+      for (const [index, account] of (data?.emailAccounts || []).entries()) {
+        accountActions?.appendChild(createLaptopActionButton({
+          label: account.name,
+          icon: '✉',
+          iconImageUrl: data?.fixedLogos?.[`email:${account.id}`] || '',
+          className: 'action-email',
+          dataset: { laptopAccountType: 'email', laptopAccountId: account.id, shortcutOrderKey: `email:${account.id}` }
+        }));
+      }
+      for (const [index, calendar] of (data?.calendars || []).entries()) {
+        accountActions?.appendChild(createLaptopActionButton({
+          label: calendar.name,
+          icon: '▦',
+          iconImageUrl: data?.fixedLogos?.[`calendar:${calendar.id}`] || '',
+          className: 'action-calendar',
+          dataset: { laptopAccountType: 'calendar', laptopAccountId: calendar.id, shortcutOrderKey: `calendar:${calendar.id}` }
+        }));
+      }
+      for (const shortcut of data?.shortcuts || []) {
+        shortcutActions?.appendChild(createLaptopActionButton({
+          label: shortcut.name,
+          icon: shortcut.letter || 'A',
+          iconColor: shortcut.color || '#0ea5e9',
+          iconImageUrl: shortcut.logoUrl || '',
+          className: 'action-custom',
+          dataset: { shortcutId: shortcut.id, shortcutOrderKey: `custom:${shortcut.id}` }
+        }));
+      }
+      updateLaptopGridPlacement();
+    } catch (error) {
+      console.warn('Unable to load laptop shortcuts:', error);
+    }
+  };
+
+  const applyAssistantVisibility = (visible) => {
+    isAssistantVisible = visible !== false;
+    document.body.classList.toggle('assistant-hidden', !isAssistantVisible);
+    document.querySelector('.assistant-visual-layer')?.setAttribute('aria-hidden', String(!isAssistantVisible));
+    if (!isAssistantVisible) {
+      if (laptopQuickMenu && laptopQuickMenu.parentElement !== petContainer) {
+        petContainer.appendChild(laptopQuickMenu);
+      }
+      refreshLaptopShortcuts();
+      laptopQuickMenu?.classList.add('visible');
+      bearCharacter?.classList.add('shortcut-menu-open');
+      laptopNotesTrigger?.setAttribute('aria-expanded', 'true');
+    } else {
+      if (laptopQuickMenu && laptopQuickMenuHome && laptopQuickMenu.parentElement !== laptopQuickMenuHome) {
+        laptopQuickMenuHome.insertBefore(laptopQuickMenu, laptopNotesTrigger || null);
+      }
+      closeLaptopMenu(true);
+    }
+  };
+
+  laptopNotesTrigger?.addEventListener('click', event => {
+    event.stopPropagation();
+    const willOpen = !laptopQuickMenu?.classList.contains('visible');
+    laptopQuickMenu?.classList.toggle('visible', willOpen);
+    bearCharacter?.classList.toggle('shortcut-menu-open', willOpen);
+    laptopNotesTrigger.setAttribute('aria-expanded', String(willOpen));
+    if (willOpen) {
+      refreshLaptopShortcuts();
+      laptopQuickMenu?.querySelector('.laptop-quick-action')?.focus();
+    }
+  });
+
+  laptopQuickMenu?.addEventListener('click', async event => {
+    event.stopPropagation();
+    if (suppressLaptopShortcutClick) {
+      suppressLaptopShortcutClick = false;
+      return;
+    }
+    const shortcutButton = event.target.closest('[data-shortcut-id]');
+    if (shortcutButton && ipcRenderer) {
+      const result = await ipcRenderer.invoke('laptop-open-shortcut', shortcutButton.dataset.shortcutId);
+      if (!result?.ok) say(currentLang === 'en' ? 'Unable to open that shortcut.' : '無法開啟這個捷徑。', 2600);
+      closeLaptopMenu();
+      return;
+    }
+    const accountButton = event.target.closest('[data-laptop-account-id]');
+    if (accountButton && ipcRenderer) {
+      const result = await ipcRenderer.invoke('laptop-open-account', {
+        type: accountButton.dataset.laptopAccountType,
+        id: accountButton.dataset.laptopAccountId
+      });
+      if (!result?.ok) say(currentLang === 'en' ? 'Unable to open that account.' : '無法開啟這個帳號。', 2600);
+      closeLaptopMenu();
+      return;
+    }
+    const button = event.target.closest('[data-laptop-action]');
+    if (!button) return;
+    const action = button.dataset.laptopAction;
+    closeLaptopMenu();
+    if (action === 'sticky') {
+      stickyNotesController?.openComposer();
+      return;
+    }
+    if (!ipcRenderer) return;
+    try {
+      const result = await ipcRenderer.invoke('laptop-open-action', action);
+      if (!result?.ok) throw new Error(result?.error || 'Unable to open shortcut');
+    } catch (error) {
+      console.error('Laptop shortcut failed:', error);
+      say(currentLang === 'en' ? 'Unable to open that shortcut.' : '無法開啟這個快捷功能。', 2600);
+    }
+  });
+
+  laptopQuickMenu?.addEventListener('dragstart', event => {
+    const button = event.target.closest('.laptop-quick-action[data-shortcut-order-key]');
+    if (!button) return;
+    draggedLaptopShortcutKey = button.dataset.shortcutOrderKey;
+    laptopDragOriginalOrder = [...laptopShortcutOrder];
+    laptopDragCommitted = false;
+    laptopDragPreviewIndex = laptopShortcutOrder.indexOf(draggedLaptopShortcutKey);
+    button.classList.add('shortcut-dragging');
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', draggedLaptopShortcutKey);
+  });
+
+  laptopQuickMenu?.addEventListener('dragover', event => {
+    if (!draggedLaptopShortcutKey) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    const buttons = [...laptopQuickMenu.querySelectorAll('.laptop-quick-action[data-shortcut-order-key]')];
+    if (!buttons.length) return;
+    const closest = buttons.reduce((best, button) => {
+      const rect = button.getBoundingClientRect();
+      const distance = Math.hypot(event.clientX - (rect.left + rect.width / 2), event.clientY - (rect.top + rect.height / 2));
+      return distance < best.distance ? { button, distance } : best;
+    }, { button: buttons[0], distance: Number.POSITIVE_INFINITY }).button;
+    let targetIndex = laptopShortcutOrder.indexOf(closest.dataset.shortcutOrderKey);
+    targetIndex = Math.max(0, Math.min(buttons.length - 1, targetIndex));
+    if (targetIndex === laptopDragPreviewIndex) return;
+    const preview = laptopDragOriginalOrder.filter(key => key !== draggedLaptopShortcutKey);
+    preview.splice(targetIndex, 0, draggedLaptopShortcutKey);
+    laptopShortcutOrder = preview;
+    laptopDragPreviewIndex = targetIndex;
+    updateLaptopGridPlacement();
+    laptopQuickMenu.querySelectorAll('.shortcut-drag-target').forEach(item => item.classList.remove('shortcut-drag-target'));
+    buttons.find(button => button.dataset.shortcutOrderKey === draggedLaptopShortcutKey)?.classList.add('shortcut-drag-target');
+  });
+
+  laptopQuickMenu?.addEventListener('drop', async event => {
+    if (!draggedLaptopShortcutKey) return;
+    event.preventDefault();
+    const keys = [...laptopShortcutOrder];
+    laptopDragCommitted = true;
+    suppressLaptopShortcutClick = true;
+    if (ipcRenderer) await ipcRenderer.invoke('laptop-save-shortcut-order', keys);
+  });
+
+  laptopQuickMenu?.addEventListener('dragend', () => {
+    if (!laptopDragCommitted && laptopDragOriginalOrder.length) {
+      laptopShortcutOrder = [...laptopDragOriginalOrder];
+      updateLaptopGridPlacement();
+    }
+    laptopQuickMenu.querySelectorAll('.shortcut-dragging, .shortcut-drag-target').forEach(item => {
+      item.classList.remove('shortcut-dragging', 'shortcut-drag-target');
+    });
+    draggedLaptopShortcutKey = '';
+    laptopDragOriginalOrder = [];
+    laptopDragCommitted = false;
+    laptopDragPreviewIndex = -1;
+    window.setTimeout(() => { suppressLaptopShortcutClick = false; }, 120);
+  });
+
+  document.addEventListener('click', () => closeLaptopMenu());
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') closeLaptopMenu();
+  });
+
   const renderCalendarSticky = payload => {
     if (!calendarStickyBoard || !calendarStickyList) return;
     const events = Array.isArray(payload?.events) ? payload.events : [];
     calendarStickyCount.textContent = String(events.length);
     calendarStickyList.replaceChildren();
-    if (events.length === 0 && payload?.enabled) {
-      const empty = document.createElement('div');
-      empty.className = 'calendar-sticky-empty';
-      const days = Math.max(1, Math.min(30, Number(payload.displayDays) || 7));
-      empty.textContent = currentLang === 'en'
-        ? `No events in the next ${days} day(s)`
-        : `未來 ${days} 天沒有行程`;
-      calendarStickyList.appendChild(empty);
-    }
     for (const event of events) {
       const item = document.createElement('article');
       item.className = 'calendar-sticky-event';
@@ -103,7 +453,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       calendarStickyList.appendChild(item);
     }
-    calendarStickyBoard.classList.toggle('visible', payload?.enabled === true);
+    calendarStickyBoard.classList.toggle('visible', payload?.enabled === true && events.length > 0);
   };
 
   const renderEmailSticky = payload => {
@@ -111,14 +461,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const emails = Array.isArray(payload?.emails) ? payload.emails : [];
     emailStickyCount.textContent = String(emails.length);
     emailStickyList.replaceChildren();
-    if (emails.length === 0 && payload?.enabled) {
-      const empty = document.createElement('div');
-      empty.className = 'email-sticky-empty';
-      empty.textContent = currentLang === 'en'
-        ? (payload.unreadOnly ? 'No recent unread email' : 'No recent email')
-        : (payload.unreadOnly ? '目前沒有近期未讀郵件' : '目前沒有近期郵件');
-      emailStickyList.appendChild(empty);
-    }
     for (const email of emails) {
       const item = document.createElement('article');
       item.className = 'email-sticky-item';
@@ -158,7 +500,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       emailStickyList.appendChild(item);
     }
-    emailStickyBoard.classList.toggle('visible', payload?.enabled === true);
+    emailStickyBoard.classList.toggle('visible', payload?.enabled === true && emails.length > 0);
   };
 
   // 3. Audio Chime Synthesizers (Mail & Water Droplet - No external files needed)
@@ -275,19 +617,26 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 4. Dynamic Click-Through Management (only feature controls are interactive)
   let isMoveModeActive = false;
   let lastInteractiveState = null;
+  let isDragging = false;
+  let dragOffset = { x: 0, y: 0 };
 
   if (ipcRenderer) {
     window.addEventListener('mousemove', (e) => {
-      if (isMoveModeActive) return; // In move mode, everything accepts mouse events
-
-      const isOverInteractive = !!e.target.closest('#ball-canvas-container') ||
+      const isOverFeatureControl = !!e.target.closest('#ball-canvas-container') ||
         !!e.target.closest('#mail-opened-container') ||
         !!e.target.closest('#water-bottle-container') ||
         !!e.target.closest('#calendar-orb-container') ||
         !!e.target.closest('#trivia-orb-container') ||
         !!e.target.closest('#alarm-orb-container') ||
         !!e.target.closest('#laptop-notes-trigger') ||
+        !!e.target.closest('#laptop-quick-menu') ||
+        !!e.target.closest('#sticky-notes-board') ||
+        !!e.target.closest('#email-sticky-board') ||
+        !!e.target.closest('#calendar-sticky-board') ||
+        !!e.target.closest('#sticky-reopen-tab') ||
         !!e.target.closest('#speech-bubble');
+      const isOverInteractive = isOverFeatureControl ||
+        (isAssistantVisible && isMoveModeActive && (isDragging || !!e.target.closest('#bear-character')));
 
       if (isOverInteractive !== lastInteractiveState) {
         lastInteractiveState = isOverInteractive;
@@ -321,16 +670,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     addInteractiveListeners(calendarContainer);
     addInteractiveListeners(triviaContainer);
     addInteractiveListeners(laptopNotesTrigger);
+    addInteractiveListeners(laptopQuickMenu);
+    addInteractiveListeners(stickyNotesBoard);
+    addInteractiveListeners(emailStickyBoard);
+    addInteractiveListeners(calendarStickyBoard);
+    addInteractiveListeners(stickyReopenTab);
     addInteractiveListeners(alarmContainer);
     addInteractiveListeners(speechBubble);
   }
 
   // 5. Native Window Dragging for Desktop Pet (Active in Move Mode)
-  let isDragging = false;
-  let dragOffset = { x: 0, y: 0 };
-
-  petContainer.addEventListener('mousedown', (e) => {
-    if (!isMoveModeActive) return;
+  bearCharacter?.addEventListener('mousedown', (e) => {
+    if (!isAssistantVisible || !isMoveModeActive) return;
     if (e.target.closest('.ball-container') ||
         e.target.closest('.mail-opened-container') ||
         e.target.closest('.water-bottle-container') ||
@@ -338,6 +689,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         e.target.closest('.trivia-orb-container') ||
         e.target.closest('.alarm-orb-container') ||
         e.target.closest('.laptop-notes-trigger') ||
+        e.target.closest('.laptop-quick-menu') ||
         e.target.closest('.sticky-notes-board') ||
         e.target.closest('.email-sticky-board') ||
         e.target.closest('.calendar-sticky-board') ||
@@ -374,9 +726,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const say = (text, duration = 3500) => {
     if (!bubbleEnabled || !speechBubble || !speechText) return;
-
-    if (hasWaterReminder) resetWaterState(false);
-    if (hasUnreadMail) resetMailState(false);
+    // Quotes and settings feedback must not replace a live reminder or its timer.
+    if (hasNotification()) return;
 
     speechBubble.classList.remove('mail-mode');
     speechText.textContent = text;
@@ -394,6 +745,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   let hasCalendarReminder = false;
   let hasTriviaReminder = false;
   let hasActiveAlarm = false;
+  let isFocusModeActive = false;
+  const hasNotification = () => hasUnreadMail || hasWaterReminder || hasCalendarReminder || hasTriviaReminder || hasActiveAlarm;
+  let notificationSyncPending = false;
+  let lastNotificationActive = null;
+  const syncNotificationActive = () => {
+    if (notificationSyncPending) return;
+    notificationSyncPending = true;
+    // Switching reminder types resets the old one before showing the new one.
+    // Report only the final state to avoid briefly lowering the window between them.
+    queueMicrotask(() => {
+      notificationSyncPending = false;
+      const active = hasNotification();
+      if (active === lastNotificationActive) return;
+      lastNotificationActive = active;
+      ipcRenderer?.send('set-notification-active', active);
+    });
+  };
+  syncNotificationActive();
   let alarmAudio = null;
   let alarmFallbackAudio = null;
   let alarmObjectUrls = [];
@@ -439,6 +808,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (hasTriviaReminder) resetTriviaState(false);
     if (hasUnreadMail) resetMailState(false);
     hasActiveAlarm = true;
+    syncNotificationActive();
+    if (hideBubbleTimer) clearTimeout(hideBubbleTimer);
     // The assistant window normally passes clicks through transparent areas.
     // Keep it interactive for the full alarm period so the orb always stops.
     ipcRenderer?.send('set-alarm-active', true);
@@ -456,6 +827,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const resetAlarmState = (showToast = false) => {
     if (!hasActiveAlarm) return;
     hasActiveAlarm = false;
+    syncNotificationActive();
     stopAlarmSound();
     stickyNotesController?.clearAlarmHighlights();
     bearCharacter.classList.remove('has-alarm');
@@ -477,6 +849,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (hasTriviaReminder) resetTriviaState(false);
 
     hasUnreadMail = true;
+    syncNotificationActive();
     bearCharacter.classList.add('has-mail');
     if (mailContainer) mailContainer.classList.add('active');
 
@@ -561,6 +934,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const resetMailState = (showToast = false) => {
     if (hasUnreadMail) {
       hasUnreadMail = false;
+      syncNotificationActive();
       bearCharacter.classList.remove('has-mail');
       if (mailContainer) mailContainer.classList.remove('active');
       if (speechBubble) {
@@ -581,6 +955,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (hasTriviaReminder) resetTriviaState(false);
 
     hasWaterReminder = true;
+    syncNotificationActive();
     bearCharacter.classList.add('has-water');
     if (waterContainer) waterContainer.classList.add('active');
 
@@ -610,6 +985,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const resetWaterState = (showToast = false) => {
     if (hasWaterReminder) {
       hasWaterReminder = false;
+      syncNotificationActive();
       bearCharacter.classList.remove('has-water');
       if (waterContainer) waterContainer.classList.remove('active');
       if (speechBubble) {
@@ -664,6 +1040,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (hasTriviaReminder) resetTriviaState(false);
 
     hasCalendarReminder = true;
+    syncNotificationActive();
     bearCharacter.classList.add('has-calendar');
     if (calendarContainer) calendarContainer.classList.add('active');
 
@@ -791,6 +1168,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const resetCalendarState = (showToast = false) => {
     if (hasCalendarReminder) {
       hasCalendarReminder = false;
+      syncNotificationActive();
       bearCharacter.classList.remove('has-calendar');
       if (calendarContainer) calendarContainer.classList.remove('active');
       if (speechBubble) {
@@ -813,6 +1191,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (hasCalendarReminder) resetCalendarState(false);
 
     hasTriviaReminder = true;
+    syncNotificationActive();
     bearCharacter.classList.add('has-trivia');
     if (triviaContainer) triviaContainer.classList.add('active');
 
@@ -854,6 +1233,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const resetTriviaState = (showToast = false) => {
     if (hasTriviaReminder) {
       hasTriviaReminder = false;
+      syncNotificationActive();
       bearCharacter.classList.remove('has-trivia');
       if (triviaContainer) triviaContainer.classList.remove('active');
       if (speechBubble) {
@@ -893,14 +1273,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 11. IPC Listeners from Electron Tray & Main Process
   if (ipcRenderer) {
     ipcRenderer.on('new-email-received', (event, emailData) => {
+      if (isFocusModeActive && !emailData?.isManual) return;
       showMailNotification(emailData);
     });
 
     ipcRenderer.on('health-reminder', (event, healthData) => {
+      if (isFocusModeActive) return;
       showHealthReminder(healthData);
     });
 
     ipcRenderer.on('calendar-reminder', (event, reminderData) => {
+      if (isFocusModeActive && !['overview', 'connection-test'].includes(reminderData?.type)) return;
       showCalendarReminder(reminderData);
     });
 
@@ -910,13 +1293,53 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.documentElement.style.setProperty('--todo-panel-opacity', String(values.todo ?? 1));
       document.documentElement.style.setProperty('--calendar-panel-opacity', String(values.calendar ?? 1));
       document.documentElement.style.setProperty('--email-panel-opacity', String(values.email ?? 1));
+      document.documentElement.style.setProperty('--shortcut-opacity', String(values.shortcut ?? 1));
+      document.documentElement.style.setProperty('--assistant-opacity', String(values.assistant ?? 1));
+      const assistantVisualLayer = document.querySelector('.assistant-visual-layer');
+      if (assistantVisualLayer) assistantVisualLayer.style.filter = `opacity(${values.assistant ?? 1})`;
+      if (speechBubble) speechBubble.style.filter = `opacity(${values.assistant ?? 1})`;
+    });
+
+    ipcRenderer.on('settings-window-visibility', (event, isVisible) => {
+      if (isVisible) {
+        refreshLaptopShortcuts();
+        laptopQuickMenu?.classList.add('visible');
+        bearCharacter?.classList.add('shortcut-menu-open');
+        laptopNotesTrigger?.setAttribute('aria-expanded', 'true');
+      } else {
+        closeLaptopMenu();
+      }
+    });
+
+    ipcRenderer.on('assistant-visibility-changed', (event, visible) => {
+      applyAssistantVisibility(visible);
     });
 
     ipcRenderer.on('trivia-reminder', (event, triviaData) => {
+      if (isFocusModeActive && !triviaData?.isManual) return;
       showTriviaReminder(triviaData);
     });
 
+    ipcRenderer.on('focus-mode-updated', (event, state = {}) => {
+      isFocusModeActive = state.active === true;
+      document.body.classList.toggle('focus-mode-active', isFocusModeActive);
+      if (isFocusModeActive) {
+        resetMailState(false);
+        resetWaterState(false);
+        resetCalendarState(false);
+        resetTriviaState(false);
+      }
+    });
+
+    ipcRenderer.on('update-status', (event, state = {}) => {
+      if (state.status !== 'downloaded') return;
+      say(currentLang === 'en'
+        ? `Version ${state.version} is ready and will install after restart.`
+        : `${state.version} 版已下載完成，重新啟動後會自動安裝。`, 5000);
+    });
+
     ipcRenderer.on('trivia-fetch-failed', (event, data) => {
+      if (isFocusModeActive) return;
       say(data && data.message ? data.message : getLoc().trivia.noNetwork, 3500);
     });
 
@@ -998,8 +1421,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.documentElement.style.setProperty('--bear-size', `${data.bearSize}px`);
       }
       if (data && data.sizeKey) {
+        currentAssistantSize = data.sizeKey;
         document.body.classList.remove('size-mini', 'size-std', 'size-lg');
         document.body.classList.add(`size-${data.sizeKey}`);
+        updateLaptopLabelDisplay();
+        updateLaptopGridPlacement();
       }
       setTimeout(() => ballRenderer.onResize(), 60);
       if (data && !data.isInit && isAppReady) {
@@ -1023,8 +1449,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     ipcRenderer.on('move-mode-changed', (event, isMoveMode, isInit = false) => {
       isMoveModeActive = isMoveMode;
+      lastInteractiveState = null;
       if (isMoveMode) {
         petContainer.classList.add('move-mode');
+        ipcRenderer.send('set-ignore-mouse-events', true, { forward: true });
         if (!isInit) say(getLoc().speech.moveModeOn, 3000);
       } else {
         petContainer.classList.remove('move-mode');
@@ -1039,21 +1467,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
 
-    ipcRenderer.on('auto-launch-updated', (event, isEnabled) => {
-      const msg = isEnabled ? getLoc().speech.autoLaunchEnabled : getLoc().speech.autoLaunchDisabled;
-      say(msg, 2500);
-    });
-
     // Fetch initial language, dialogue font size, and sticky-note size silently
     try {
-      const [initialLang, initialFontSize, initialStickySize] = await Promise.all([
+      const [initialLang, initialFontSize, initialStickySize, initialFocusMode] = await Promise.all([
         ipcRenderer.invoke('get-language'),
         ipcRenderer.invoke('get-bubble-font-size'),
-        ipcRenderer.invoke('get-sticky-notes-size')
+        ipcRenderer.invoke('get-sticky-notes-size'),
+        ipcRenderer.invoke('get-focus-mode')
       ]);
       if (initialLang) applyLanguage(initialLang);
       if (initialFontSize) applyBubbleFontSize(initialFontSize);
       if (initialStickySize) applyStickyNotesSize(initialStickySize);
+      if (initialFocusMode) {
+        isFocusModeActive = initialFocusMode.active === true;
+        document.body.classList.toggle('focus-mode-active', isFocusModeActive);
+      }
     } catch (e) { }
 
     setTimeout(() => {

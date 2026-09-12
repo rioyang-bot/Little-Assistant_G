@@ -58,6 +58,219 @@ input, select, textarea, .gmail-help-box, .gmail-link, .rule-label, .tip, .statu
   user-select: text;
 }
 
+.shortcut-settings-list { display: grid; gap: 8px; }
+.shortcut-settings-empty { padding: 12px; text-align: center; }
+.shortcut-settings-card {
+  display: grid;
+  grid-template-columns: 12px 34px minmax(64px, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.62);
+  cursor: grab;
+  transition: border-color 0.15s ease, opacity 0.15s ease, transform 0.15s ease;
+}
+.shortcut-settings-card:active { cursor: grabbing; }
+.shortcut-settings-card.dragging { opacity: 0.42; }
+.shortcut-settings-card.drag-over { border-color: var(--accent); transform: translateY(1px); }
+.shortcut-drag-handle {
+  color: var(--text-muted);
+  font-size: 18px;
+  line-height: 1;
+  letter-spacing: -5px;
+  user-select: none;
+}
+.shortcut-settings-icon,
+.shortcut-logo-preview,
+.shortcut-color-picker button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(56, 189, 248, 0.38);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.22), rgba(30, 41, 59, 0.9));
+  color: #bae6fd;
+  font-size: 17px;
+  overflow: hidden;
+}
+.shortcut-settings-icon img,
+.shortcut-logo-preview img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+.shortcut-settings-icon:has(img),
+.shortcut-logo-preview:has(img) { background: transparent !important; }
+.shortcut-settings-info { min-width: 0; }
+.shortcut-settings-name { font-weight: 750; }
+.shortcut-settings-kind { color: var(--text-muted); font-size: 0.72rem; }
+.shortcut-settings-remove { padding: 6px 9px; }
+.shortcut-settings-actions { display: flex; align-items: center; gap: 6px; }
+.shortcut-settings-actions { grid-column: auto; justify-content: flex-end; gap: 5px; white-space: nowrap; }
+.shortcut-settings-actions .action-btn { flex: 0 0 auto; }
+.shortcut-settings-logo,
+.shortcut-settings-clear-logo,
+.shortcut-settings-remove { padding: 5px 7px; font-size: 0.7rem; }
+.shortcut-editor { display: grid; gap: 12px; }
+.shortcut-type-switch { display: flex; gap: 6px; padding: 4px; border: 1px solid rgba(56,189,248,.2); border-radius: 8px; background: rgba(15,23,42,.45); }
+.shortcut-type-switch label { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+.shortcut-type-switch label:has(input:checked) { color: #fff; background: rgba(14,116,144,.48); box-shadow: inset 0 0 0 1px rgba(56,189,248,.42); }
+.shortcut-field { display: grid; gap: 5px; }
+.shortcut-target-row[hidden],
+.shortcut-field[hidden] { display: none !important; }
+.shortcut-target-row { display: flex; align-items: center; gap: 10px; }
+.shortcut-target-row .tip { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shortcut-logo-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.shortcut-logo-row .action-btn { flex: 0 0 auto; padding: 7px 10px; }
+.shortcut-logo-description { max-width: 680px; line-height: 1.55; }
+.shortcut-ai-logo-help {
+  padding: 9px 10px;
+  border: 1px solid rgba(168, 85, 247, 0.32);
+  border-radius: 9px;
+  background: rgba(88, 28, 135, 0.12);
+}
+.shortcut-ai-logo-help summary { color: #d8b4fe; font-weight: 750; cursor: pointer; }
+.shortcut-ai-logo-help[open] summary { margin-bottom: 8px; }
+.shortcut-ai-logo-prompt {
+  width: 100%;
+  min-height: 190px;
+  margin: 8px 0;
+  padding: 9px;
+  resize: vertical;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 7px;
+  background: rgba(2, 6, 23, 0.72);
+  color: #e2e8f0;
+  font: 0.75rem/1.5 Consolas, monospace;
+}
+.shortcut-logo-preview { flex: 0 0 44px; width: 44px; height: 44px; font-weight: 800; }
+.shortcut-logo-row .tip { flex: 1 0 100%; padding-left: 52px; }
+.shortcut-color-picker { display: grid; grid-template-columns: repeat(auto-fill, 30px); gap: 8px; }
+.shortcut-color-picker button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.18);
+  background: var(--swatch);
+  cursor: pointer;
+}
+.shortcut-color-picker button:hover,
+.shortcut-color-picker button.selected { border-color: #fff; box-shadow: 0 0 0 2px var(--accent), 0 0 10px var(--swatch); }
+.shortcut-color-picker.disabled { opacity: 0.4; pointer-events: none; }
+.shortcut-editor-actions { display: flex; align-items: center; gap: 8px; }
+
+#panel-shortcuts.active {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  grid-template-areas:
+    "intro intro"
+    "appearance appearance"
+    "shortcuts browsers"
+    "editor editor";
+  gap: 12px;
+  align-items: start;
+}
+
+#panel-shortcuts > .section { margin-bottom: 0; }
+.shortcut-feature-intro { grid-area: intro; margin-bottom: 0; }
+.shortcut-appearance-section { grid-area: appearance; }
+.shortcut-list-section { grid-area: shortcuts; }
+.shortcut-editor { grid-area: editor; }
+.shortcut-browser-section { grid-area: browsers; }
+
+#panel-shortcuts .section-title { margin-bottom: 4px; }
+@media (max-width: 820px) {
+  #panel-shortcuts.active {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "intro"
+      "appearance"
+      "shortcuts"
+      "browsers"
+      "editor";
+  }
+}
+
+.browser-settings-list {
+  display: grid;
+  gap: 8px;
+}
+
+.browser-settings-empty {
+  padding: 12px;
+  text-align: center;
+}
+
+.browser-setting-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 1fr) minmax(145px, 190px);
+  align-items: center;
+  gap: 7px;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.62);
+}
+
+.browser-setting-info {
+  min-width: 0;
+}
+
+.browser-setting-heading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.browser-setting-type {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.15);
+  color: #7dd3fc;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.browser-setting-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.browser-setting-path {
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 0.71rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.browser-setting-select {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 30px 7px 9px;
+  font-size: 0.75rem;
+}
+
+.browser-settings-feedback:not(:empty) {
+  margin-top: 9px;
+  color: #7dd3fc;
+}
+
+@media (max-width: 560px) {
+  .browser-setting-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .header {
   display: flex;
   align-items: center;
@@ -148,6 +361,8 @@ h1 {
 }
 
 .tab-btn {
+  --tab-color: #38bdf8;
+  --tab-rgb: 56, 189, 248;
   flex: 1 1 0;
   min-width: 0;
   display: flex;
@@ -157,13 +372,31 @@ h1 {
   padding: 8px 8px;
   font-size: 0.8rem;
   font-weight: 600;
-  color: #94a3b8;
-  background: transparent;
-  border: none;
+  color: var(--tab-color);
+  background: rgba(var(--tab-rgb), 0.08);
+  border: 1px solid rgba(var(--tab-rgb), 0.28);
   border-radius: 7px;
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#tab-btn-email { --tab-color: #38bdf8; --tab-rgb: 56, 189, 248; }
+#tab-btn-calendar { --tab-color: #fb923c; --tab-rgb: 249, 115, 22; }
+#tab-btn-health { --tab-color: #4ade80; --tab-rgb: 34, 197, 94; }
+#tab-btn-trivia { --tab-color: #fde047; --tab-rgb: 250, 204, 21; }
+#tab-btn-alarm { --tab-color: #c084fc; --tab-rgb: 168, 85, 247; }
+#tab-btn-shortcuts { --tab-color: #f472b6; --tab-rgb: 236, 72, 153; }
+
+.tab-btn > span:first-child {
+  display: grid;
+  place-items: center;
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(var(--tab-rgb), 0.2);
+  box-shadow: inset 0 0 0 1px rgba(var(--tab-rgb), 0.45);
 }
 
 .tab-btn span:last-child {
@@ -173,14 +406,22 @@ h1 {
 }
 
 .tab-btn:hover {
-  color: #f1f5f9;
-  background: rgba(56, 189, 248, 0.08);
+  color: #fff;
+  background: rgba(var(--tab-rgb), 0.2);
+  border-color: rgba(var(--tab-rgb), 0.7);
 }
 
 .tab-btn.active {
-  color: #0f172a;
-  background: var(--primary);
-  box-shadow: 0 2px 10px rgba(56, 189, 248, 0.4);
+  color: #07111f;
+  background: rgb(var(--tab-rgb));
+  border-color: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 2px 12px rgba(var(--tab-rgb), 0.52);
+  font-weight: 750;
+}
+
+.tab-btn.active > span:first-child {
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: none;
 }
 
 body.lang-en .tab-btn {
@@ -197,6 +438,21 @@ body.lang-en .tab-btn {
 .tab-panel.active {
   display: block;
 }
+
+.feature-intro {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 9px 11px;
+  border: 1px solid rgba(56, 189, 248, 0.24);
+  border-radius: 8px;
+  background: rgba(14, 116, 144, 0.1);
+  color: #bae6fd;
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+#panel-shortcuts .shortcut-feature-intro { margin-bottom: 0; }
 
 /* Cards & Sections */
 .section {
@@ -617,6 +873,7 @@ label {
 }
 
 input[type="text"],
+input[type="url"],
 input[type="email"],
 input[type="password"],
 input[type="number"],

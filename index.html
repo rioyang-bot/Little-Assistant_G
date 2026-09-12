@@ -72,6 +72,10 @@
             <button type="button" id="sticky-form-close" class="sticky-form-close" aria-label="關閉">×</button>
           </div>
         </div>
+        <div class="sticky-natural-row">
+          <input id="sticky-natural-input" type="text" maxlength="180" placeholder="例如：明天下午 3 點提醒我緊急回覆客戶">
+          <button type="button" id="sticky-natural-create">✨ 解析並新增</button>
+        </div>
         <label class="sticky-field">
           <span id="sticky-subject-label">主旨</span>
           <input id="sticky-subject" type="text" maxlength="80" placeholder="例如：今天回覆客戶" required>
@@ -119,6 +123,7 @@
 
     <!-- Interactive Animated Character Layer -->
     <div id="bear-character" class="bear-character-layer" title="METech小助手">
+      <div class="assistant-visual-layer">
       
       <!-- Energy Aura behind the ball -->
       <div id="globe-aura" class="globe-aura"></div>
@@ -644,9 +649,20 @@
 
       <!-- Foreground Paw (Fingers wrapping naturally over the ball/letter) -->
       <img id="paw-overlay-img" class="paw-overlay" src="assets/paw_overlay.png" onerror="if(!this.dataset.tried){this.dataset.tried='1';this.src='public/assets/paw_overlay.png';}" alt="Paw Overlay" draggable="false" />
+      </div>
 
-      <!-- Interactive laptop outline: quick sticky-note entry -->
-      <button type="button" id="laptop-notes-trigger" class="laptop-notes-trigger" title="快速新增待辦便利貼" aria-label="快速新增待辦便利貼">
+      <!-- Laptop quick-action menu -->
+      <div id="laptop-quick-menu" class="laptop-quick-menu" role="menu" aria-label="筆電快捷功能">
+        <button type="button" class="laptop-quick-action action-sticky" role="menuitem" data-laptop-action="sticky" data-shortcut-order-key="sticky" draggable="true" title="便利貼" aria-label="便利貼">
+          <span class="laptop-action-icon" aria-hidden="true">📝</span>
+          <span class="laptop-action-label">便利貼</span>
+        </button>
+        <div id="laptop-account-actions" class="laptop-dynamic-actions"></div>
+        <div id="laptop-shortcut-actions" class="laptop-dynamic-actions"></div>
+      </div>
+
+      <!-- Interactive laptop outline: open quick-action menu -->
+      <button type="button" id="laptop-notes-trigger" class="laptop-notes-trigger" title="開啟筆電快捷功能" aria-label="開啟筆電快捷功能" aria-haspopup="menu" aria-expanded="false" aria-controls="laptop-quick-menu">
         <svg class="laptop-hit-outline" viewBox="0 0 100 70" aria-hidden="true">
           <path class="laptop-outline-screen" d="M3.7 3.2 L56.5 11.3 L66.2 53.8 L16.5 47.1 Z"></path>
           <path class="laptop-outline-keyboard" d="M62 37.8 L87.5 44.5 L66.2 53.8"></path>

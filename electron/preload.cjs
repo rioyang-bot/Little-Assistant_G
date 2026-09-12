@@ -3,11 +3,13 @@ const { contextBridge, ipcRenderer } = require('electron');
 const VALID_SEND_CHANNELS = [
   'set-ignore-mouse-events',
   'set-alarm-active',
+  'set-notification-active',
   'window-move',
   'window-drag-start',
   'set-size',
   'set-scale',
   'show-context-menu',
+  'ball-speed-changed',
   'open-email-settings',
   'close-app',
   'minimize-app'
@@ -16,7 +18,14 @@ const VALID_SEND_CHANNELS = [
 const VALID_INVOKE_CHANNELS = [
   'get-language',
   'get-app-version',
+  'natural-language-create',
   'set-language',
+  'get-focus-mode',
+  'set-focus-mode',
+  'get-update-settings',
+  'set-update-settings',
+  'check-for-updates',
+  'install-update',
   'health-test-reminder',
   'email-get-config',
   'email-save-config',
@@ -33,6 +42,7 @@ const VALID_INVOKE_CHANNELS = [
   'trivia-fetch-now',
   'trivia-test-reminder',
   'sticky-notes-list',
+  'sticky-notes-save-view',
   'sticky-notes-create',
   'sticky-notes-update',
   'sticky-notes-complete',
@@ -49,8 +59,17 @@ const VALID_INVOKE_CHANNELS = [
   'get-panel-opacity',
   'preview-panel-opacity',
   'set-panel-opacity',
-  'get-auto-launch',
-  'set-auto-launch'
+  'laptop-get-shortcuts',
+  'laptop-save-shortcut-order',
+  'laptop-get-shortcut-settings',
+  'laptop-choose-browser',
+  'laptop-save-browser-settings',
+  'laptop-choose-custom-app',
+  'laptop-choose-shortcut-logo',
+  'laptop-replace-shortcuts',
+  'laptop-open-shortcut',
+  'laptop-open-account',
+  'laptop-open-action'
 ];
 
 const VALID_RECEIVE_CHANNELS = [
@@ -60,7 +79,10 @@ const VALID_RECEIVE_CHANNELS = [
   'font-size-updated',
   'sticky-size-updated',
   'panel-opacity-updated',
-  'auto-launch-updated',
+  'settings-window-visibility',
+  'assistant-visibility-changed',
+  'focus-mode-updated',
+  'update-status',
   'move-mode-changed',
   'dock-side-changed',
   'new-email-received',

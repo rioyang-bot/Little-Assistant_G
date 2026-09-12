@@ -1,0 +1,18 @@
+[
+  {
+    "Name": "METech小助手 Setup 1.6.0.exe",
+    "Bytes": 143171130,
+    "MiB": 136.54,
+    "Version": "1.6.0",
+    "SHA256": "329A20E9550BA07D9478CA8D34440F60C7FA4524BAFB1A994042459C84A48E63",
+    "Signature": 2
+  },
+  {
+    "Name": "METech小助手-Portable-1.6.0.exe",
+    "Bytes": 142939867,
+    "MiB": 136.32,
+    "Version": "1.6.0",
+    "SHA256": "41095F412EF1B1F06F956C0DB3303519872F089BB664E84C1FE1F2FA25A9F7B7",
+    "Signature": 2
+  }
+]

@@ -1,10 +1,14 @@
-const { app, BrowserWindow, Tray, Menu, screen, ipcMain, nativeImage, dialog } = require('electron');
+const { app, BrowserWindow, Tray, Menu, screen, ipcMain, nativeImage, dialog, shell } = require('electron');
 const path = require('path');
 const { EmailService } = require('./email-service.cjs');
 const { CalendarService } = require('./calendar-service.cjs');
 const { TriviaService } = require('./trivia-service.cjs');
 const { StickyNotesService } = require('./sticky-notes-service.cjs');
 const { AlarmService } = require('./alarm-service.cjs');
+const { WindowLayerController, normalizeWindowLayerMode } = require('./window-layer-controller.cjs');
+const { parseNaturalLanguageTask } = require('./natural-language-task.cjs');
+const { UpdateService } = require('./update-service.cjs');
+const { autoUpdater } = require('electron-updater');
 const { locales } = require('./locales.cjs');
 const { isNewerVersion, formatDisplayVersion, getReleaseNotes } = require('./version-utils.cjs');
 const {
@@ -12,10 +16,14 @@ const {
   getStickyNotesSizePreset,
   getCompositeWindowSize,
   clampWindowYToWorkArea,
-  getMonitorFittedWindowHeight
+  getMonitorFittedWindowHeight,
+  getBottomRightWindowBounds,
+  getDisplayLayoutKey,
+  centerWindowInWorkArea
 } = require('./layout-utils.cjs');
 
 const fs = require('fs');
+const { spawn, execFileSync } = require('child_process');
 
 let mainWindow = null;
 let settingsWindow = null;
@@ -24,6 +32,7 @@ let calendarService = null;
 let triviaService = null;
 let stickyNotesService = null;
 let alarmService = null;
+let updateService = null;
 let tray = null;
 let currentSizeKey = 'std';
 let currentBubbleFontSize = 'std';
@@ -31,16 +40,228 @@ let currentStickyNotesSize = 'std';
 let todoPanelOpacity = 1;
 let calendarPanelOpacity = 1;
 let emailPanelOpacity = 1;
+let shortcutOpacity = 1;
+let assistantOpacity = 1;
 let currentLanguage = 'zh-TW';
 let currentBallSpeed = 1.2;
-let isAlwaysOnTop = true;
+let windowLayerMode = 'top';
+let windowLayerController = null;
 let isMoveMode = false; // 預設為穿透模式 (false)，但球體不穿透可互動
 let isBubbleEnabled = true;
+let isAssistantVisible = true;
 let isAlarmActive = false;
 let currentDockSide = 'right'; // 'right' (預設右側對齊) 或 'left' (左側對齊)
 let savedWindowPosition = null;
 let lastRunVersion = null;
 let trayContextMenu = null;
+let laptopShortcuts = [];
+let laptopFixedLogos = {};
+let laptopShortcutOrder = [];
+let laptopBrowserAssignments = {};
+let displayPositions = {};
+let displayLayoutChangePending = false;
+let focusModeUntil = 0;
+let focusModeTimer = null;
+let autoUpdateEnabled = true;
+const MAX_LAPTOP_MENU_ACTIONS = 20;
+const MAX_SHORTCUT_LOGO_BYTES = 10 * 1024 * 1024;
+
+function getShortcutLogoDirectory() {
+  return path.join(app.getPath('userData'), 'shortcut-logos');
+}
+
+function normalizeShortcutLogoPath(value) {
+  const logoPath = String(value || '').trim();
+  if (!logoPath || !path.isAbsolute(logoPath) || path.extname(logoPath).toLowerCase() !== '.png') return '';
+  const logoDirectory = path.resolve(getShortcutLogoDirectory());
+  const resolvedLogoPath = path.resolve(logoPath);
+  const relative = path.relative(logoDirectory, resolvedLogoPath);
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative) || !fs.existsSync(resolvedLogoPath)) return '';
+  return resolvedLogoPath;
+}
+
+function getShortcutLogoUrl(logoPath) {
+  const normalized = normalizeShortcutLogoPath(logoPath);
+  if (!normalized) return '';
+  try {
+    return `data:image/png;base64,${fs.readFileSync(normalized).toString('base64')}`;
+  } catch (error) {
+    return '';
+  }
+}
+
+function getEnvironmentPath(name) {
+  const matchedKey = Object.keys(process.env).find(key => key.toLowerCase() === name.toLowerCase());
+  return matchedKey ? process.env[matchedKey] : '';
+}
+
+function findRegisteredBrowserPath(executableName) {
+  if (process.platform !== 'win32') return '';
+  const registryKeys = [
+    `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${executableName}`,
+    `HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${executableName}`,
+    `HKLM\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${executableName}`
+  ];
+  for (const registryKey of registryKeys) {
+    try {
+      const output = execFileSync('reg.exe', ['query', registryKey, '/ve'], {
+        encoding: 'utf8',
+        windowsHide: true,
+        stdio: ['ignore', 'pipe', 'ignore']
+      });
+      const match = output.match(/REG_(?:EXPAND_)?SZ\s+(.+?)\s*$/im);
+      const registeredPath = String(match?.[1] || '').trim().replace(/^"|"$/g, '');
+      if (registeredPath && fs.existsSync(registeredPath)) return registeredPath;
+    } catch (error) { /* Browser is not registered in this location. */ }
+  }
+  return '';
+}
+
+function detectInstalledBrowsers() {
+  const programFiles = getEnvironmentPath('ProgramFiles');
+  const programFilesX86 = getEnvironmentPath('ProgramFiles(x86)');
+  const localAppData = getEnvironmentPath('LOCALAPPDATA');
+  const descriptors = [
+    {
+      name: 'Microsoft Edge', executable: 'msedge.exe',
+      paths: [
+        [programFilesX86, 'Microsoft', 'Edge', 'Application', 'msedge.exe'],
+        [programFiles, 'Microsoft', 'Edge', 'Application', 'msedge.exe'],
+        [localAppData, 'Microsoft', 'Edge', 'Application', 'msedge.exe']
+      ]
+    },
+    {
+      name: 'Google Chrome', executable: 'chrome.exe',
+      paths: [
+        [programFiles, 'Google', 'Chrome', 'Application', 'chrome.exe'],
+        [programFilesX86, 'Google', 'Chrome', 'Application', 'chrome.exe'],
+        [localAppData, 'Google', 'Chrome', 'Application', 'chrome.exe']
+      ]
+    },
+    {
+      name: 'Mozilla Firefox', executable: 'firefox.exe',
+      paths: [
+        [programFiles, 'Mozilla Firefox', 'firefox.exe'],
+        [programFilesX86, 'Mozilla Firefox', 'firefox.exe'],
+        [localAppData, 'Mozilla Firefox', 'firefox.exe']
+      ]
+    },
+    {
+      name: 'Brave', executable: 'brave.exe',
+      paths: [
+        [programFiles, 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'],
+        [programFilesX86, 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'],
+        [localAppData, 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe']
+      ]
+    },
+    {
+      name: 'Opera', executable: 'opera.exe', useRegistry: false,
+      paths: [
+        [localAppData, 'Programs', 'Opera', 'launcher.exe'],
+        [programFiles, 'Opera', 'launcher.exe'],
+        [programFilesX86, 'Opera', 'launcher.exe']
+      ]
+    },
+    {
+      name: 'Opera GX', executable: 'opera.exe', useRegistry: false,
+      paths: [[localAppData, 'Programs', 'Opera GX', 'launcher.exe']]
+    },
+    {
+      name: 'Vivaldi', executable: 'vivaldi.exe',
+      paths: [
+        [localAppData, 'Vivaldi', 'Application', 'vivaldi.exe'],
+        [programFiles, 'Vivaldi', 'Application', 'vivaldi.exe'],
+        [programFilesX86, 'Vivaldi', 'Application', 'vivaldi.exe']
+      ]
+    },
+    {
+      name: 'Chromium', executable: 'chromium.exe',
+      paths: [[localAppData, 'Chromium', 'Application', 'chrome.exe']]
+    }
+  ];
+  const detected = [];
+  const seenPaths = new Set();
+  const addBrowser = (name, browserPath) => {
+    if (!browserPath || !fs.existsSync(browserPath)) return;
+    const normalizedPath = path.resolve(browserPath);
+    const dedupeKey = normalizedPath.toLowerCase();
+    if (seenPaths.has(dedupeKey)) return;
+    seenPaths.add(dedupeKey);
+    detected.push({ name, path: normalizedPath });
+  };
+
+  for (const descriptor of descriptors) {
+    const standardPaths = descriptor.paths
+      .filter(pathParts => pathParts[0])
+      .map(pathParts => path.join(...pathParts));
+    let browserPath = standardPaths.find(candidate => fs.existsSync(candidate));
+    if (!browserPath && descriptor.useRegistry !== false) {
+      browserPath = findRegisteredBrowserPath(descriptor.executable);
+    }
+    addBrowser(descriptor.name, browserPath);
+  }
+  return detected;
+}
+
+function normalizeBrowserAssignments(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return {};
+  const normalized = {};
+  for (const [rawKey, rawBrowserPath] of Object.entries(input)) {
+    const key = String(rawKey || '').trim();
+    const browserPath = String(rawBrowserPath || '').trim();
+    if (!/^(email|calendar|custom):.+/.test(key) || !browserPath) continue;
+    if (!path.isAbsolute(browserPath) || !fs.existsSync(browserPath)) continue;
+    if (process.platform === 'win32' && path.extname(browserPath).toLowerCase() !== '.exe') continue;
+    normalized[key] = browserPath;
+  }
+  return normalized;
+}
+
+async function openWebUrl(url, assignmentKey = '') {
+  const browserPath = laptopBrowserAssignments[String(assignmentKey || '')];
+  if (!browserPath) {
+    await shell.openExternal(url);
+    return;
+  }
+
+  try {
+    await new Promise((resolve, reject) => {
+      const child = spawn(browserPath, [url], {
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: true
+      });
+      child.once('error', reject);
+      child.once('spawn', () => {
+        child.unref();
+        resolve();
+      });
+    });
+  } catch (error) {
+    console.warn(`Unable to launch assigned browser for ${assignmentKey}:`, error.message);
+    await shell.openExternal(url);
+  }
+}
+
+function normalizeLaptopShortcut(item) {
+  if (!item || !['app', 'website'].includes(item.type) || typeof item.target !== 'string') return null;
+  const target = item.target.trim();
+  if (!target) return null;
+  const shortcut = {
+    id: String(item.id || `shortcut-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`),
+    type: item.type,
+    name: String(item.name || (item.type === 'app' ? path.basename(target, path.extname(target)) : target)).trim().slice(0, 40),
+    letter: /^[A-Z]$/.test(String(item.letter || '').toUpperCase())
+      ? String(item.letter).toUpperCase()
+      : ((String(item.name || '').toUpperCase().match(/[A-Z]/) || ['A'])[0]),
+    color: ['#0ea5e9', '#2563eb', '#4f46e5', '#7c3aed', '#c026d3', '#db2777', '#e11d48', '#ea580c', '#d97706', '#16a34a', '#0d9488', '#475569', '#ffffff', '#e2e8f0', '#bae6fd', '#bfdbfe', '#ddd6fe', '#fbcfe8', '#fde68a', '#bbf7d0']
+      .includes(String(item.color || '').toLowerCase()) ? String(item.color).toLowerCase() : '#0ea5e9',
+    target
+  };
+  const logoPath = normalizeShortcutLogoPath(item.logoPath);
+  if (logoPath) shortcut.logoPath = logoPath;
+  return shortcut;
+}
 
 // Preferences Persistence (Saved in standard Windows AppData user directory)
 function getPreferencesPath() {
@@ -69,17 +290,20 @@ function loadPetPreferences() {
       if (Number.isFinite(Number(data.todoPanelOpacity))) todoPanelOpacity = Math.max(0.3, Math.min(1, Number(data.todoPanelOpacity)));
       if (Number.isFinite(Number(data.calendarPanelOpacity))) calendarPanelOpacity = Math.max(0.3, Math.min(1, Number(data.calendarPanelOpacity)));
       if (Number.isFinite(Number(data.emailPanelOpacity))) emailPanelOpacity = Math.max(0.3, Math.min(1, Number(data.emailPanelOpacity)));
+      if (Number.isFinite(Number(data.shortcutOpacity))) shortcutOpacity = Math.max(0.3, Math.min(1, Number(data.shortcutOpacity)));
+      if (Number.isFinite(Number(data.assistantOpacity))) assistantOpacity = Math.max(0.3, Math.min(1, Number(data.assistantOpacity)));
       if (data.language && ['zh-TW', 'en'].includes(data.language)) {
         currentLanguage = data.language;
       }
-      if (typeof data.isAlwaysOnTop === 'boolean') {
-        isAlwaysOnTop = data.isAlwaysOnTop;
-      }
+      windowLayerMode = normalizeWindowLayerMode(data.windowLayerMode, data.isAlwaysOnTop);
       if (typeof data.isMoveMode === 'boolean') {
         isMoveMode = data.isMoveMode;
       }
       if (typeof data.isBubbleEnabled === 'boolean') {
         isBubbleEnabled = data.isBubbleEnabled;
+      }
+      if (typeof data.isAssistantVisible === 'boolean') {
+        isAssistantVisible = data.isAssistantVisible;
       }
       if (typeof data.ballSpeed === 'number' && data.ballSpeed > 0) {
         currentBallSpeed = data.ballSpeed;
@@ -90,8 +314,25 @@ function loadPetPreferences() {
       if (data.windowPosition && typeof data.windowPosition.x === 'number') {
         savedWindowPosition = data.windowPosition;
       }
+      displayPositions = data.displayPositions && typeof data.displayPositions === 'object'
+        ? data.displayPositions : {};
+      focusModeUntil = Number.isFinite(Number(data.focusModeUntil)) ? Number(data.focusModeUntil) : 0;
+      autoUpdateEnabled = data.autoUpdateEnabled !== false;
       if (typeof data.lastRunVersion === 'string') {
         lastRunVersion = data.lastRunVersion;
+      }
+      laptopFixedLogos = data.laptopFixedLogos || {};
+      laptopShortcuts = Array.isArray(data.laptopShortcuts)
+        ? data.laptopShortcuts.map(normalizeLaptopShortcut).filter(Boolean)
+        : [];
+      laptopShortcutOrder = Array.isArray(data.laptopShortcutOrder)
+        ? data.laptopShortcutOrder.map(value => String(value)).filter(Boolean)
+        : [];
+      laptopBrowserAssignments = normalizeBrowserAssignments(data.laptopBrowserAssignments);
+      // Migrate the earlier single-application preference without losing it.
+      if (!laptopShortcuts.length && typeof data.customLaptopAppPath === 'string' && data.customLaptopAppPath) {
+        const migrated = normalizeLaptopShortcut({ type: 'app', target: data.customLaptopAppPath });
+        if (migrated) laptopShortcuts.push(migrated);
       }
       return data;
     }
@@ -103,6 +344,7 @@ function loadPetPreferences() {
 
 function savePetPreferences() {
   try {
+    rememberCurrentDisplayPosition();
     const prefPath = getPreferencesPath();
     const data = {
       sizeKey: currentSizeKey,
@@ -111,13 +353,24 @@ function savePetPreferences() {
       todoPanelOpacity,
       calendarPanelOpacity,
       emailPanelOpacity,
+      shortcutOpacity,
+      assistantOpacity,
       language: currentLanguage,
-      isAlwaysOnTop: isAlwaysOnTop,
+      windowLayerMode,
+      isAlwaysOnTop: windowLayerMode === 'top',
       isMoveMode: isMoveMode,
       isBubbleEnabled: isBubbleEnabled,
+      isAssistantVisible,
       ballSpeed: currentBallSpeed,
       dockSide: currentDockSide,
       lastRunVersion: lastRunVersion,
+      laptopShortcuts,
+      laptopFixedLogos,
+      laptopShortcutOrder,
+      laptopBrowserAssignments,
+      displayPositions,
+      focusModeUntil,
+      autoUpdateEnabled,
       windowPosition: mainWindow && !mainWindow.isDestroyed() ? {
         x: mainWindow.getPosition()[0],
         y: mainWindow.getPosition()[1]
@@ -127,6 +380,29 @@ function savePetPreferences() {
   } catch (e) {
     console.error('Failed to save pet preferences:', e);
   }
+}
+
+function getCurrentDisplayLayoutKey() {
+  try {
+    if (typeof screen === 'undefined' || !screen?.getAllDisplays) return '';
+    return getDisplayLayoutKey(screen.getAllDisplays());
+  } catch (error) {
+    return '';
+  }
+}
+
+function rememberCurrentDisplayPosition() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const key = getCurrentDisplayLayoutKey();
+  if (!key) return;
+  const [x, y] = mainWindow.getPosition();
+  displayPositions[key] = { x, y, dockSide: currentDockSide };
+}
+
+function getSavedDisplayPosition() {
+  const key = getCurrentDisplayLayoutKey();
+  const position = key ? displayPositions[key] : null;
+  return position && Number.isFinite(position.x) && Number.isFinite(position.y) ? position : null;
 }
 
 // Disable hardware acceleration issues if any on transparent windows
@@ -200,6 +476,7 @@ function setLanguage(lang) {
     if (w < targetW || h < targetH) {
       settingsWindow.setSize(Math.max(w, targetW), Math.max(h, targetH), true);
     }
+    positionSettingsWindowOnAssistantDisplay();
   }
 }
 
@@ -214,9 +491,12 @@ function createPetWindow() {
   let winX = Math.round(workArea.x + workArea.width - winW - 20);
   let winY = Math.round(workArea.y + workArea.height - winH - 10);
 
-  if (savedWindowPosition && typeof savedWindowPosition.x === 'number' && typeof savedWindowPosition.y === 'number') {
-    winX = savedWindowPosition.x;
-    winY = savedWindowPosition.y;
+  const layoutPosition = getSavedDisplayPosition();
+  const initialPosition = layoutPosition || savedWindowPosition;
+  if (initialPosition && typeof initialPosition.x === 'number' && typeof initialPosition.y === 'number') {
+    winX = initialPosition.x;
+    winY = initialPosition.y;
+    if (layoutPosition && ['left', 'right'].includes(layoutPosition.dockSide)) currentDockSide = layoutPosition.dockSide;
   }
 
   const nearestDisplay = screen.getDisplayNearestPoint({ x: winX, y: winY }) || primaryDisplay;
@@ -242,7 +522,7 @@ function createPetWindow() {
     y: winY,
     transparent: true,
     frame: false,
-    alwaysOnTop: isAlwaysOnTop,
+    alwaysOnTop: windowLayerMode === 'top',
     resizable: true,
     hasShadow: false,
     skipTaskbar: true,
@@ -261,24 +541,24 @@ function createPetWindow() {
   const indexPath = fs.existsSync(distPath) ? distPath : path.join(__dirname, '../index.html');
   mainWindow.loadFile(indexPath);
 
-  // Ensure window stays on top when set
-  if (isAlwaysOnTop) {
-    mainWindow.setAlwaysOnTop(true, 'screen-saver');
-  }
+  windowLayerController = new WindowLayerController(mainWindow, windowLayerMode);
+  mainWindow.webContents.on('did-start-loading', () => windowLayerController?.resetNotifications());
+  mainWindow.webContents.on('render-process-gone', () => windowLayerController?.resetNotifications());
 
-  // 預設開啟滑鼠穿透模式 (forward: true 允許 DOM 監聽滑鼠移動以保留球體互動)
-  if (!isMoveMode) {
-    mainWindow.setIgnoreMouseEvents(true, { forward: true });
-  }
+  ipcMain.on('set-notification-active', (event, active) => {
+    if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) return;
+    if (typeof active !== 'boolean') return;
+    windowLayerController?.setNotificationActive(active);
+  });
+
+  // Keep the transparent host click-through until the renderer detects an
+  // interactive control or, in move mode, the bear itself.
+  mainWindow.setIgnoreMouseEvents(true, { forward: true });
 
   // Handle selective mouse event ignoring from renderer (for interactive ball)
   ipcMain.on('set-ignore-mouse-events', (event, ignore, options) => {
     if (!mainWindow || mainWindow.isDestroyed()) return;
-    if (isAlarmActive) {
-      mainWindow.setIgnoreMouseEvents(false);
-      return;
-    }
-    if (isMoveMode) {
+    if (isAlarmActive && !isMoveMode) {
       mainWindow.setIgnoreMouseEvents(false);
       return;
     }
@@ -397,6 +677,7 @@ function createPetWindow() {
   });
 
   mainWindow.on('moved', () => {
+    if (displayLayoutChangePending) return;
     if (mainWindow && !mainWindow.isDestroyed()) {
       const [x, y] = mainWindow.getPosition();
       savedWindowPosition = { x, y };
@@ -425,13 +706,15 @@ function createPetWindow() {
     mainWindow.webContents.send('font-size-updated', currentBubbleFontSize, true);
     mainWindow.webContents.send('set-ball-speed', currentBallSpeed, true);
     mainWindow.webContents.send('set-quotes-enabled', isBubbleEnabled, true);
+    mainWindow.webContents.send('assistant-visibility-changed', isAssistantVisible, true);
+    mainWindow.webContents.send('focus-mode-updated', getFocusModeState(), true);
     mainWindow.webContents.send('language-changed', currentLanguage, true);
-    mainWindow.webContents.send('panel-opacity-updated', { todo: todoPanelOpacity, calendar: calendarPanelOpacity, email: emailPanelOpacity }, true);
+    mainWindow.webContents.send('panel-opacity-updated', { todo: todoPanelOpacity, calendar: calendarPanelOpacity, email: emailPanelOpacity, shortcut: shortcutOpacity, assistant: assistantOpacity }, true);
     // Restore the persisted mode in both processes. Without this event the tray
     // showed move mode as enabled after restart, while the renderer still
     // rejected every drag because its local state remained false.
     mainWindow.webContents.send('move-mode-changed', isMoveMode, true);
-    mainWindow.setIgnoreMouseEvents(!isMoveMode, isMoveMode ? undefined : { forward: true });
+    mainWindow.setIgnoreMouseEvents(true, { forward: true });
   });
 
   // Handle window scale / size
@@ -450,9 +733,272 @@ function createPetWindow() {
   });
 
   // Native Context Menu Popup
+  ipcMain.on('ball-speed-changed', (event, speed) => {
+    if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) return;
+    if (typeof speed !== 'number' || !Number.isFinite(speed) || speed < 0.2 || speed > 5) return;
+    if (currentBallSpeed !== speed) setBallSpeed(speed, true);
+  });
+
   ipcMain.on('show-context-menu', () => {
     if (trayContextMenu && mainWindow) {
       trayContextMenu.popup({ window: mainWindow });
+    }
+  });
+
+  const getLaptopShortcuts = () => laptopShortcuts.map(({ id, type, name, letter, color, logoPath }) => ({
+    id,
+    type,
+    name,
+    letter,
+    color,
+    logoUrl: getShortcutLogoUrl(logoPath)
+  }));
+  const getEnabledLaptopEmailAccounts = () => (emailService?.config?.accounts || [])
+      .filter(account => account.enabled !== false)
+      .map(account => ({ id: String(account.id), name: account.name || account.user || 'Email', provider: account.provider || 'gmail' }));
+  const getEnabledLaptopCalendars = () => (calendarService?.config?.calendars || [])
+      .filter(calendar => calendar.enabled !== false)
+      .map(calendar => ({ id: String(calendar.id), name: calendar.name || 'Calendar' }));
+  const getLaptopFixedActionCount = () => Math.min(
+    MAX_LAPTOP_MENU_ACTIONS,
+    1 + getEnabledLaptopEmailAccounts().length + getEnabledLaptopCalendars().length
+  );
+  const getLaptopCustomShortcutLimit = () => Math.max(0, MAX_LAPTOP_MENU_ACTIONS - getLaptopFixedActionCount());
+  const getLaptopMenuData = () => {
+    const emailAccounts = getEnabledLaptopEmailAccounts().slice(0, MAX_LAPTOP_MENU_ACTIONS - 1);
+    const remainingCalendarSlots = Math.max(0, MAX_LAPTOP_MENU_ACTIONS - 1 - emailAccounts.length);
+    const calendars = getEnabledLaptopCalendars().slice(0, remainingCalendarSlots);
+    const customShortcutSlots = Math.max(0, MAX_LAPTOP_MENU_ACTIONS - 1 - emailAccounts.length - calendars.length);
+    return {
+      shortcuts: getLaptopShortcuts().slice(0, customShortcutSlots),
+      order: [...laptopShortcutOrder],
+      fixedLogos: Object.fromEntries(Object.entries(laptopFixedLogos).map(([key, value]) => [key, getShortcutLogoUrl(value)])),
+      maxShortcuts: MAX_LAPTOP_MENU_ACTIONS,
+      emailAccounts,
+      calendars
+    };
+  };
+
+  ipcMain.handle('laptop-get-shortcuts', () => getLaptopMenuData());
+  ipcMain.handle('laptop-save-shortcut-order', (event, input) => {
+    const incoming = Array.isArray(input) ? input.map(value => String(value)).filter(Boolean) : [];
+    laptopShortcutOrder = [...new Set(incoming)];
+    savePetPreferences();
+    return { ok: true, order: [...laptopShortcutOrder] };
+  });
+  ipcMain.handle('laptop-get-shortcut-settings', () => ({
+    shortcuts: laptopShortcuts.map(shortcut => ({
+      ...shortcut,
+      logoUrl: getShortcutLogoUrl(shortcut.logoPath)
+    })),
+    fixedShortcuts: [
+      { id: 'sticky', name: currentLanguage === 'en' ? 'Sticky notes' : '便利貼', letter: '📝' },
+      ...getEnabledLaptopEmailAccounts().map(item => ({ ...item, id: `email:${item.id}`, letter: '✉' })),
+      ...getEnabledLaptopCalendars().map(item => ({ ...item, id: `calendar:${item.id}`, letter: '▦' }))
+    ].map(item => ({ ...item, fixed: true, logoPath: laptopFixedLogos[item.id] || '', logoUrl: getShortcutLogoUrl(laptopFixedLogos[item.id]) })),
+    maxShortcuts: getLaptopCustomShortcutLimit(),
+    maxMenuActions: MAX_LAPTOP_MENU_ACTIONS,
+    fixedActionCount: getLaptopFixedActionCount(),
+    browserAssignments: { ...laptopBrowserAssignments },
+    installedBrowsers: detectInstalledBrowsers()
+  }));
+
+  ipcMain.handle('laptop-choose-browser', async () => {
+    const result = await dialog.showOpenDialog(settingsWindow || mainWindow || undefined, {
+      title: currentLanguage === 'en' ? 'Choose a web browser' : '選擇網頁瀏覽器',
+      properties: ['openFile'],
+      filters: process.platform === 'win32'
+        ? [{ name: currentLanguage === 'en' ? 'Browser applications' : '瀏覽器應用程式', extensions: ['exe'] }]
+        : []
+    });
+    if (result.canceled || !result.filePaths[0]) return { canceled: true };
+    return { canceled: false, path: result.filePaths[0] };
+  });
+
+  ipcMain.handle('laptop-save-browser-settings', (event, input) => {
+    const requested = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
+    const invalidPath = Object.entries(requested).some(([rawKey, rawBrowserPath]) => {
+      const key = String(rawKey || '').trim();
+      const browserPath = String(rawBrowserPath || '').trim();
+      if (!browserPath) return false;
+      return !/^(email|calendar|custom):.+/.test(key)
+        || !path.isAbsolute(browserPath)
+        || !fs.existsSync(browserPath)
+        || (process.platform === 'win32' && path.extname(browserPath).toLowerCase() !== '.exe');
+    });
+    if (invalidPath) {
+      return { ok: false, error: currentLanguage === 'en' ? 'Please choose a valid browser application.' : '請選擇有效的瀏覽器應用程式。' };
+    }
+    laptopBrowserAssignments = normalizeBrowserAssignments(requested);
+    savePetPreferences();
+    return { ok: true, browserAssignments: { ...laptopBrowserAssignments } };
+  });
+
+  ipcMain.handle('laptop-choose-custom-app', async () => {
+    const result = await dialog.showOpenDialog(mainWindow || undefined, {
+      title: currentLanguage === 'en' ? 'Choose an application' : '選擇要開啟的應用程式',
+      properties: ['openFile'],
+      filters: process.platform === 'win32'
+        ? [{ name: currentLanguage === 'en' ? 'Applications' : '應用程式', extensions: ['exe', 'lnk', 'bat', 'cmd'] }]
+        : []
+    });
+    if (result.canceled || !result.filePaths[0]) return { canceled: true };
+    const selectedPath = result.filePaths[0];
+    return { canceled: false, target: selectedPath, suggestedName: path.basename(selectedPath, path.extname(selectedPath)) };
+  });
+
+  ipcMain.handle('laptop-choose-shortcut-logo', async () => {
+    try {
+      const result = await dialog.showOpenDialog(settingsWindow || mainWindow || undefined, {
+        title: currentLanguage === 'en' ? 'Choose a shortcut logo' : '選擇快捷 Logo 圖片',
+        properties: ['openFile'],
+        filters: [{
+          name: currentLanguage === 'en' ? 'Logo images' : 'Logo 圖片',
+          extensions: ['png', 'jpg', 'jpeg', 'webp']
+        }]
+      });
+      if (result.canceled || !result.filePaths[0]) return { canceled: true };
+      const sourcePath = result.filePaths[0];
+      const sourceStats = fs.statSync(sourcePath);
+      if (!sourceStats.isFile() || sourceStats.size > MAX_SHORTCUT_LOGO_BYTES) {
+        return { canceled: false, ok: false, error: currentLanguage === 'en'
+          ? 'Choose an image smaller than 10 MB.'
+          : '請選擇小於 10 MB 的圖片。' };
+      }
+      const sourceImage = nativeImage.createFromPath(sourcePath);
+      if (sourceImage.isEmpty()) {
+        return { canceled: false, ok: false, error: currentLanguage === 'en'
+          ? 'The selected image could not be read.'
+          : '無法讀取所選圖片。' };
+      }
+      const size = sourceImage.getSize();
+      const side = Math.min(size.width, size.height);
+      const cropped = sourceImage.crop({
+        x: Math.floor((size.width - side) / 2),
+        y: Math.floor((size.height - side) / 2),
+        width: side,
+        height: side
+      }).resize({ width: 128, height: 128, quality: 'best' });
+      const logoDirectory = getShortcutLogoDirectory();
+      fs.mkdirSync(logoDirectory, { recursive: true });
+      const logoPath = path.join(logoDirectory, `shortcut-logo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`);
+      fs.writeFileSync(logoPath, cropped.toPNG());
+      return { canceled: false, ok: true, logoPath, logoUrl: getShortcutLogoUrl(logoPath) };
+    } catch (error) {
+      return { canceled: false, ok: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('laptop-replace-shortcuts', (event, input) => {
+    try {
+      const incoming = Array.isArray(input) ? input : (input?.shortcuts || []);
+      const customShortcutLimit = getLaptopCustomShortcutLimit();
+      if (incoming.length > customShortcutLimit) {
+        return {
+          ok: false,
+          limitReached: true,
+          error: currentLanguage === 'en'
+            ? `Laptop shortcuts are limited to ${MAX_LAPTOP_MENU_ACTIONS} total (${customShortcutLimit} custom shortcuts are currently available).`
+            : `筆電快捷總數最多 ${MAX_LAPTOP_MENU_ACTIONS} 個（目前可設定 ${customShortcutLimit} 個自訂捷徑）。`
+        };
+      }
+      const normalized = incoming.map(item => {
+        let target = String(item?.target || '').trim();
+        if (!String(item?.name || '').trim()) throw new Error('Every shortcut requires a name.');
+        if (item?.type === 'website') {
+          const parsed = new URL(target);
+          if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Only HTTP and HTTPS websites are supported.');
+          target = parsed.href;
+        } else if (item?.type !== 'app' || !fs.existsSync(target)) {
+          throw new Error('Please choose a valid application.');
+        }
+        return normalizeLaptopShortcut({ ...item, target });
+      });
+      for (const item of input?.fixedShortcuts || []) {
+        if (item.id === 'sticky' || /^(email|calendar):.+$/.test(item.id)) {
+          laptopFixedLogos[item.id] = normalizeShortcutLogoPath(item.logoPath);
+        }
+      }
+      laptopShortcuts = normalized;
+      savePetPreferences();
+      return { ok: true, shortcuts: getLaptopShortcuts() };
+    } catch (error) {
+      return { ok: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('laptop-open-shortcut', async (event, shortcutId) => {
+    const shortcut = laptopShortcuts.find(item => item.id === String(shortcutId));
+    if (!shortcut) return { ok: false, error: 'Shortcut not found.' };
+    try {
+      if (shortcut.type === 'website') {
+        await openWebUrl(shortcut.target, `custom:${shortcut.id}`);
+        return { ok: true };
+      }
+      if (!fs.existsSync(shortcut.target)) return { ok: false, error: 'Application no longer exists.' };
+      const errorMessage = await shell.openPath(shortcut.target);
+      return errorMessage ? { ok: false, error: errorMessage } : { ok: true };
+    } catch (error) {
+      return { ok: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('laptop-open-account', async (event, input) => {
+    try {
+      if (input?.type === 'email') {
+        const account = (emailService?.config?.accounts || []).find(item => String(item.id) === String(input.id));
+        if (!account) return { ok: false, error: 'Email account not found.' };
+        const user = encodeURIComponent(account.user || '');
+        const url = account.provider === 'outlook'
+          ? `https://outlook.office.com/mail/?login_hint=${user}`
+          : account.provider === 'gmail'
+            ? `https://mail.google.com/mail/?authuser=${user}`
+            : 'mailto:';
+        await openWebUrl(url, `email:${account.id}`);
+        return { ok: true };
+      }
+      if (input?.type === 'calendar') {
+        const calendar = (calendarService?.config?.calendars || []).find(item => String(item.id) === String(input.id));
+        if (!calendar) return { ok: false, error: 'Calendar not found.' };
+        let url = 'https://calendar.google.com/calendar/u/0/r';
+        try {
+          const sourceUrl = new URL(calendar.url || '');
+          const segments = sourceUrl.pathname.split('/').filter(Boolean);
+          const icalIndex = segments.indexOf('ical');
+          const calendarId = icalIndex >= 0 ? decodeURIComponent(segments[icalIndex + 1] || '') : '';
+          if (calendarId) url += `?cid=${encodeURIComponent(calendarId)}`;
+        } catch (error) { /* Fall back to the main Google Calendar page. */ }
+        await openWebUrl(url, `calendar:${calendar.id}`);
+        return { ok: true };
+      }
+      return { ok: false, error: 'Unsupported account type.' };
+    } catch (error) {
+      return { ok: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('laptop-open-action', async (event, action) => {
+    try {
+      if (action === 'email') {
+        const primaryAccount = (emailService?.config?.accounts || []).find(account => account.enabled !== false);
+        const provider = primaryAccount?.provider || 'gmail';
+        const url = provider === 'outlook'
+          ? 'https://outlook.office.com/mail/'
+          : provider === 'gmail'
+            ? 'https://mail.google.com/mail/u/0/#inbox'
+            : 'mailto:';
+        await openWebUrl(url, primaryAccount ? `email:${primaryAccount.id}` : '');
+        return { ok: true };
+      }
+      if (action === 'calendar') {
+        const primaryCalendar = (calendarService?.config?.calendars || []).find(calendar => calendar.enabled !== false);
+        const url = 'https://calendar.google.com/calendar/u/0/r';
+        await openWebUrl(url, primaryCalendar ? `calendar:${primaryCalendar.id}` : '');
+        return { ok: true };
+      }
+      return { ok: false, error: 'Unsupported laptop action.' };
+    } catch (error) {
+      return { ok: false, error: error.message };
     }
   });
 
@@ -473,6 +1019,29 @@ function createPetWindow() {
     };
   });
 
+  ipcMain.handle('natural-language-create', (event, input) => {
+    const parsed = parseNaturalLanguageTask(input);
+    if (!parsed.success) return parsed;
+    if (!stickyNotesService) return { success: false, error: 'Sticky notes are not ready.' };
+    return { ...stickyNotesService.create(parsed), parsed };
+  });
+
+  ipcMain.handle('get-focus-mode', () => getFocusModeState());
+  ipcMain.handle('set-focus-mode', (event, input = {}) => {
+    setFocusMode(input.minutes, input.untilTomorrow === true);
+    return { success: true, ...getFocusModeState() };
+  });
+
+  ipcMain.handle('get-update-settings', () => ({ enabled: autoUpdateEnabled }));
+  ipcMain.handle('set-update-settings', (event, input = {}) => {
+    autoUpdateEnabled = input.enabled !== false;
+    updateService?.setEnabled(autoUpdateEnabled);
+    savePetPreferences();
+    return { success: true, enabled: autoUpdateEnabled };
+  });
+  ipcMain.handle('check-for-updates', () => updateService?.check(true) || { success: false, error: 'Update service is not ready.' });
+  ipcMain.handle('install-update', () => updateService?.install() || { success: false, error: 'Update service is not ready.' });
+
   ipcMain.handle('set-language', (event, lang) => {
     setLanguage(lang);
     return { success: true, language: currentLanguage };
@@ -492,35 +1061,34 @@ function createPetWindow() {
     return { success: true, stickyNotesSize: currentStickyNotesSize };
   });
 
-  ipcMain.handle('get-panel-opacity', () => ({ todo: todoPanelOpacity, calendar: calendarPanelOpacity, email: emailPanelOpacity }));
+  ipcMain.handle('get-panel-opacity', () => ({ todo: todoPanelOpacity, calendar: calendarPanelOpacity, email: emailPanelOpacity, shortcut: shortcutOpacity, assistant: assistantOpacity }));
   ipcMain.handle('preview-panel-opacity', (event, input = {}) => {
     const requestedTodo = Number(input.todo);
     const requestedCalendar = Number(input.calendar);
     const requestedEmail = Number(input.email);
+    const requestedShortcut = Number(input.shortcut);
+    const requestedAssistant = Number(input.assistant);
     const todo = Number.isFinite(requestedTodo) ? Math.max(0.3, Math.min(1, requestedTodo)) : todoPanelOpacity;
     const calendar = Number.isFinite(requestedCalendar) ? Math.max(0.3, Math.min(1, requestedCalendar)) : calendarPanelOpacity;
     const email = Number.isFinite(requestedEmail) ? Math.max(0.3, Math.min(1, requestedEmail)) : emailPanelOpacity;
+    const shortcut = Number.isFinite(requestedShortcut) ? Math.max(0.3, Math.min(1, requestedShortcut)) : shortcutOpacity;
+    const assistant = Number.isFinite(requestedAssistant) ? Math.max(0.3, Math.min(1, requestedAssistant)) : assistantOpacity;
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('panel-opacity-updated', { todo, calendar, email });
+      mainWindow.webContents.send('panel-opacity-updated', { todo, calendar, email, shortcut, assistant });
     }
-    return { success: true, todo, calendar, email };
+    return { success: true, todo, calendar, email, shortcut, assistant };
   });
   ipcMain.handle('set-panel-opacity', (event, input = {}) => {
     todoPanelOpacity = Math.max(0.3, Math.min(1, Number(input.todo) || 1));
     calendarPanelOpacity = Math.max(0.3, Math.min(1, Number(input.calendar) || 1));
     emailPanelOpacity = Math.max(0.3, Math.min(1, Number(input.email) || 1));
+    shortcutOpacity = Math.max(0.3, Math.min(1, Number(input.shortcut) || 1));
+    assistantOpacity = Math.max(0.3, Math.min(1, Number(input.assistant) || 1));
     savePetPreferences();
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('panel-opacity-updated', { todo: todoPanelOpacity, calendar: calendarPanelOpacity, email: emailPanelOpacity });
+      mainWindow.webContents.send('panel-opacity-updated', { todo: todoPanelOpacity, calendar: calendarPanelOpacity, email: emailPanelOpacity, shortcut: shortcutOpacity, assistant: assistantOpacity });
     }
-    return { success: true, todo: todoPanelOpacity, calendar: calendarPanelOpacity, email: emailPanelOpacity };
-  });
-
-  // Auto-Launch IPC Handlers
-  ipcMain.handle('get-auto-launch', () => getAutoLaunch());
-  ipcMain.handle('set-auto-launch', (event, enable) => {
-    const isNow = setAutoLaunch(enable);
-    return { success: true, openAtLogin: isNow };
+    return { success: true, todo: todoPanelOpacity, calendar: calendarPanelOpacity, email: emailPanelOpacity, shortcut: shortcutOpacity, assistant: assistantOpacity };
   });
 
   // Health Reminder IPC Handlers
@@ -540,47 +1108,10 @@ function createPetWindow() {
   });
 
   mainWindow.on('closed', () => {
+    windowLayerController?.dispose();
+    windowLayerController = null;
     mainWindow = null;
   });
-}
-
-function getAutoLaunch() {
-  try {
-    return app.getLoginItemSettings(getAutoLaunchOptions()).openAtLogin;
-  } catch (e) {
-    console.error('Failed to read login item settings:', e);
-    return false;
-  }
-}
-
-function getAutoLaunchOptions() {
-  const options = {
-    path: process.execPath,
-    args: []
-  };
-
-  // When running from the project, process.execPath is electron.exe. Windows
-  // therefore also needs the application entry point or it starts Electron
-  // without loading the assistant. Packaged builds need only their own exe.
-  if (!app.isPackaged) {
-    options.args = [path.resolve(__dirname, 'main.cjs')];
-  }
-
-  return options;
-}
-
-function setAutoLaunch(enable) {
-  try {
-    app.setLoginItemSettings({
-      ...getAutoLaunchOptions(),
-      openAtLogin: !!enable,
-      openAsHidden: false
-    });
-  } catch (e) {
-    console.error('Failed to update login item settings:', e);
-  }
-  updateTrayMenu();
-  return getAutoLaunch();
 }
 
 function setBubbleFontSize(sizeKey) {
@@ -697,6 +1228,7 @@ function stopHealthTimer() {
 }
 
 function triggerHealthReminder(soundEnabled = true) {
+  if (isFocusModeActive()) return;
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('health-reminder', {
       soundEnabled: soundEnabled !== false,
@@ -705,40 +1237,61 @@ function triggerHealthReminder(soundEnabled = true) {
   }
 }
 
-function resetPosition() {
-  if (!mainWindow) return;
-  const primaryDisplay = screen.getPrimaryDisplay();
-  const { workArea } = primaryDisplay;
-  const [w, h] = mainWindow.getSize();
+function resetPosition(display = screen.getPrimaryDisplay()) {
+  if (!mainWindow || mainWindow.isDestroyed() || !display?.workArea) return;
+  const [width] = mainWindow.getSize();
+  const bearSize = (SIZE_PRESETS[currentSizeKey] || SIZE_PRESETS.std).bearSize;
+  const height = getMonitorFittedWindowHeight(display.workArea.height, bearSize);
+  const bounds = getBottomRightWindowBounds({ width, height }, display.workArea);
   currentDockSide = 'right';
-  savePetPreferences();
   mainWindow.webContents.send('dock-side-changed', 'right');
-  mainWindow.setPosition(
-    Math.round(workArea.x + workArea.width - w - 20),
-    Math.round(workArea.y + workArea.height - h - 10)
+  mainWindow.setBounds(bounds);
+  savedWindowPosition = { x: bounds.x, y: bounds.y };
+  savePetPreferences();
+  positionSettingsWindowOnAssistantDisplay();
+}
+
+function restorePositionForCurrentDisplayLayout() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const position = getSavedDisplayPosition();
+  if (!position) {
+    resetPosition();
+    return;
+  }
+  const display = screen.getDisplayNearestPoint({ x: position.x, y: position.y }) || screen.getPrimaryDisplay();
+  const [width] = mainWindow.getSize();
+  const bearSize = (SIZE_PRESETS[currentSizeKey] || SIZE_PRESETS.std).bearSize;
+  const height = getMonitorFittedWindowHeight(display.workArea.height, bearSize);
+  const x = Math.max(
+    display.workArea.x,
+    Math.min(display.workArea.x + display.workArea.width - width, position.x)
   );
+  const y = clampWindowYToWorkArea(position.y, height, display.workArea);
+  currentDockSide = ['left', 'right'].includes(position.dockSide) ? position.dockSide : currentDockSide;
+  mainWindow.webContents.send('dock-side-changed', currentDockSide);
+  mainWindow.setBounds({ x: Math.round(x), y: Math.round(y), width, height: Math.round(height) });
+  savedWindowPosition = { x: Math.round(x), y: Math.round(y) };
+  savePetPreferences();
+  positionSettingsWindowOnAssistantDisplay();
 }
 
 function setMoveMode(enabled) {
   isMoveMode = enabled;
   savePetPreferences();
   if (!mainWindow) return;
-  if (isMoveMode) {
-    mainWindow.setIgnoreMouseEvents(false);
-  } else {
-    mainWindow.setIgnoreMouseEvents(true, { forward: true });
-  }
+  mainWindow.setIgnoreMouseEvents(true, { forward: true });
   mainWindow.webContents.send('move-mode-changed', isMoveMode);
   updateTrayMenu();
 }
 
-function setBallSpeed(speed) {
+function setBallSpeed(speed, silent = false) {
   const parsedSpeed = Number(speed);
   currentBallSpeed = Number.isFinite(parsedSpeed) && parsedSpeed > 0 ? parsedSpeed : 1.2;
   savePetPreferences();
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('set-ball-speed', currentBallSpeed);
+    mainWindow.webContents.send('set-ball-speed', currentBallSpeed, silent);
   }
+  updateTrayMenu();
 }
 
 function setBubbleEnabled(enabled) {
@@ -748,6 +1301,66 @@ function setBubbleEnabled(enabled) {
     mainWindow.webContents.send('set-quotes-enabled', isBubbleEnabled);
   }
   updateTrayMenu();
+}
+
+function setAssistantVisible(visible) {
+  isAssistantVisible = visible !== false;
+  savePetPreferences();
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  if (!mainWindow.isVisible()) mainWindow.showInactive();
+  mainWindow.webContents.send('assistant-visibility-changed', isAssistantVisible);
+  updateTrayMenu();
+}
+
+function setWindowLayerMode(mode) {
+  windowLayerMode = normalizeWindowLayerMode(mode);
+  windowLayerController?.setMode(windowLayerMode);
+  savePetPreferences();
+  updateTrayMenu();
+}
+
+function isFocusModeActive() {
+  return focusModeUntil > Date.now();
+}
+
+function getFocusModeState() {
+  const active = isFocusModeActive();
+  return { active, until: active ? focusModeUntil : 0 };
+}
+
+function scheduleFocusModeEnd() {
+  clearTimeout(focusModeTimer);
+  focusModeTimer = null;
+  if (!isFocusModeActive()) return;
+  focusModeTimer = setTimeout(() => {
+    focusModeUntil = 0;
+    savePetPreferences();
+    notifyFocusModeChanged();
+  }, Math.min(2147483647, focusModeUntil - Date.now()));
+}
+
+function notifyFocusModeChanged() {
+  const state = getFocusModeState();
+  for (const win of [mainWindow, settingsWindow]) {
+    if (win && !win.isDestroyed()) win.webContents.send('focus-mode-updated', state);
+  }
+  updateTrayMenu();
+}
+
+function setFocusMode(minutes, untilTomorrow = false) {
+  if (untilTomorrow) {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(8, 0, 0, 0);
+    focusModeUntil = tomorrow.getTime();
+  } else {
+    const duration = Number(minutes);
+    focusModeUntil = Number.isFinite(duration) && duration > 0 ? Date.now() + duration * 60000 : 0;
+  }
+  savePetPreferences();
+  scheduleFocusModeEnd();
+  notifyFocusModeChanged();
 }
 
 function updateTrayMenu() {
@@ -763,31 +1376,32 @@ function updateTrayMenu() {
     },
     { type: 'separator' },
     {
+      label: isAssistantVisible ? t.hideAssistant : t.showAssistant,
+      click: () => setAssistantVisible(!isAssistantVisible)
+    },
+    { type: 'separator' },
+    {
+      label: t.alwaysOnBottom,
+      type: 'radio',
+      checked: windowLayerMode === 'bottom',
+      click: () => setWindowLayerMode('bottom')
+    },
+    {
+      label: t.alwaysOnTop,
+      type: 'radio',
+      checked: windowLayerMode === 'top',
+      click: () => setWindowLayerMode('top')
+    },
+    {
+      label: t.bottomUntilNotification,
+      type: 'radio',
+      checked: windowLayerMode === 'bottom-notify',
+      click: () => setWindowLayerMode('bottom-notify')
+    },
+    { type: 'separator' },
+    {
       label: t.windowMenu,
       submenu: [
-        {
-          label: t.alwaysOnTop,
-          type: 'checkbox',
-          checked: isAlwaysOnTop,
-          click: (menuItem) => {
-            isAlwaysOnTop = menuItem.checked;
-            savePetPreferences();
-            if (mainWindow) {
-              mainWindow.setAlwaysOnTop(isAlwaysOnTop, 'screen-saver');
-            }
-          }
-        },
-        {
-          label: t.autoLaunch,
-          type: 'checkbox',
-          checked: getAutoLaunch(),
-          click: (menuItem) => {
-            const isEnabled = setAutoLaunch(menuItem.checked);
-            if (mainWindow && !mainWindow.isDestroyed()) {
-              mainWindow.webContents.send('auto-launch-updated', isEnabled);
-            }
-          }
-        },
         {
           label: t.moveMode,
           type: 'checkbox',
@@ -798,18 +1412,7 @@ function updateTrayMenu() {
         },
         {
           label: t.resetPosition,
-          click: () => {
-            if (mainWindow) {
-              const primaryDisplay = screen.getPrimaryDisplay();
-              const { workArea } = primaryDisplay;
-              const [w, h] = mainWindow.getSize();
-              mainWindow.setPosition(
-                Math.round(workArea.x + workArea.width - w - 20),
-                Math.round(workArea.y + workArea.height - h - 10)
-              );
-              savePetPreferences();
-            }
-          }
+          click: () => resetPosition()
         }
       ]
     },
@@ -893,24 +1496,40 @@ function updateTrayMenu() {
       submenu: [
         {
           label: t.speedSlow,
+          type: 'radio',
+          checked: currentBallSpeed === 0.5,
           click: () => setBallSpeed(0.5)
         },
         {
           label: t.speedNormal,
+          type: 'radio',
+          checked: currentBallSpeed === 1.0,
           click: () => setBallSpeed(1.0)
         },
         {
           label: t.speedDefault,
+          type: 'radio',
+          checked: currentBallSpeed === 1.2,
           click: () => setBallSpeed(1.2)
         },
         {
           label: t.speedFast,
+          type: 'radio',
+          checked: currentBallSpeed === 2.5,
           click: () => setBallSpeed(2.5)
         },
         {
           label: t.speedTurbo,
+          type: 'radio',
+          checked: currentBallSpeed === 5.0,
           click: () => setBallSpeed(5.0)
-        }
+        },
+        ...([0.5, 1.0, 1.2, 2.5, 5.0].includes(currentBallSpeed) ? [] : [{
+          label: `${currentBallSpeed.toFixed(1)}x ${t.speedCustom}`,
+          type: 'radio',
+          checked: true,
+          enabled: false
+        }])
       ]
     },
     {
@@ -946,6 +1565,21 @@ function updateTrayMenu() {
     },
     { type: 'separator' },
     {
+      label: isFocusModeActive() ? t.focusModeActive : t.focusMode,
+      submenu: [
+        { label: t.focusOff, type: 'radio', checked: !isFocusModeActive(), click: () => setFocusMode(0) },
+        { label: t.focus30, type: 'radio', checked: false, click: () => setFocusMode(30) },
+        { label: t.focus60, type: 'radio', checked: false, click: () => setFocusMode(60) },
+        { label: t.focus120, type: 'radio', checked: false, click: () => setFocusMode(120) },
+        { label: t.focusTomorrow, type: 'radio', checked: false, click: () => setFocusMode(0, true) }
+      ]
+    },
+    {
+      label: t.checkUpdates,
+      click: () => updateService?.check(true)
+    },
+    { type: 'separator' },
+    {
       label: t.emailSettings,
       click: () => openSettingsWindow()
     },
@@ -972,32 +1606,35 @@ function createTray() {
   updateTrayMenu();
 
   tray.on('click', () => {
-    if (mainWindow) {
-      mainWindow.isVisible() ? mainWindow.focus() : mainWindow.show();
-    }
+    tray?.popUpContextMenu(trayContextMenu);
   });
 }
 
 function openSettingsWindow() {
   if (settingsWindow && !settingsWindow.isDestroyed()) {
     if (settingsWindow.isMinimized()) settingsWindow.restore();
+    positionSettingsWindowOnAssistantDisplay();
     settingsWindow.show();
     settingsWindow.setAlwaysOnTop(true);
     settingsWindow.moveTop();
     settingsWindow.focus();
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.setIgnoreMouseEvents(true);
+      mainWindow.webContents.send('settings-window-visibility', true);
     }
     return;
   }
 
   const loc = getLocale();
-  const initWidth = currentLanguage === 'en' ? 780 : 720;
+  // The shortcut settings tab uses two working columns. Give both columns
+  // enough room at startup so action buttons and browser selectors do not
+  // collide before the responsive single-column layout takes over.
+  const initWidth = currentLanguage === 'en' ? 1100 : 1040;
   const initHeight = currentLanguage === 'en' ? 780 : 760;
   settingsWindow = new BrowserWindow({
     width: initWidth,
     height: initHeight,
-    minWidth: 640,
+    minWidth: 680,
     minHeight: 620,
     title: loc.settingsWindowTitle,
     backgroundColor: '#0b1120',
@@ -1017,6 +1654,7 @@ function openSettingsWindow() {
 
   settingsWindow.setMenu(null);
   settingsWindow.setAlwaysOnTop(true);
+  positionSettingsWindowOnAssistantDisplay();
 
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.setIgnoreMouseEvents(true);
@@ -1033,10 +1671,14 @@ function openSettingsWindow() {
 
   settingsWindow.once('ready-to-show', () => {
     if (settingsWindow && !settingsWindow.isDestroyed()) {
+      positionSettingsWindowOnAssistantDisplay();
       settingsWindow.show();
       settingsWindow.setAlwaysOnTop(true);
       settingsWindow.moveTop();
       settingsWindow.focus();
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('settings-window-visibility', true);
+      }
     }
   });
 
@@ -1053,12 +1695,24 @@ function openSettingsWindow() {
       mainWindow.webContents.send('panel-opacity-updated', {
         todo: todoPanelOpacity,
         calendar: calendarPanelOpacity,
-        email: emailPanelOpacity
+        email: emailPanelOpacity,
+        shortcut: shortcutOpacity,
+        assistant: assistantOpacity
       });
-      if (isMoveMode) mainWindow.setIgnoreMouseEvents(false);
-      else mainWindow.setIgnoreMouseEvents(true, { forward: true });
+      mainWindow.webContents.send('settings-window-visibility', false);
+      mainWindow.setIgnoreMouseEvents(true, { forward: true });
     }
   });
+}
+
+function positionSettingsWindowOnAssistantDisplay() {
+  if (!settingsWindow || settingsWindow.isDestroyed()) return;
+  const display = mainWindow && !mainWindow.isDestroyed()
+    ? screen.getDisplayMatching(mainWindow.getBounds())
+    : screen.getPrimaryDisplay();
+  const [width, height] = settingsWindow.getSize();
+  const position = centerWindowInWorkArea({ width, height }, display.workArea, 12);
+  settingsWindow.setPosition(position.x, position.y, false);
 }
 
 // Set application identity
@@ -1073,8 +1727,9 @@ if (!gotTheLock) {
   app.exit(0);
 } else {
   app.on('second-instance', () => {
-    // Focus and restore existing instance if user tries to open it again
-    if (mainWindow) {
+    // Windows can launch us twice at login. Keep the user's hidden preference;
+    // showing the assistant remains an explicit tray action.
+    if (mainWindow && !mainWindow.isDestroyed() && isAssistantVisible) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.show();
       mainWindow.focus();
@@ -1095,6 +1750,12 @@ if (!gotTheLock) {
     triviaService = new TriviaService(() => mainWindow);
     stickyNotesService = new StickyNotesService();
     alarmService = new AlarmService(() => mainWindow, () => stickyNotesService);
+    updateService = new UpdateService({
+      app,
+      autoUpdater,
+      getWindow: () => settingsWindow && !settingsWindow.isDestroyed() ? settingsWindow : mainWindow,
+      getLanguage: () => currentLanguage
+    });
 
     if (emailService.config && emailService.config.language) {
       currentLanguage = emailService.config.language;
@@ -1102,6 +1763,21 @@ if (!gotTheLock) {
 
     createPetWindow();
     createTray();
+    scheduleFocusModeEnd();
+    updateService.start(autoUpdateEnabled);
+
+    // Windows can retain coordinates and height from a disconnected monitor.
+    // Recalculate against the remaining primary display after its work area
+    // settles, keeping the assistant above the taskbar at the bottom right.
+    const restoreDisplayLayout = () => {
+      displayLayoutChangePending = true;
+      setTimeout(() => {
+        restorePositionForCurrentDisplayLayout();
+        displayLayoutChangePending = false;
+      }, 200);
+    };
+    screen.on('display-added', restoreDisplayLayout);
+    screen.on('display-removed', restoreDisplayLayout);
 
     mainWindow.webContents.once('did-finish-load', () => {
       setTimeout(() => {
@@ -1117,6 +1793,9 @@ if (!gotTheLock) {
 }
 
 app.on('before-quit', () => {
+  clearTimeout(focusModeTimer);
+  updateService?.stop();
+  windowLayerController?.dispose();
   savePetPreferences();
   if (emailService) {
     emailService.stopPolling();

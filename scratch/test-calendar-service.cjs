@@ -16,12 +16,12 @@ test('calendar sticky notes continue syncing when dialogue reminders are disable
   assert.equal(service.shouldSync(), true);
 });
 
-test('dialogue-only calendars stop syncing when the master dialogue switch is disabled', () => {
+test('legacy master switch no longer blocks a calendar dialogue reminder', () => {
   const service = serviceWith({
     enabled: false,
     calendars: [{ enabled: true, assistantReminder: true, importToSticky: false, url: 'https://example.test/calendar.ics' }]
   });
-  assert.equal(service.shouldSync(), false);
+  assert.equal(service.shouldSync(), true);
 });
 
 test('each enabled calendar can independently use assistant dialogue reminders', () => {

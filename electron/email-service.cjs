@@ -57,7 +57,6 @@ function decryptSecret(cipherBase64) {
 
 const DEFAULT_CONFIG = {
   language: 'zh-TW', // 'zh-TW' | 'en'
-  enabled: false,
   accounts: [
     {
       id: 'acc-1',
@@ -136,6 +135,9 @@ class EmailService {
         ...this.config,
         accounts: diskAccounts
       };
+      // Email dialogue reminders are controlled per account. Remove the
+      // retired master switch value while migrating existing configuration.
+      delete diskConfig.enabled;
       fs.writeFileSync(configFile, JSON.stringify(diskConfig, null, 2), 'utf8');
     } catch (e) {
       console.error('Failed to persist email config to disk:', e.message);
@@ -222,6 +224,7 @@ class EmailService {
           health: { ...DEFAULT_CONFIG.health, ...(data.health || {}) },
           notifiedIds: Array.isArray(data.notifiedIds) ? data.notifiedIds : []
         };
+        delete loadedConfig.enabled;
 
         if (hasPlaintextLegacy) {
           this.config = loadedConfig;
@@ -653,16 +656,12 @@ class EmailService {
     const accounts = Array.isArray(targetConfig.accounts) ? targetConfig.accounts : (this.config.accounts || []);
     const activeAccounts = accounts.filter(a => a.enabled && a.user && a.pass && a.host && (
       triggerType === 'manual' ||
-      (targetConfig.enabled !== false && a.assistantReminder !== false) ||
+      a.assistantReminder !== false ||
       a.importToSticky === true
     ));
 
     if (!activeAccounts.length) {
       return { success: false, reason: 'unconfigured', error: loc.service.noActiveAccounts };
-    }
-
-    if (!targetConfig.enabled && triggerType === 'poll' && !activeAccounts.some(a => a.importToSticky === true)) {
-      return { success: false, reason: 'disabled', error: loc.service.disabled };
     }
 
     this.isChecking = true;
@@ -740,7 +739,8 @@ class EmailService {
             newCount: reminderNewEmails.length,
             emails: reminderUnreadEmails,
             soundEnabled: rules.soundEnabled !== false,
-            isRepeated: false
+            isRepeated: false,
+            isManual: triggerType === 'manual'
           });
         }
       } else if (shouldRepeat && reminderUnreadEmails.length > 0) {
@@ -752,7 +752,8 @@ class EmailService {
             newCount: 0,
             emails: reminderUnreadEmails,
             soundEnabled: rules.soundEnabled !== false,
-            isRepeated: true
+            isRepeated: true,
+            isManual: triggerType === 'manual'
           });
         }
       }
@@ -816,7 +817,7 @@ class EmailService {
   hasPollingSource() {
     return (this.config.accounts || []).some(account =>
       account.enabled !== false && account.user && account.pass && account.host && (
-        (this.config.enabled !== false && account.assistantReminder !== false) || account.importToSticky === true
+        account.assistantReminder !== false || account.importToSticky === true
       ));
   }
 

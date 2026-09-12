@@ -32,7 +32,11 @@ const TEXT = {
     deleteConfirm: '確定刪除整張便利貼？',
     deleteAction: '確定刪除',
     cancel: '取消',
-    laptop: '快速新增待辦便利貼'
+    laptop: '快速新增待辦便利貼',
+    naturalPlaceholder: '例如：明天下午 3 點提醒我緊急回覆客戶',
+    naturalCreate: '✨ 解析並新增',
+    naturalRequired: '請輸入自然語言事項',
+    naturalFailed: '無法解析或新增這筆事項'
   },
   en: {
     boardTitle: 'To-do Notes',
@@ -67,7 +71,11 @@ const TEXT = {
     deleteConfirm: 'Delete this entire note?',
     deleteAction: 'Delete',
     cancel: 'Cancel',
-    laptop: 'Quickly add a to-do note'
+    laptop: 'Quickly add a to-do note',
+    naturalPlaceholder: 'Example: Remind me tomorrow at 3 PM to reply to the client urgently',
+    naturalCreate: '✨ Parse & Add',
+    naturalRequired: 'Enter a natural-language task',
+    naturalFailed: 'Could not parse or add this task'
   }
 };
 
@@ -78,6 +86,8 @@ export class StickyNotesController {
     this.snapshot = { active: [] };
     this.dismissed = false;
     this.expandedNoteIds = new Set();
+    this.viewStateLoaded = false;
+    this.viewStateChanges = new Set();
     this.alarmHighlightIds = new Set();
     this.editingNoteId = null;
 
@@ -101,6 +111,8 @@ export class StickyNotesController {
     this.alarmField = document.getElementById('sticky-alarm-field');
     this.alarmAt = document.getElementById('sticky-alarm-at');
     this.trigger = document.getElementById('laptop-notes-trigger');
+    this.naturalInput = document.getElementById('sticky-natural-input');
+    this.naturalCreateButton = document.getElementById('sticky-natural-create');
   }
 
   text() {
@@ -118,25 +130,43 @@ export class StickyNotesController {
     }
 
     try {
-      this.setSnapshot(await this.ipc.invoke('sticky-notes-list'));
+      const snapshot = await this.ipc.invoke('sticky-notes-list');
+      const view = snapshot?.viewState;
+      // A delayed startup response must not undo clicks made while loading.
+      if (!this.viewStateChanges.has('dismissed')) this.dismissed = view?.dismissed === true;
+      if (!this.viewStateChanges.has('expandedNoteIds')) {
+        this.expandedNoteIds = new Set(Array.isArray(view?.expandedNoteIds) ? view.expandedNoteIds : []);
+      }
+      this.viewStateLoaded = true;
+      this.setSnapshot(snapshot);
+      if (this.viewStateChanges.size) this.persistViewState();
     } catch (error) {
       console.error('Failed to load sticky notes:', error);
       this.render();
     }
   }
 
+  persistViewState(field) {
+    if (field) this.viewStateChanges.add(field);
+    if (!this.ipc || !this.viewStateLoaded) return;
+    this.ipc.invoke('sticky-notes-save-view', {
+      dismissed: this.dismissed,
+      expandedNoteIds: [...this.expandedNoteIds]
+    }).then(result => {
+      if (result?.success === false) console.error(result.error);
+    }).catch(error => console.error('Failed to save sticky note view state:', error));
+  }
+
   bindEvents() {
-    this.trigger.addEventListener('click', event => {
-      event.stopPropagation();
-      this.openComposer();
-    });
     this.addButton.addEventListener('click', () => this.openComposer());
     this.boardClose.addEventListener('click', () => {
       this.dismissed = true;
+      this.persistViewState('dismissed');
       this.closeComposer();
     });
     this.reopenTab.addEventListener('click', () => {
       this.dismissed = false;
+      this.persistViewState('dismissed');
       this.board.classList.remove('composing');
       this.form.classList.remove('visible');
       this.render();
@@ -147,6 +177,13 @@ export class StickyNotesController {
       this.createNote();
     });
     this.addItemButton.addEventListener('click', () => this.addItemEditorRow(null, true));
+    this.naturalCreateButton?.addEventListener('click', () => this.createNaturalNote());
+    this.naturalInput?.addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        this.createNaturalNote();
+      }
+    });
     this.alarmToggle.addEventListener('click', () => {
       const active = this.alarmToggle.classList.toggle('active');
       this.alarmToggle.setAttribute('aria-pressed', String(active));
@@ -180,12 +217,12 @@ export class StickyNotesController {
     this.applyComposerText();
     this.alarmToggle.title = text.alarm;
     this.subject.placeholder = text.subjectPlaceholder;
+    if (this.naturalInput) this.naturalInput.placeholder = text.naturalPlaceholder;
+    if (this.naturalCreateButton) this.naturalCreateButton.textContent = text.naturalCreate;
     this.addItemButton.textContent = `＋ ${text.addItem}`;
     for (const editor of this.itemsEditor.querySelectorAll('[data-role="item-editor"]')) {
       editor.dataset.placeholder = text.contentPlaceholder;
     }
-    this.trigger.title = text.laptop;
-    this.trigger.setAttribute('aria-label', text.laptop);
     this.addButton.title = text.add;
     this.boardClose.title = text.closeBoard;
     this.reopenTab.title = text.reopen;
@@ -227,6 +264,7 @@ export class StickyNotesController {
   openComposer() {
     this.editingNoteId = null;
     this.dismissed = false;
+    this.persistViewState('dismissed');
     this.reopenTab.classList.remove('visible');
     this.board.classList.add('visible', 'composing');
     this.form.classList.add('visible');
@@ -240,6 +278,35 @@ export class StickyNotesController {
     this.alarmField.classList.remove('visible');
     setTimeout(() => this.subject.focus(), 30);
     this.applyComposerText();
+  }
+
+  async createNaturalNote() {
+    const text = this.text();
+    const input = this.naturalInput?.value.trim() || '';
+    if (!input) {
+      this.formError.textContent = text.naturalRequired;
+      this.naturalInput?.focus();
+      return;
+    }
+    if (!this.ipc) {
+      this.formError.textContent = text.naturalFailed;
+      return;
+    }
+    this.naturalCreateButton.disabled = true;
+    this.formError.textContent = '';
+    try {
+      const result = await this.ipc.invoke('natural-language-create', input);
+      if (!result || result.success === false) {
+        this.formError.textContent = result?.error || text.naturalFailed;
+        return;
+      }
+      this.setSnapshot(result.snapshot);
+      this.closeComposer();
+    } catch (error) {
+      this.formError.textContent = text.naturalFailed;
+    } finally {
+      this.naturalCreateButton.disabled = false;
+    }
   }
 
   applyComposerText() {
@@ -435,12 +502,7 @@ export class StickyNotesController {
     if (!card) return;
 
     if (button.dataset.action === 'expand') {
-      const expanded = card.classList.toggle('expanded');
-      if (expanded) this.expandedNoteIds.add(card.dataset.id);
-      else this.expandedNoteIds.delete(card.dataset.id);
-      button.textContent = expanded ? '▲' : '▼';
-      button.title = expanded ? this.text().collapse : this.text().expand;
-      if (!expanded) card.classList.remove('confirming-delete');
+      this.toggleCardExpansion(card);
       return;
     }
 
@@ -464,6 +526,20 @@ export class StickyNotesController {
     if (button.dataset.action === 'confirm-delete-note') {
       this.deleteNote(card.dataset.id, button);
     }
+  }
+
+  toggleCardExpansion(card) {
+    const expanded = card.classList.toggle('expanded');
+    if (expanded) this.expandedNoteIds.add(card.dataset.id);
+    else this.expandedNoteIds.delete(card.dataset.id);
+    this.persistViewState('expandedNoteIds');
+    const button = card.querySelector('button[data-action="expand"]');
+    if (button) {
+      button.textContent = expanded ? '▲' : '▼';
+      button.title = expanded ? this.text().collapse : this.text().expand;
+      button.setAttribute('aria-label', button.title);
+    }
+    if (!expanded) card.classList.remove('confirming-delete');
   }
 
   async deleteNote(noteId, button) {
@@ -609,6 +685,7 @@ export class StickyNotesController {
     expand.dataset.action = 'expand';
     expand.textContent = isExpanded ? '▲' : '▼';
     expand.title = isExpanded ? text.collapse : text.expand;
+    expand.setAttribute('aria-label', expand.title);
     summary.appendChild(expand);
     card.appendChild(summary);
 
@@ -622,7 +699,7 @@ export class StickyNotesController {
       const itemList = document.createElement('div');
       itemList.className = 'sticky-note-item-list';
       for (const item of items) {
-        const itemRow = document.createElement('label');
+        const itemRow = document.createElement('div');
         itemRow.className = 'sticky-note-item-row';
         itemRow.classList.toggle('completed', item.completed === true);
 

@@ -41,6 +41,45 @@ function getMonitorFittedWindowHeight(workAreaHeight, bearSize, margin = 10) {
   return Math.max(bearSize + 20, workAreaHeight - margin);
 }
 
+function getBottomRightWindowBounds(windowSize, workArea, rightMargin = 20, bottomMargin = 10) {
+  const width = Math.max(1, Number(windowSize?.width) || 1);
+  const height = Math.max(1, Number(windowSize?.height) || 1);
+  const x = Math.max(workArea.x, workArea.x + workArea.width - width - rightMargin);
+  const targetY = workArea.y + workArea.height - height - bottomMargin;
+  return {
+    x: Math.round(x),
+    y: Math.round(clampWindowYToWorkArea(targetY, height, workArea, bottomMargin)),
+    width: Math.round(width),
+    height: Math.round(height)
+  };
+}
+
+function getDisplayLayoutKey(displays = []) {
+  return displays
+    .map(display => {
+      const bounds = display?.bounds || {};
+      const scale = Number(display?.scaleFactor) || 1;
+      return [bounds.x || 0, bounds.y || 0, bounds.width || 0, bounds.height || 0, scale].join(':');
+    })
+    .sort()
+    .join('|');
+}
+
+function centerWindowInWorkArea(windowSize, workArea, margin = 12) {
+  const width = Math.max(1, Number(windowSize?.width) || 1);
+  const height = Math.max(1, Number(windowSize?.height) || 1);
+  const horizontalSpace = Math.max(0, Number(workArea.width) - margin * 2);
+  const verticalSpace = Math.max(0, Number(workArea.height) - margin * 2);
+  return {
+    x: Math.round(width >= horizontalSpace
+      ? workArea.x + margin
+      : workArea.x + (workArea.width - width) / 2),
+    y: Math.round(height >= verticalSpace
+      ? workArea.y + margin
+      : workArea.y + (workArea.height - height) / 2)
+  };
+}
+
 module.exports = {
   SIZE_PRESETS,
   STICKY_NOTES_SIZE_PRESETS,
@@ -48,5 +87,8 @@ module.exports = {
   getStickyNotesSizePreset,
   getCompositeWindowSize,
   clampWindowYToWorkArea,
-  getMonitorFittedWindowHeight
+  getMonitorFittedWindowHeight,
+  getBottomRightWindowBounds,
+  getDisplayLayoutKey,
+  centerWindowInWorkArea
 };
