@@ -9,9 +9,9 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
-        settings: resolve(__dirname, 'email-settings.html')
+        settings: resolve(__dirname, 'email-settings.html'),
+        knowledgeCard: resolve(__dirname, 'knowledge-card.html')
       }
     }
   }
 });
-

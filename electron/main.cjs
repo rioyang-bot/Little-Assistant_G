@@ -3,6 +3,7 @@ const path = require('path');
 const { EmailService } = require('./email-service.cjs');
 const { CalendarService } = require('./calendar-service.cjs');
 const { TriviaService } = require('./trivia-service.cjs');
+const { KnowledgeCardsService } = require('./knowledge-cards-service.cjs');
 const { StickyNotesService } = require('./sticky-notes-service.cjs');
 const { AlarmService } = require('./alarm-service.cjs');
 const { WindowLayerController, normalizeWindowLayerMode } = require('./window-layer-controller.cjs');
@@ -18,6 +19,7 @@ const {
   clampWindowYToWorkArea,
   getMonitorFittedWindowHeight,
   getBottomRightWindowBounds,
+  getAssistantDisplayAnchor,
   getDisplayLayoutKey,
   centerWindowInWorkArea
 } = require('./layout-utils.cjs');
@@ -27,9 +29,11 @@ const { spawn, execFileSync } = require('child_process');
 
 let mainWindow = null;
 let settingsWindow = null;
+let knowledgeCardWindow = null;
 let emailService = null;
 let calendarService = null;
 let triviaService = null;
+let knowledgeCardsService = null;
 let stickyNotesService = null;
 let alarmService = null;
 let updateService = null;
@@ -60,8 +64,10 @@ let laptopShortcutOrder = [];
 let laptopBrowserAssignments = {};
 let displayPositions = {};
 let displayLayoutChangePending = false;
+let resetPositionCorrectionTimer = null;
 let focusModeUntil = 0;
 let focusModeTimer = null;
+let isNotificationActive = false;
 let autoUpdateEnabled = true;
 const MAX_LAPTOP_MENU_ACTIONS = 20;
 const MAX_SHORTCUT_LOGO_BYTES = 10 * 1024 * 1024;
@@ -542,12 +548,16 @@ function createPetWindow() {
   mainWindow.loadFile(indexPath);
 
   windowLayerController = new WindowLayerController(mainWindow, windowLayerMode);
-  mainWindow.webContents.on('did-start-loading', () => windowLayerController?.resetNotifications());
+  mainWindow.webContents.on('did-start-loading', () => {
+    isNotificationActive = false;
+    windowLayerController?.resetNotifications();
+  });
   mainWindow.webContents.on('render-process-gone', () => windowLayerController?.resetNotifications());
 
   ipcMain.on('set-notification-active', (event, active) => {
     if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) return;
     if (typeof active !== 'boolean') return;
+    isNotificationActive = active;
     windowLayerController?.setNotificationActive(active);
   });
 
@@ -761,14 +771,14 @@ function createPetWindow() {
       .map(calendar => ({ id: String(calendar.id), name: calendar.name || 'Calendar' }));
   const getLaptopFixedActionCount = () => Math.min(
     MAX_LAPTOP_MENU_ACTIONS,
-    1 + getEnabledLaptopEmailAccounts().length + getEnabledLaptopCalendars().length
+    2 + getEnabledLaptopEmailAccounts().length + getEnabledLaptopCalendars().length
   );
   const getLaptopCustomShortcutLimit = () => Math.max(0, MAX_LAPTOP_MENU_ACTIONS - getLaptopFixedActionCount());
   const getLaptopMenuData = () => {
-    const emailAccounts = getEnabledLaptopEmailAccounts().slice(0, MAX_LAPTOP_MENU_ACTIONS - 1);
-    const remainingCalendarSlots = Math.max(0, MAX_LAPTOP_MENU_ACTIONS - 1 - emailAccounts.length);
+    const emailAccounts = getEnabledLaptopEmailAccounts().slice(0, MAX_LAPTOP_MENU_ACTIONS - 2);
+    const remainingCalendarSlots = Math.max(0, MAX_LAPTOP_MENU_ACTIONS - 2 - emailAccounts.length);
     const calendars = getEnabledLaptopCalendars().slice(0, remainingCalendarSlots);
-    const customShortcutSlots = Math.max(0, MAX_LAPTOP_MENU_ACTIONS - 1 - emailAccounts.length - calendars.length);
+    const customShortcutSlots = Math.max(0, MAX_LAPTOP_MENU_ACTIONS - 2 - emailAccounts.length - calendars.length);
     return {
       shortcuts: getLaptopShortcuts().slice(0, customShortcutSlots),
       order: [...laptopShortcutOrder],
@@ -793,6 +803,7 @@ function createPetWindow() {
     })),
     fixedShortcuts: [
       { id: 'sticky', name: currentLanguage === 'en' ? 'Sticky notes' : '便利貼', letter: '📝' },
+      { id: 'knowledge', name: currentLanguage === 'en' ? 'Professional knowledge' : '專業知識', letter: '🧠' },
       ...getEnabledLaptopEmailAccounts().map(item => ({ ...item, id: `email:${item.id}`, letter: '✉' })),
       ...getEnabledLaptopCalendars().map(item => ({ ...item, id: `calendar:${item.id}`, letter: '▦' }))
     ].map(item => ({ ...item, fixed: true, logoPath: laptopFixedLogos[item.id] || '', logoUrl: getShortcutLogoUrl(laptopFixedLogos[item.id]) })),
@@ -915,7 +926,7 @@ function createPetWindow() {
         return normalizeLaptopShortcut({ ...item, target });
       });
       for (const item of input?.fixedShortcuts || []) {
-        if (item.id === 'sticky' || /^(email|calendar):.+$/.test(item.id)) {
+        if (item.id === 'sticky' || item.id === 'knowledge' || /^(email|calendar):.+$/.test(item.id)) {
           laptopFixedLogos[item.id] = normalizeShortcutLogoPath(item.logoPath);
         }
       }
@@ -994,6 +1005,10 @@ function createPetWindow() {
         const primaryCalendar = (calendarService?.config?.calendars || []).find(calendar => calendar.enabled !== false);
         const url = 'https://calendar.google.com/calendar/u/0/r';
         await openWebUrl(url, primaryCalendar ? `calendar:${primaryCalendar.id}` : '');
+        return { ok: true };
+      }
+      if (action === 'knowledge') {
+        openKnowledgeCardWindow();
         return { ok: true };
       }
       return { ok: false, error: 'Unsupported laptop action.' };
@@ -1097,6 +1112,19 @@ function createPetWindow() {
     return { success: true };
   });
 
+  ipcMain.handle('knowledge-cards-get-config', () => {
+    return knowledgeCardsService?.getConfig() || { enabled: false, intervalMinutes: 20, cards: [] };
+  });
+  ipcMain.handle('knowledge-cards-save-config', (event, input = {}) => {
+    return knowledgeCardsService?.saveConfig(input) || { success: false, error: 'Knowledge cards are not ready.' };
+  });
+  ipcMain.handle('knowledge-cards-add', (event, input = {}) => {
+    return knowledgeCardsService?.addCard(input) || { success: false, error: 'Knowledge cards are not ready.' };
+  });
+  ipcMain.handle('knowledge-cards-test-reminder', () => {
+    return knowledgeCardsService?.trigger(true) || { success: false, error: 'Knowledge cards are not ready.' };
+  });
+
   // Handle close
   ipcMain.on('close-app', () => {
     app.quit();
@@ -1111,6 +1139,7 @@ function createPetWindow() {
     windowLayerController?.dispose();
     windowLayerController = null;
     mainWindow = null;
+    isNotificationActive = false;
   });
 }
 
@@ -1237,18 +1266,45 @@ function triggerHealthReminder(soundEnabled = true) {
   }
 }
 
-function resetPosition(display = screen.getPrimaryDisplay()) {
-  if (!mainWindow || mainWindow.isDestroyed() || !display?.workArea) return;
-  const [width] = mainWindow.getSize();
-  const bearSize = (SIZE_PRESETS[currentSizeKey] || SIZE_PRESETS.std).bearSize;
-  const height = getMonitorFittedWindowHeight(display.workArea.height, bearSize);
-  const bounds = getBottomRightWindowBounds({ width, height }, display.workArea);
-  currentDockSide = 'right';
-  mainWindow.webContents.send('dock-side-changed', 'right');
-  mainWindow.setBounds(bounds);
-  savedWindowPosition = { x: bounds.x, y: bounds.y };
-  savePetPreferences();
-  positionSettingsWindowOnAssistantDisplay();
+function getCurrentAssistantDisplay() {
+  if (!mainWindow || mainWindow.isDestroyed()) return screen.getPrimaryDisplay();
+  const bounds = mainWindow.getBounds();
+  const anchor = getAssistantDisplayAnchor(bounds, currentDockSide);
+  return screen.getDisplayNearestPoint(anchor)
+    || screen.getDisplayMatching(bounds)
+    || screen.getPrimaryDisplay();
+}
+
+function resetPosition(display = null) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const targetDisplay = display?.workArea ? display : getCurrentAssistantDisplay();
+  if (!targetDisplay?.workArea) return;
+  const targetDisplayId = targetDisplay.id;
+
+  const applyBottomRightBounds = () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    const refreshedDisplay = targetDisplayId === undefined || targetDisplayId === null
+      ? targetDisplay
+      : (screen.getAllDisplays().find(candidate => String(candidate.id) === String(targetDisplayId)) || targetDisplay);
+    if (!refreshedDisplay?.workArea) return;
+    const [width] = mainWindow.getSize();
+    const bearSize = (SIZE_PRESETS[currentSizeKey] || SIZE_PRESETS.std).bearSize;
+    const height = getMonitorFittedWindowHeight(refreshedDisplay.workArea.height, bearSize);
+    const bounds = getBottomRightWindowBounds({ width, height }, refreshedDisplay.workArea);
+    currentDockSide = 'right';
+    mainWindow.webContents.send('dock-side-changed', 'right');
+    mainWindow.setBounds(bounds, false);
+    savedWindowPosition = { x: bounds.x, y: bounds.y };
+    savePetPreferences();
+    positionSettingsWindowOnAssistantDisplay();
+  };
+
+  clearTimeout(resetPositionCorrectionTimer);
+  applyBottomRightBounds();
+  resetPositionCorrectionTimer = setTimeout(() => {
+    resetPositionCorrectionTimer = null;
+    applyBottomRightBounds();
+  }, 200);
 }
 
 function restorePositionForCurrentDisplayLayout() {
@@ -1610,7 +1666,68 @@ function createTray() {
   });
 }
 
-function openSettingsWindow() {
+function positionKnowledgeCardWindow() {
+  if (!knowledgeCardWindow || knowledgeCardWindow.isDestroyed()) return;
+  const display = getCurrentAssistantDisplay();
+  const [width, height] = knowledgeCardWindow.getSize();
+  const position = centerWindowInWorkArea({ width, height }, display.workArea, 12);
+  knowledgeCardWindow.setPosition(position.x, position.y, false);
+}
+
+function openKnowledgeCardWindow() {
+  if (knowledgeCardWindow && !knowledgeCardWindow.isDestroyed()) {
+    if (knowledgeCardWindow.isMinimized()) knowledgeCardWindow.restore();
+    positionKnowledgeCardWindow();
+    knowledgeCardWindow.show();
+    knowledgeCardWindow.moveTop();
+    knowledgeCardWindow.focus();
+    return;
+  }
+
+  const title = currentLanguage === 'en' ? 'Add knowledge card' : '新增知識卡';
+  knowledgeCardWindow = new BrowserWindow({
+    width: 520,
+    height: 590,
+    minWidth: 420,
+    minHeight: 520,
+    title,
+    backgroundColor: '#071426',
+    resizable: true,
+    minimizable: false,
+    maximizable: false,
+    alwaysOnTop: true,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
+      nodeIntegration: false,
+      contextIsolation: true,
+      webSecurity: true
+    }
+  });
+
+  knowledgeCardWindow.setMenu(null);
+  positionKnowledgeCardWindow();
+  const distPage = path.join(__dirname, '../dist/knowledge-card.html');
+  const rawPage = path.join(__dirname, '../knowledge-card.html');
+  knowledgeCardWindow.loadFile(fs.existsSync(distPage) ? distPage : rawPage).catch(error => {
+    console.error('Failed to load knowledge card window:', error);
+  });
+  knowledgeCardWindow.once('ready-to-show', () => {
+    if (!knowledgeCardWindow || knowledgeCardWindow.isDestroyed()) return;
+    positionKnowledgeCardWindow();
+    knowledgeCardWindow.show();
+    knowledgeCardWindow.moveTop();
+    knowledgeCardWindow.focus();
+  });
+  knowledgeCardWindow.on('closed', () => {
+    knowledgeCardWindow = null;
+  });
+}
+
+function openSettingsWindow(initialPanel = '') {
+  const requestedPanel = ['panel-email', 'panel-calendar', 'panel-health', 'panel-trivia', 'panel-knowledge', 'panel-alarm', 'panel-shortcuts'].includes(initialPanel)
+    ? initialPanel
+    : '';
   if (settingsWindow && !settingsWindow.isDestroyed()) {
     if (settingsWindow.isMinimized()) settingsWindow.restore();
     positionSettingsWindowOnAssistantDisplay();
@@ -1618,6 +1735,7 @@ function openSettingsWindow() {
     settingsWindow.setAlwaysOnTop(true);
     settingsWindow.moveTop();
     settingsWindow.focus();
+    if (requestedPanel) settingsWindow.webContents.send('settings-select-tab', requestedPanel);
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.setIgnoreMouseEvents(true);
       mainWindow.webContents.send('settings-window-visibility', true);
@@ -1676,6 +1794,7 @@ function openSettingsWindow() {
       settingsWindow.setAlwaysOnTop(true);
       settingsWindow.moveTop();
       settingsWindow.focus();
+      if (requestedPanel) settingsWindow.webContents.send('settings-select-tab', requestedPanel);
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('settings-window-visibility', true);
       }
@@ -1748,6 +1867,10 @@ if (!gotTheLock) {
     calendarService = new CalendarService(() => mainWindow);
     // Initialize Trivia & Clean Humor Joke Service
     triviaService = new TriviaService(() => mainWindow);
+    knowledgeCardsService = new KnowledgeCardsService({
+      getWindow: () => mainWindow,
+      isBlocked: () => isFocusModeActive() || isNotificationActive || isAlarmActive
+    });
     stickyNotesService = new StickyNotesService();
     alarmService = new AlarmService(() => mainWindow, () => stickyNotesService);
     updateService = new UpdateService({
@@ -1794,6 +1917,7 @@ if (!gotTheLock) {
 
 app.on('before-quit', () => {
   clearTimeout(focusModeTimer);
+  clearTimeout(resetPositionCorrectionTimer);
   updateService?.stop();
   windowLayerController?.dispose();
   savePetPreferences();
@@ -1807,6 +1931,7 @@ app.on('before-quit', () => {
   if (triviaService) {
     triviaService.stopScheduler();
   }
+  knowledgeCardsService?.stopScheduler();
   stopHealthTimer();
 });
 

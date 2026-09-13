@@ -1226,3 +1226,84 @@ button.action-btn {
   line-height: 1.45;
   white-space: pre-line;
 }
+
+/* Local professional knowledge cards */
+#tab-btn-knowledge { --tab-color: #c084fc; --tab-rgb: 192, 132, 252; }
+
+.knowledge-editor-section .text-input {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 6px 0 12px;
+}
+
+.knowledge-field-label {
+  display: block;
+  color: #e2e8f0;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.knowledge-content-input {
+  min-height: 110px;
+  resize: vertical;
+  line-height: 1.55;
+}
+
+.knowledge-editor-footer,
+.knowledge-card-head,
+.knowledge-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.knowledge-editor-actions {
+  margin: 0;
+}
+
+.knowledge-card-list {
+  display: grid;
+  gap: 10px;
+}
+
+.knowledge-card-item {
+  padding: 12px;
+  border: 1px solid rgba(192, 132, 252, 0.32);
+  border-radius: 10px;
+  background: rgba(30, 41, 59, 0.72);
+}
+
+.knowledge-card-item.disabled {
+  opacity: 0.55;
+}
+
+.knowledge-card-title {
+  color: #f3e8ff;
+  font-size: 0.86rem;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
+.knowledge-card-content {
+  margin: 8px 0 12px;
+  color: #cbd5e1;
+  font-size: 0.76rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.knowledge-card-actions {
+  justify-content: flex-end;
+}
+
+.knowledge-card-actions .action-btn {
+  min-width: 72px;
+  padding: 7px 10px;
+}
+
+.knowledge-empty {
+  padding: 16px 4px;
+  text-align: center;
+}

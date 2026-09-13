@@ -6,6 +6,7 @@ const {
   clampWindowYToWorkArea,
   getMonitorFittedWindowHeight,
   getBottomRightWindowBounds,
+  getAssistantDisplayAnchor,
   getDisplayLayoutKey,
   centerWindowInWorkArea
 } = require('../electron/layout-utils.cjs');
@@ -58,6 +59,12 @@ test('bottom-right relocation respects an offset work area', () => {
     getBottomRightWindowBounds({ width: 330, height: 670 }, workArea),
     { x: -350, y: 40, width: 330, height: 670 }
   );
+});
+
+test('assistant display detection anchors near the visible bear at the window bottom', () => {
+  const bounds = { x: 1920, y: -300, width: 420, height: 1050 };
+  assert.deepEqual(getAssistantDisplayAnchor(bounds, 'right'), { x: 2320, y: 730 });
+  assert.deepEqual(getAssistantDisplayAnchor(bounds, 'left'), { x: 1940, y: 730 });
 });
 
 test('display layout keys are stable and distinguish monitor configurations', () => {

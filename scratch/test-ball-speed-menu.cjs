@@ -23,6 +23,7 @@ app.whenReady().then(async () => {
       isAssistantVisible: true, windowLayerMode: 'top', isMoveMode: false,
       currentSizeKey: 'std', currentStickyNotesSize: 'std', currentBubbleFontSize: 'std',
       isBubbleEnabled: true, currentLanguage: 'zh-TW',
+      isFocusModeActive: () => false,
       getAutoLaunch: () => false, getLocale: () => locales[state.currentLanguage],
       savePetPreferences: () => { savedSpeed = state.currentBallSpeed; }
     });

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>新增知識卡</title>
+  <link rel="stylesheet" href="src/knowledge-card.css">
+</head>
+<body>
+  <main class="knowledge-window">
+    <header class="knowledge-header">
+      <div class="knowledge-logo" aria-hidden="true">
+        <img src="assets/knowledge-brain.png" alt="">
+      </div>
+      <div>
+        <p class="eyebrow" id="eyebrow">PROFESSIONAL KNOWLEDGE</p>
+        <h1 id="heading">新增知識卡</h1>
+        <p class="subtitle" id="subtitle">記下值得定期複習的專業知識，資料只會儲存在這台電腦。</p>
+      </div>
+    </header>
+
+    <form id="knowledge-quick-form" novalidate>
+      <label for="knowledge-quick-title" id="title-label">標題</label>
+      <input id="knowledge-quick-title" name="title" type="text" maxlength="60" autocomplete="off" placeholder="例如：資料庫索引原則" autofocus>
+
+      <div class="content-label-row">
+        <label for="knowledge-quick-content" id="content-label">內容</label>
+        <output id="knowledge-quick-count" for="knowledge-quick-content">0 / 500</output>
+      </div>
+      <textarea id="knowledge-quick-content" name="content" maxlength="500" rows="8" placeholder="輸入需要定期複習的專業知識…"></textarea>
+
+      <p id="knowledge-quick-feedback" class="feedback" role="status" aria-live="polite"></p>
+      <p class="shortcut-tip" id="shortcut-tip">Ctrl + Enter 可快速新增</p>
+
+      <div class="actions">
+        <button type="button" class="button secondary" id="knowledge-quick-cancel">取消</button>
+        <button type="submit" class="button primary" id="knowledge-quick-save">新增知識卡</button>
+      </div>
+    </form>
+  </main>
+  <script type="module" src="src/knowledge-card.js"></script>
+</body>
+</html>

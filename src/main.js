@@ -102,8 +102,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       laptopNotesTrigger.setAttribute('aria-label', title);
     }
     const laptopLabels = currentLang === 'en'
-      ? { sticky: 'Sticky note' }
-      : { sticky: '便利貼' };
+      ? { sticky: 'Sticky note', knowledge: 'Professional knowledge' }
+      : { sticky: '便利貼', knowledge: '專業知識' };
     for (const button of laptopQuickMenu?.querySelectorAll('[data-laptop-action]') || []) {
       const label = button.querySelector('.laptop-action-label');
       const text = laptopLabels[button.dataset.laptopAction] || '';
@@ -259,6 +259,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       const shortcutActions = document.getElementById('laptop-shortcut-actions');
       accountActions?.replaceChildren();
       shortcutActions?.replaceChildren();
+      accountActions?.appendChild(createLaptopActionButton({
+        label: currentLang === 'en' ? 'Professional knowledge' : '專業知識',
+        largeLabel: currentLang === 'en' ? 'Knowledge' : '專業知識',
+        icon: '🧠',
+        iconImageUrl: data?.fixedLogos?.knowledge || 'assets/knowledge-brain.png',
+        className: 'action-knowledge',
+        dataset: { laptopAction: 'knowledge', shortcutOrderKey: 'knowledge' }
+      }));
       for (const [index, account] of (data?.emailAccounts || []).entries()) {
         accountActions?.appendChild(createLaptopActionButton({
           label: account.name,
@@ -1205,7 +1213,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     speechBubble.classList.remove('mail-mode', 'calendar-mode');
     speechBubble.classList.add('trivia-mode');
 
-    const headerText = triviaData.type === 'fact' ? loc.trivia.factHeader : loc.trivia.jokeHeader;
+    const headerText = escapeHtml(triviaData.title || (triviaData.type === 'fact' ? loc.trivia.factHeader : loc.trivia.jokeHeader));
     const catLabel = escapeHtml(triviaData.categoryLabel || '');
     const bodyContent = triviaData.punchline && triviaData.setup
       ? escapeHtml(triviaData.setup)
@@ -1224,7 +1232,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     speechBubble.classList.add('show');
 
     if (hideBubbleTimer) clearTimeout(hideBubbleTimer);
-    const duration = triviaData.type === 'fact' ? 16000 : 14000;
+    const requestedDuration = Number(triviaData.durationMs);
+    const duration = Number.isFinite(requestedDuration)
+      ? Math.max(5000, Math.min(30000, requestedDuration))
+      : (triviaData.type === 'fact' ? 16000 : 14000);
     hideBubbleTimer = setTimeout(() => {
       resetTriviaState(false);
     }, duration);
@@ -1318,6 +1329,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     ipcRenderer.on('trivia-reminder', (event, triviaData) => {
       if (isFocusModeActive && !triviaData?.isManual) return;
       showTriviaReminder(triviaData);
+    });
+
+    ipcRenderer.on('knowledge-card-reminder', (event, cardData = {}) => {
+      if (isFocusModeActive && !cardData.isManual) return;
+      showTriviaReminder({
+        ...cardData,
+        type: 'fact',
+        categoryLabel: currentLang === 'en' ? '🧠 Professional knowledge card' : '🧠 專業知識卡',
+        soundEnabled: false,
+        durationMs: 10000
+      });
     });
 
     ipcRenderer.on('focus-mode-updated', (event, state = {}) => {

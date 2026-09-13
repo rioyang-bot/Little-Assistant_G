@@ -68,6 +68,10 @@
       <span>💡</span>
       <span id="tab-label-trivia">生活知識與笑話</span>
     </button>
+    <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="panel-knowledge" id="tab-btn-knowledge">
+      <span>🧠</span>
+      <span id="tab-label-knowledge">專業知識卡</span>
+    </button>
     <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="panel-alarm" id="tab-btn-alarm"><span>📝</span><span id="tab-label-alarm">便利貼</span></button>
     <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="panel-shortcuts" id="tab-btn-shortcuts"><span>🚀</span><span id="tab-label-shortcuts">快捷捷徑</span></button>
   </div>
@@ -523,6 +527,63 @@
       <button type="button" class="action-btn btn-secondary btn-full" id="btn-explore-trivia">
         🎲 立即線上探索一則 (即時預覽)
       </button>
+    </div>
+  </div>
+
+  <div id="panel-knowledge" class="tab-panel">
+    <div class="feature-intro"><span aria-hidden="true">ⓘ</span><span id="intro-knowledge">自行建立工作知識卡，資料只保存在這台電腦的個人空間。</span></div>
+    <div class="master-switch-card">
+      <span class="master-switch-label" id="label-enable-knowledge">🧠 啟用專業知識卡推播</span>
+      <div class="switch-wrap">
+        <label class="switch" for="knowledge-enabled" aria-label="Toggle professional knowledge cards">
+          <input type="checkbox" id="knowledge-enabled">
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title" id="knowledge-rules-title">🕒 推播設定</div>
+      <div class="rule-item">
+        <div class="rule-label">
+          <label for="knowledge-interval" id="knowledge-interval-label"><strong>每隔多久推播一則</strong></label>
+          <div class="tip" id="knowledge-interval-tip">小助手啟動後經過此時間才顯示第一則；專注模式期間會暫停。</div>
+        </div>
+        <select id="knowledge-interval" class="rule-input">
+          <option value="10">每 10 分鐘</option>
+          <option value="20" selected>每 20 分鐘</option>
+          <option value="30">每 30 分鐘</option>
+          <option value="40">每 40 分鐘</option>
+          <option value="50">每 50 分鐘</option>
+          <option value="60">每 60 分鐘</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="section knowledge-editor-section">
+      <div class="section-title" id="knowledge-editor-title">＋ 新增知識卡</div>
+      <label class="knowledge-field-label" for="knowledge-title" id="knowledge-title-label">標題</label>
+      <input id="knowledge-title" class="text-input" type="text" maxlength="60" placeholder="例如：資料庫索引原則">
+      <label class="knowledge-field-label" for="knowledge-content" id="knowledge-content-label">內容</label>
+      <textarea id="knowledge-content" class="text-input knowledge-content-input" maxlength="500" rows="5" placeholder="輸入需要定期複習的專業知識…"></textarea>
+      <div class="knowledge-editor-footer">
+        <span id="knowledge-character-count" class="tip">0 / 500</span>
+        <div class="btn-row knowledge-editor-actions">
+          <button type="button" class="action-btn btn-secondary" id="knowledge-cancel-edit" hidden>取消編輯</button>
+          <button type="button" class="action-btn btn-primary" id="knowledge-add-card">新增知識卡</button>
+        </div>
+      </div>
+      <div id="knowledge-feedback" class="tip" role="status"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title" id="knowledge-list-title">📚 我的知識卡</div>
+      <div id="knowledge-card-list" class="knowledge-card-list"></div>
+      <div id="knowledge-empty" class="tip knowledge-empty">尚未新增知識卡。</div>
+    </div>
+
+    <div class="btn-row">
+      <button type="button" class="action-btn btn-secondary btn-full" id="knowledge-test-reminder">🧠 立即測試推播</button>
     </div>
   </div>
 
@@ -1079,6 +1140,21 @@
     const trivResTitle = document.getElementById('triv-res-title');
     const trivResContent = document.getElementById('triv-res-content');
 
+    // Professional Knowledge Card Elements
+    const knowledgeEnabledCheck = document.getElementById('knowledge-enabled');
+    const knowledgeIntervalSel = document.getElementById('knowledge-interval');
+    const knowledgeTitleInput = document.getElementById('knowledge-title');
+    const knowledgeContentInput = document.getElementById('knowledge-content');
+    const knowledgeCharacterCount = document.getElementById('knowledge-character-count');
+    const knowledgeAddButton = document.getElementById('knowledge-add-card');
+    const knowledgeCancelButton = document.getElementById('knowledge-cancel-edit');
+    const knowledgeFeedback = document.getElementById('knowledge-feedback');
+    const knowledgeCardList = document.getElementById('knowledge-card-list');
+    const knowledgeEmpty = document.getElementById('knowledge-empty');
+    const knowledgeTestButton = document.getElementById('knowledge-test-reminder');
+    let knowledgeCardsList = [];
+    let editingKnowledgeCardId = null;
+
     // Common Elements
     const btnSave = document.getElementById('btn-save');
     const statusMsg = document.getElementById('status-msg');
@@ -1113,6 +1189,9 @@
         switchTab(btn.dataset.tab);
       });
     });
+    if (ipc) {
+      ipc.on('settings-select-tab', (event, panelId) => switchTab(panelId));
+    }
 
     let selectedShortcutColor = '#0ea5e9';
     let selectedShortcutAppPath = '';
@@ -1661,12 +1740,16 @@
       document.getElementById('tab-label-calendar').textContent = s.tabCalendar;
       document.getElementById('tab-label-health').textContent = s.tabHealth;
       document.getElementById('tab-label-trivia').textContent = s.tabTrivia;
+      document.getElementById('tab-label-knowledge').textContent = lang === 'en' ? 'Professional knowledge' : '專業知識卡';
       document.getElementById('tab-label-alarm').textContent = s.tabSticky;
       document.getElementById('tab-label-shortcuts').textContent = lang === 'en' ? 'Laptop shortcuts' : '快捷捷徑';
       document.getElementById('intro-email').textContent = s.introEmail;
       document.getElementById('intro-calendar').textContent = s.introCalendar;
       document.getElementById('intro-health').textContent = s.introHealth;
       document.getElementById('intro-trivia').textContent = s.introTrivia;
+      document.getElementById('intro-knowledge').textContent = lang === 'en'
+        ? 'Create your own work knowledge cards. Everything stays in your personal storage on this PC.'
+        : '自行建立工作知識卡，資料只保存在這台電腦的個人空間。';
       document.getElementById('intro-alarm').textContent = s.introSticky;
       document.getElementById('intro-shortcuts').textContent = s.introShortcuts;
 
@@ -1908,6 +1991,24 @@
       document.getElementById('triv-res-source').textContent = lang === 'en' ? 'Source: Online' : '來源：Online';
       btnExploreTrivia.textContent = s.btnExploreTrivia;
 
+      document.getElementById('label-enable-knowledge').textContent = lang === 'en' ? '🧠 Enable professional knowledge notifications' : '🧠 啟用專業知識卡推播';
+      document.getElementById('knowledge-rules-title').textContent = lang === 'en' ? '🕒 Notification schedule' : '🕒 推播設定';
+      document.getElementById('knowledge-interval-label').innerHTML = `<strong>${lang === 'en' ? 'Show one card every' : '每隔多久推播一則'}</strong>`;
+      document.getElementById('knowledge-interval-tip').textContent = lang === 'en'
+        ? 'The first card appears after this interval. Notifications pause during Focus mode.'
+        : '小助手啟動後經過此時間才顯示第一則；專注模式期間會暫停。';
+      [...knowledgeIntervalSel.options].forEach(option => {
+        option.textContent = lang === 'en' ? `Every ${option.value} minutes` : `每 ${option.value} 分鐘`;
+      });
+      document.getElementById('knowledge-title-label').textContent = lang === 'en' ? 'Title' : '標題';
+      document.getElementById('knowledge-content-label').textContent = lang === 'en' ? 'Content' : '內容';
+      knowledgeTitleInput.placeholder = lang === 'en' ? 'e.g. Database indexing principle' : '例如：資料庫索引原則';
+      knowledgeContentInput.placeholder = lang === 'en' ? 'Enter professional knowledge you want to review regularly…' : '輸入需要定期複習的專業知識…';
+      document.getElementById('knowledge-list-title').textContent = lang === 'en' ? '📚 My knowledge cards' : '📚 我的知識卡';
+      knowledgeEmpty.textContent = lang === 'en' ? 'No knowledge cards yet.' : '尚未新增知識卡。';
+      knowledgeTestButton.textContent = lang === 'en' ? '🧠 Test notification now' : '🧠 立即測試推播';
+      updateKnowledgeEditorLabels();
+
       btnSave.textContent = s.btnSave;
 
       btnLangZh.classList.toggle('active', lang === 'zh-TW');
@@ -1915,6 +2016,7 @@
 
       renderAccountsList();
       renderCalendarsList();
+      renderKnowledgeCards();
     }
 
     [btnLangZh, btnLangEn].forEach(btn => {
@@ -2402,6 +2504,111 @@
     // =========================================================================
     // Data Gathering & Saving
     // =========================================================================
+    function getKnowledgeFormData() {
+      return {
+        enabled: knowledgeEnabledCheck.checked,
+        intervalMinutes: parseInt(knowledgeIntervalSel.value, 10) || 20,
+        cards: knowledgeCardsList
+      };
+    }
+
+    function updateKnowledgeEditorLabels() {
+      const editing = !!editingKnowledgeCardId;
+      document.getElementById('knowledge-editor-title').textContent = currentLanguage === 'en'
+        ? (editing ? '✏️ Edit knowledge card' : '+ Add knowledge card')
+        : (editing ? '✏️ 編輯知識卡' : '＋ 新增知識卡');
+      knowledgeAddButton.textContent = currentLanguage === 'en'
+        ? (editing ? 'Save changes' : 'Add knowledge card')
+        : (editing ? '儲存修改' : '新增知識卡');
+      knowledgeCancelButton.hidden = !editing;
+      knowledgeCancelButton.textContent = currentLanguage === 'en' ? 'Cancel editing' : '取消編輯';
+    }
+
+    function resetKnowledgeEditor(clearFeedback = true) {
+      editingKnowledgeCardId = null;
+      knowledgeTitleInput.value = '';
+      knowledgeContentInput.value = '';
+      knowledgeCharacterCount.textContent = '0 / 500';
+      if (clearFeedback) knowledgeFeedback.textContent = '';
+      updateKnowledgeEditorLabels();
+    }
+
+    function renderKnowledgeCards() {
+      knowledgeCardList.textContent = '';
+      knowledgeEmpty.style.display = knowledgeCardsList.length ? 'none' : 'block';
+      for (const card of knowledgeCardsList) {
+        const item = document.createElement('article');
+        item.className = `knowledge-card-item${card.enabled === false ? ' disabled' : ''}`;
+
+        const head = document.createElement('div');
+        head.className = 'knowledge-card-head';
+        const title = document.createElement('div');
+        title.className = 'knowledge-card-title';
+        title.textContent = card.title;
+        const toggleLabel = document.createElement('label');
+        toggleLabel.className = 'switch';
+        const toggle = document.createElement('input');
+        toggle.type = 'checkbox';
+        toggle.checked = card.enabled !== false;
+        toggle.setAttribute('aria-label', currentLanguage === 'en' ? `Enable ${card.title}` : `啟用 ${card.title}`);
+        const slider = document.createElement('span');
+        slider.className = 'slider';
+        toggleLabel.append(toggle, slider);
+        head.append(title, toggleLabel);
+
+        const content = document.createElement('div');
+        content.className = 'knowledge-card-content';
+        content.textContent = card.content;
+
+        const actions = document.createElement('div');
+        actions.className = 'knowledge-card-actions';
+        const edit = document.createElement('button');
+        edit.type = 'button';
+        edit.className = 'action-btn btn-secondary';
+        edit.textContent = currentLanguage === 'en' ? 'Edit' : '編輯';
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'action-btn btn-danger';
+        remove.textContent = currentLanguage === 'en' ? 'Delete' : '刪除';
+        actions.append(edit, remove);
+        item.append(head, content, actions);
+        knowledgeCardList.appendChild(item);
+
+        toggle.addEventListener('change', async () => {
+          card.enabled = toggle.checked;
+          item.classList.toggle('disabled', !toggle.checked);
+          await persistKnowledgeCards();
+        });
+        edit.addEventListener('click', () => {
+          editingKnowledgeCardId = card.id;
+          knowledgeTitleInput.value = card.title;
+          knowledgeContentInput.value = card.content;
+          knowledgeCharacterCount.textContent = `${card.content.length} / 500`;
+          updateKnowledgeEditorLabels();
+          knowledgeTitleInput.focus();
+        });
+        remove.addEventListener('click', async () => {
+          knowledgeCardsList = knowledgeCardsList.filter(itemCard => itemCard.id !== card.id);
+          if (editingKnowledgeCardId === card.id) resetKnowledgeEditor();
+          renderKnowledgeCards();
+          await persistKnowledgeCards();
+        });
+      }
+    }
+
+    async function persistKnowledgeCards(showSuccess = false) {
+      if (!ipc) return { success: false };
+      const result = await ipc.invoke('knowledge-cards-save-config', getKnowledgeFormData());
+      if (result?.success && result.config) {
+        knowledgeCardsList = Array.isArray(result.config.cards) ? result.config.cards : [];
+        renderKnowledgeCards();
+        if (showSuccess) knowledgeFeedback.textContent = currentLanguage === 'en' ? 'Saved locally on this PC.' : '已儲存在這台電腦的個人空間。';
+      } else if (result?.error) {
+        knowledgeFeedback.textContent = result.error;
+      }
+      return result;
+    }
+
     function getEmailFormData() {
       return {
         language: currentLanguage,
@@ -2499,10 +2706,11 @@
         return;
       }
       try {
-        const [emailCfg, calCfg, triviaCfg, alarmCfg, appVersion, panelOpacity, focusState, updateSettings] = await Promise.all([
+        const [emailCfg, calCfg, triviaCfg, knowledgeCfg, alarmCfg, appVersion, panelOpacity, focusState, updateSettings] = await Promise.all([
           ipc.invoke('email-get-config'),
           ipc.invoke('calendar-get-config'),
           ipc.invoke('trivia-get-config'),
+          ipc.invoke('knowledge-cards-get-config'),
           ipc.invoke('alarm-get-config'),
           ipc.invoke('get-app-version'),
           ipc.invoke('get-panel-opacity'),
@@ -2598,6 +2806,12 @@
           triviaCategorySel.value = triviaCfg.category || 'all';
           triviaIntervalSel.value = triviaCfg.intervalMinutes || '60';
           triviaSoundCheck.checked = triviaCfg.soundEnabled !== false;
+        }
+        if (knowledgeCfg) {
+          knowledgeEnabledCheck.checked = knowledgeCfg.enabled === true;
+          knowledgeIntervalSel.value = String(knowledgeCfg.intervalMinutes || 20);
+          knowledgeCardsList = Array.isArray(knowledgeCfg.cards) ? knowledgeCfg.cards : [];
+          renderKnowledgeCards();
         }
         if (alarmCfg) {
           document.querySelector(`input[name="alarm-sound-type"][value="${alarmCfg.soundType || 'preset'}"]`)?.click();
@@ -2822,6 +3036,47 @@
       }
     });
 
+    knowledgeContentInput.addEventListener('input', () => {
+      knowledgeCharacterCount.textContent = `${knowledgeContentInput.value.length} / 500`;
+    });
+
+    knowledgeCancelButton.addEventListener('click', resetKnowledgeEditor);
+
+    knowledgeAddButton.addEventListener('click', async () => {
+      const title = knowledgeTitleInput.value.trim();
+      const content = knowledgeContentInput.value.trim();
+      if (!title || !content) {
+        knowledgeFeedback.textContent = currentLanguage === 'en' ? 'Please enter both a title and content.' : '請同時輸入標題與內容。';
+        return;
+      }
+      if (editingKnowledgeCardId) {
+        const card = knowledgeCardsList.find(item => item.id === editingKnowledgeCardId);
+        if (card) {
+          card.title = title;
+          card.content = content;
+        }
+      } else {
+        knowledgeCardsList.push({ title, content, enabled: true });
+      }
+      const result = await persistKnowledgeCards(true);
+      if (result?.success) resetKnowledgeEditor(false);
+    });
+
+    knowledgeEnabledCheck.addEventListener('change', () => persistKnowledgeCards(true));
+    knowledgeIntervalSel.addEventListener('change', () => persistKnowledgeCards(true));
+
+    knowledgeTestButton.addEventListener('click', async () => {
+      if (!ipc) return;
+      if (!knowledgeCardsList.some(card => card.enabled !== false)) {
+        knowledgeFeedback.textContent = currentLanguage === 'en' ? 'Add and enable at least one card first.' : '請先新增並啟用至少一張知識卡。';
+        return;
+      }
+      const result = await ipc.invoke('knowledge-cards-test-reminder');
+      knowledgeFeedback.textContent = result?.success
+        ? (currentLanguage === 'en' ? 'Preview sent to the assistant.' : '已將測試知識卡送到小助手。')
+        : (result?.error || (currentLanguage === 'en' ? 'Unable to show the preview.' : '目前無法顯示測試推播。'));
+    });
+
     // Save Config
     const previewPanelOpacity = () => {
       if (!ipc) return;
@@ -2918,12 +3173,14 @@
       const emailData = getEmailFormData();
       const calData = getCalendarFormData();
       const triviaData = getTriviaFormData();
+      const knowledgeData = getKnowledgeFormData();
       const alarmData = getAlarmFormData();
       try {
-        const [emailRes, calRes, triviaRes, alarmRes, opacityRes, shortcutRes, browserRes] = await Promise.all([
+        const [emailRes, calRes, triviaRes, knowledgeRes, alarmRes, opacityRes, shortcutRes, browserRes] = await Promise.all([
           ipc.invoke('email-save-config', emailData),
           ipc.invoke('calendar-save-config', calData),
           ipc.invoke('trivia-save-config', triviaData),
+          ipc.invoke('knowledge-cards-save-config', knowledgeData),
           ipc.invoke('alarm-save-config', alarmData),
           ipc.invoke('set-panel-opacity', {
             // Convert user-facing transparency back to the CSS opacity persisted by the app.
@@ -2936,7 +3193,7 @@
           ipc.invoke('laptop-replace-shortcuts', { shortcuts: shortcutDrafts, fixedShortcuts: fixedShortcutDrafts }),
           ipc.invoke('laptop-save-browser-settings', getBrowserAssignmentsForSave())
         ]);
-        if (emailRes.success && (!calRes || calRes.success !== false) && (!triviaRes || triviaRes.success !== false) && (!alarmRes || alarmRes.success !== false) && (!opacityRes || opacityRes.success !== false) && shortcutRes?.ok && browserRes?.ok) {
+        if (emailRes.success && (!calRes || calRes.success !== false) && (!triviaRes || triviaRes.success !== false) && (!knowledgeRes || knowledgeRes.success !== false) && (!alarmRes || alarmRes.success !== false) && (!opacityRes || opacityRes.success !== false) && shortcutRes?.ok && browserRes?.ok) {
           const min = emailData.rules.checkIntervalMinutes;
           const label = currentLanguage === 'en'
             ? (min >= 60 ? `${min / 60} hour(s)` : `${min} min(s)`)
@@ -2944,7 +3201,7 @@
           showStatus(s.statusSaveSuccess(label));
           await loadShortcutSettings();
         } else {
-          const errMsg = (emailRes && emailRes.error) || (calRes && calRes.error) || (triviaRes && triviaRes.error) || (shortcutRes && shortcutRes.error) || (browserRes && browserRes.error) || 'Save failed';
+          const errMsg = (emailRes && emailRes.error) || (calRes && calRes.error) || (triviaRes && triviaRes.error) || (knowledgeRes && knowledgeRes.error) || (shortcutRes && shortcutRes.error) || (browserRes && browserRes.error) || 'Save failed';
           showStatus(s.statusSaveFailed(errMsg), true);
         }
       } catch (err) {

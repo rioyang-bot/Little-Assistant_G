@@ -83,6 +83,20 @@ test('removing a display schedules relocation to the primary bottom right', () =
   assert.match(source, /displayLayoutChangePending = true;[\s\S]*restorePositionForCurrentDisplayLayout\(\);[\s\S]*displayLayoutChangePending = false;/);
 });
 
+test('manual reset targets the assistant display and corrects its position twice', () => {
+  const resetSection = section('function getCurrentAssistantDisplay()', 'function restorePositionForCurrentDisplayLayout()');
+  assert.match(resetSection, /getAssistantDisplayAnchor\(bounds, currentDockSide\)/);
+  assert.match(resetSection, /screen\.getDisplayNearestPoint\(anchor\)/);
+  assert.match(resetSection, /const targetDisplayId = targetDisplay\.id;/);
+  assert.match(resetSection, /applyBottomRightBounds\(\);[\s\S]*setTimeout\(\(\) => \{[\s\S]*applyBottomRightBounds\(\);[\s\S]*\}, 200\)/);
+});
+
+test('professional knowledge shortcut opens quick-add instead of overview settings', () => {
+  const handler = section("ipcMain.handle('laptop-open-action'", '// Open Email Settings Window');
+  assert.match(handler, /if \(action === 'knowledge'\) \{\s*openKnowledgeCardWindow\(\);/);
+  assert.doesNotMatch(handler, /openSettingsWindow\('panel-knowledge'\)/);
+});
+
 test('installation always registers startup and the app exposes no startup toggle', () => {
   const installer = fs.readFileSync(path.join(__dirname, '../build/installer.nsh'), 'utf8');
   assert.match(installer, /WriteRegStr HKCU[^\n]*\n\s*"METechAssistant"/);

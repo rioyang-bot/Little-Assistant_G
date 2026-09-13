@@ -54,6 +54,17 @@ function getBottomRightWindowBounds(windowSize, workArea, rightMargin = 20, bott
   };
 }
 
+function getAssistantDisplayAnchor(bounds, dockSide = 'right', inset = 20) {
+  const width = Math.max(1, Number(bounds?.width) || 1);
+  const height = Math.max(1, Number(bounds?.height) || 1);
+  const horizontalInset = Math.min(Math.max(1, inset), Math.max(1, width / 2));
+  const verticalInset = Math.min(Math.max(1, inset), Math.max(1, height / 2));
+  return {
+    x: Math.round((Number(bounds?.x) || 0) + (dockSide === 'left' ? horizontalInset : width - horizontalInset)),
+    y: Math.round((Number(bounds?.y) || 0) + height - verticalInset)
+  };
+}
+
 function getDisplayLayoutKey(displays = []) {
   return displays
     .map(display => {
@@ -89,6 +100,7 @@ module.exports = {
   clampWindowYToWorkArea,
   getMonitorFittedWindowHeight,
   getBottomRightWindowBounds,
+  getAssistantDisplayAnchor,
   getDisplayLayoutKey,
   centerWindowInWorkArea
 };

@@ -8,6 +8,7 @@ let menuRequestCount = 0;
 let ignoreMouseEventStates = [];
 let savedShortcutOrder = [];
 let windowDragStartCount = 0;
+let openedLaptopAction = '';
 
 function cloneSnapshot() {
   return JSON.parse(JSON.stringify(snapshot));
@@ -24,14 +25,17 @@ app.whenReady().then(async () => {
       shortcuts: [
         { id: 'shortcut-1', type: 'website', name: 'Portal', letter: 'P', color: '#7c3aed', logoUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+XGZPFAAAAABJRU5ErkJggg==' },
         { id: 'shortcut-2', type: 'website', name: 'Docs', letter: 'D', color: '#2563eb' },
-        { id: 'shortcut-3', type: 'app', name: 'Editor', letter: 'E', color: '#16a34a' },
-        { id: 'shortcut-4', type: 'app', name: 'Files', letter: 'F', color: '#ea580c' }
+        { id: 'shortcut-3', type: 'app', name: 'Editor', letter: 'E', color: '#16a34a' }
       ],
       maxShortcuts: 20,
+      fixedLogos: {},
       emailAccounts: [{ id: 'email-1', name: 'Work Email' }, { id: 'email-2', name: 'Personal Email' }],
       calendars: [{ id: 'cal-1', name: 'Work Calendar' }, { id: 'cal-2', name: 'Home Calendar' }]
     }));
-    ipcMain.handle('laptop-open-action', () => ({ ok: true }));
+    ipcMain.handle('laptop-open-action', (event, action) => {
+      openedLaptopAction = action;
+      return { ok: true };
+    });
     ipcMain.handle('laptop-save-shortcut-order', (event, order) => {
       savedShortcutOrder = order;
       return { ok: true, order };
@@ -96,6 +100,8 @@ app.whenReady().then(async () => {
     });
     await win.loadFile(path.join(__dirname, '../dist/index.html'));
     await new Promise(resolve => setTimeout(resolve, 250));
+    await win.webContents.executeJavaScript(`document.getElementById('laptop-notes-trigger').click()`);
+    await new Promise(resolve => setTimeout(resolve, 100));
 
     const initial = await win.webContents.executeJavaScript(`
       (() => {
@@ -110,6 +116,9 @@ app.whenReady().then(async () => {
           boardVisible: document.getElementById('sticky-notes-board').classList.contains('visible'),
           reopenHiddenWithoutNotes: !document.getElementById('sticky-reopen-tab').classList.contains('visible'),
           colorChoices: document.querySelectorAll('input[name="sticky-color"]').length,
+          knowledgeShortcutExists: !!document.querySelector('[data-laptop-action="knowledge"]'),
+          knowledgeShortcutHasLogo: !!document.querySelector('[data-laptop-action="knowledge"] .laptop-action-icon img'),
+          knowledgeShortcutLogoSrc: document.querySelector('[data-laptop-action="knowledge"] .laptop-action-icon img')?.getAttribute('src') || '',
           stickySizeInitialized: document.body.classList.contains('sticky-size-std'),
           toolbarButtonsMatch: (() => {
             const add = document.getElementById('sticky-add-button');
@@ -133,6 +142,13 @@ app.whenReady().then(async () => {
     assert.equal(initial.colorChoices, 3);
     assert.equal(initial.stickySizeInitialized, true);
     assert.equal(initial.toolbarButtonsMatch, true);
+    assert.equal(initial.knowledgeShortcutExists, true);
+    assert.equal(initial.knowledgeShortcutHasLogo, true);
+    assert.equal(initial.knowledgeShortcutLogoSrc, 'assets/knowledge-brain.png');
+
+    await win.webContents.executeJavaScript(`document.querySelector('[data-laptop-action="knowledge"]').click()`);
+    await new Promise(resolve => setTimeout(resolve, 30));
+    assert.equal(openedLaptopAction, 'knowledge');
 
     for (const [status, expected] of [
       ['checking', '正在檢查更新'],
@@ -148,6 +164,18 @@ app.whenReady().then(async () => {
     win.webContents.send('update-status', { status: 'checking', manual: false });
     await new Promise(resolve => setTimeout(resolve, 30));
     assert.equal(await win.webContents.executeJavaScript(`document.getElementById('speech-text').textContent`), beforeBackgroundCheck);
+
+    win.webContents.send('knowledge-card-reminder', {
+      id: 'knowledge-1',
+      title: '資料庫索引原則',
+      content: '先查看執行計畫，再決定是否建立索引。',
+      isManual: true
+    });
+    await new Promise(resolve => setTimeout(resolve, 40));
+    const knowledgeSpeech = await win.webContents.executeJavaScript(`document.getElementById('speech-text').textContent`);
+    assert.match(knowledgeSpeech, /專業知識卡/);
+    assert.match(knowledgeSpeech, /資料庫索引原則/);
+    assert.match(knowledgeSpeech, /執行計畫/);
 
     win.webContents.send('settings-window-visibility', true);
     await new Promise(resolve => setTimeout(resolve, 100));
@@ -360,7 +388,7 @@ app.whenReady().then(async () => {
     })()`);
     assert.equal(laptopMenuState.visible, true);
     assert.equal(laptopMenuState.expanded, 'true');
-    assert.deepEqual(laptopMenuState.actions, ['sticky']);
+    assert.deepEqual(laptopMenuState.actions, ['sticky', 'knowledge']);
     assert.equal(laptopMenuState.hasNestedCustomPanel, false);
     assert.equal(laptopMenuState.customLogoImage, true);
 
@@ -494,8 +522,9 @@ app.whenReady().then(async () => {
     assert.equal(largeLabelLengths.some(length => length > 6), true);
     assert.equal(largeLabelLengths.every(length => length > 0), true);
     assert.equal(largeLabels[0], '便利貼');
-    assert.equal(largeLabels[1], 'Work Email');
-    assert.equal(largeLabels[3], 'Work Calendar');
+    assert.equal(largeLabels[1], '專業知識');
+    assert.equal(largeLabels[2], 'Work Email');
+    assert.equal(largeLabels[4], 'Work Calendar');
     const labelWidths = await win.webContents.executeJavaScript(`(() => {
       const action = document.querySelector('.laptop-quick-action');
       const label = action.querySelector('.laptop-action-label');
@@ -821,8 +850,8 @@ app.whenReady().then(async () => {
     })()`);
     await new Promise(resolve => setTimeout(resolve, 80));
     assert.equal(savedShortcutOrder.length, 9);
-    assert.equal(savedShortcutOrder[0], 'email:email-1');
-    assert.equal(savedShortcutOrder[1], 'sticky');
+    assert.ok(savedShortcutOrder.indexOf('email:email-1') < savedShortcutOrder.indexOf('sticky'));
+    assert.ok(savedShortcutOrder.includes('knowledge'));
     const largeDragPositions = await win.webContents.executeJavaScript(`(() => ({
       emailTop: document.querySelector('[data-shortcut-order-key="email:email-1"]').getBoundingClientRect().top,
       stickyTop: document.querySelector('[data-shortcut-order-key="sticky"]').getBoundingClientRect().top
