@@ -20,6 +20,7 @@ app.whenReady().then(async () => {
     const state = vm.createContext({
       Menu, ipcMain, mainWindow: window, currentBallSpeed: 1.2,
       tray: { setContextMenu() {} }, trayContextMenu: null,
+      desktopOrganizer: null, assistantDisplayTarget: 'primary',
       isAssistantVisible: true, windowLayerMode: 'top', isMoveMode: false,
       currentSizeKey: 'std', currentStickyNotesSize: 'std', currentBubbleFontSize: 'std',
       isBubbleEnabled: true, currentLanguage: 'zh-TW',
@@ -77,6 +78,20 @@ app.whenReady().then(async () => {
     }
     ipcMain.emit('ball-speed-changed', { sender: {} }, 5);
     expectSelected(1.2);
+    const menuStates = [];
+    state.windowLayerController = { setMenuActive(active) { menuStates.push(active); } };
+    state.console = console;
+    vm.runInContext(source.slice(source.indexOf("  ipcMain.on('show-context-menu'"), source.indexOf('  const getLaptopShortcuts =')), state);
+    let popupOptions;
+    state.trayContextMenu = { popup(options) { popupOptions = options; } };
+    ipcMain.emit('show-context-menu', { sender: {} });
+    assert.deepEqual(menuStates, [], 'organizer and unrelated renderers cannot invoke the globe menu');
+    ipcMain.emit('show-context-menu', { sender: window.webContents });
+    assert.deepEqual(menuStates, [true]);
+    assert.equal(popupOptions.window, window);
+    popupOptions.callback();
+    assert.deepEqual(menuStates, [true, false], 'native menu dismissal restores the owner layer');
+    console.log('Globe context menu sender validation, temporary promotion and dismissal callback passed.');
     console.log('Native radio selection, all presets, renderer scroll IPC, custom speed, localization, boost independence and IPC validation passed.');
   } finally {
     window.destroy();

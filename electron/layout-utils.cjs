@@ -76,6 +76,14 @@ function getDisplayLayoutKey(displays = []) {
     .join('|');
 }
 
+// Electron's primary monitor follows the operating system display setting.
+// With several secondary monitors, prefer an explicitly non-internal display.
+function selectAssistantDisplay(displays, primary, target = 'primary') {
+  if (target !== 'external') return primary;
+  const secondary = displays.filter(display => String(display.id) !== String(primary.id));
+  return secondary.find(display => display.internal === false) || secondary[0] || primary;
+}
+
 function centerWindowInWorkArea(windowSize, workArea, margin = 12) {
   const width = Math.max(1, Number(windowSize?.width) || 1);
   const height = Math.max(1, Number(windowSize?.height) || 1);
@@ -102,5 +110,6 @@ module.exports = {
   getBottomRightWindowBounds,
   getAssistantDisplayAnchor,
   getDisplayLayoutKey,
-  centerWindowInWorkArea
+  centerWindowInWorkArea,
+  selectAssistantDisplay
 };

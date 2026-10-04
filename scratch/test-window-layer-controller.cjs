@@ -90,3 +90,62 @@ test('closing the window stops the owned helper and prevents further window acce
   controller.setMode('top');
   controller.dispose();
 });
+
+test('context menu stays above bottom windows and restores the current preference when dismissed', () => {
+  const { window, controller, children } = setup('bottom');
+  controller.setMenuActive(true);
+  assert.equal(window.top, true);
+  assert.equal(children[0].killed, true);
+  controller.setMenuActive(true);
+  controller.setMode('bottom-notify');
+  controller.setNotificationActive(true);
+  controller.setMenuActive(false);
+  assert.equal(window.top, true, 'active notification retains topmost after menu dismissal');
+  controller.resetNotifications();
+  assert.equal(window.top, false);
+  assert.equal(children.length, 2);
+  controller.setMenuActive(true);
+  window.top = false;
+  children[1].emit('exit', 1);
+  assert.equal(window.top, true, 'late native lowering cannot cover an open menu');
+  controller.setMode('bottom');
+  controller.setMenuActive(false);
+  assert.equal(window.top, false);
+  assert.equal(children.length, 3);
+  controller.dispose();
+});
+
+test('native modal freezes layer changes, waits for helper exit and restores the latest preference', async () => {
+  const { window, controller, children } = setup('bottom');
+  let finish, opened = false;
+  const result = controller.withModal(async () => {
+    opened = true;
+    assert.equal(controller.helper,null);
+    assert.equal(window.top,false,'opening the dialog must not pin its owner above applications');
+    await new Promise(resolve => { finish=resolve; });
+    return 'cancelled';
+  });
+  assert.equal(children[0].killed,true); assert.equal(opened,false,'dialog waits until native lowering stops');
+  children[0].emit('exit',0);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(opened,true);
+  window.emit('show'); window.emit('restore');
+  controller.setMode('top'); controller.setMenuActive(true);
+  assert.equal(window.top,false,'mode changes must not reorder an open modal owner');
+  assert.equal(children.length,1);
+  controller.setMode('bottom'); controller.setMenuActive(false);
+  finish(); assert.equal(await result,'cancelled');
+  assert.equal(window.top,false); assert.equal(children.length,2,'bottom control resumes after cancellation');
+  controller.dispose();
+});
+
+test('nested modal failure releases suspension and closing the owner does not restart its helper', async () => {
+  const { controller, children } = setup('bottom');
+  const failed = controller.withModal(() => controller.withModal(() => { throw new Error('dialog failed'); }));
+  children[0].emit('exit',0);
+  await assert.rejects(failed,/dialog failed/);
+  assert.equal(controller.modalDepth,0); assert.equal(children.length,2);
+  const disposed = controller.withModal(async () => { controller.dispose(); return 'closed'; });
+  children[1].emit('exit',0);
+  assert.equal(await disposed,'closed'); assert.equal(children.length,2);
+});

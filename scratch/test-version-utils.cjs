@@ -7,10 +7,19 @@ const {
 } = require('../electron/version-utils.cjs');
 
 test('formats internal versions for display', () => {
+  assert.equal(formatDisplayVersion('1.7.0'), 'Ver.1.7.0');
   assert.equal(formatDisplayVersion('1.2.0'), 'Ver.1.2.0');
   assert.equal(formatDisplayVersion('1.2'), 'Ver.1.2.0');
   assert.equal(formatDisplayVersion('1.2.3'), 'Ver.1.2.3');
   assert.equal(formatDisplayVersion('1.4.0'), 'Ver.1.4.0');
+});
+
+test('version 1.7 release notes describe desktop organizers in both languages', () => {
+  const zh = getReleaseNotes('1.7.0', 'zh-TW').join('\n');
+  const en = getReleaseNotes('1.7.0', 'en').join('\n');
+  assert.match(zh, /桌面整理/); assert.match(zh, /保留原檔案名稱與路徑/);
+  assert.match(zh, /彈出視窗/); assert.match(zh, /鎖定/);
+  assert.match(en, /desktop organizers/i); assert.match(en, /preserving original names and paths/i);
 });
 
 test('version 1.4 release notes include bear visibility, shortcut layout, Logo upload, and the total limit', () => {

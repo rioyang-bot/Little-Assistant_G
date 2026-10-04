@@ -1,12 +1,12 @@
 {
   "name": "METech-desktop-assistant",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "MEtech Bear Desktop Animated Assistant with 3D Rotating Globe",
   "main": "electron/main.cjs",
   "scripts": {
     "test": "npm run test:unit",
-    "test:unit": "node --test scratch/test-translation.cjs scratch/test-trivia-service.cjs scratch/test-zh-trivia.cjs scratch/test-storage-utils.cjs scratch/test-version-utils.cjs scratch/test-sticky-notes-service.cjs scratch/test-natural-language-task.cjs scratch/test-knowledge-cards-service.cjs scratch/test-update-service.cjs scratch/test-layout-utils.cjs scratch/test-calendar-service.cjs scratch/test-email-service.cjs scratch/test-window-layer-controller.cjs scratch/test-startup-visibility.cjs",
-    "test:electron": "npm run build && electron scratch/test-drag-simulate.cjs && electron scratch/test-docking.cjs && electron scratch/test-sticky-notes-ui.cjs && electron scratch/test-window-layer-ui.cjs && electron scratch/test-ball-speed-menu.cjs && electron scratch/test-dialogue-layout.cjs && electron scratch/test-sticky-restart.cjs",
+    "test:unit": "node --test scratch/test-translation.cjs scratch/test-trivia-service.cjs scratch/test-zh-trivia.cjs scratch/test-storage-utils.cjs scratch/test-version-utils.cjs scratch/test-sticky-notes-service.cjs scratch/test-natural-language-task.cjs scratch/test-knowledge-cards-service.cjs scratch/test-update-service.cjs scratch/test-layout-utils.cjs scratch/test-calendar-service.cjs scratch/test-email-service.cjs scratch/test-window-layer-controller.cjs scratch/test-startup-visibility.cjs scratch/test-desktop-organizer.cjs",
+    "test:electron": "npm run build && electron scratch/test-drag-simulate.cjs && electron scratch/test-docking.cjs && electron scratch/test-sticky-notes-ui.cjs && electron scratch/test-window-layer-ui.cjs && electron scratch/test-ball-speed-menu.cjs && electron scratch/test-dialogue-layout.cjs && electron scratch/test-sticky-restart.cjs && electron scratch/test-desktop-organizer-ui.cjs && npm run test:organizer-arrangement && npm run test:organizer-visibility && npm run test:organizer-modal && npm run test:organizer-native",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
@@ -16,7 +16,23 @@
     "pack": "vite build && electron-builder --dir",
     "dist": "vite build && electron-builder --win",
     "dist:portable": "vite build && electron-builder --win portable",
-    "dist:nsis": "vite build && electron-builder --win nsis"
+    "dist:nsis": "vite build && electron-builder --win nsis",
+    "test:organizer-native": "npm run test:desktop-icons && npm run test:desktop-icons:pipe && npm run test:organizer-shell && powershell.exe -NoProfile -NonInteractive -STA -ExecutionPolicy Bypass -File scratch/test-windows-file-drag.ps1 && npm run test:organizer-return && npm run test:organizer-gesture && npm run test:organizer-gesture:auto && npm run test:organizer-gesture:grid && npm run test:organizer-transfer && npm run test:organizer-context && npm run test:organizer-inbound && npm run test:organizer-inbound:auto && npm run test:organizer-batch",
+    "test:desktop-icons": "node scratch/test-desktop-icons.cjs",
+    "test:desktop-icons:pipe": "node scratch/test-desktop-icons.cjs --pipe",
+    "test:organizer-inbound": "powershell.exe -NoProfile -NonInteractive -STA -ExecutionPolicy Bypass -File scratch/test-organizer-inbound.ps1",
+    "test:organizer-inbound:auto": "powershell.exe -NoProfile -NonInteractive -STA -ExecutionPolicy Bypass -File scratch/test-organizer-inbound.ps1 -Arrangement row",
+    "test:organizer-arrangement": "electron scratch/test-organizer-arrangement-ui.cjs",
+    "test:organizer-visibility": "electron scratch/test-organizer-visibility.cjs",
+    "test:organizer-modal": "electron scratch/test-organizer-modal.cjs",
+    "test:organizer-transfer": "electron scratch/test-organizer-transfer.cjs",
+    "test:organizer-batch": "powershell.exe -NoProfile -NonInteractive -STA -ExecutionPolicy Bypass -File scratch/test-organizer-inbound.ps1 -Batch -Arrangement grid && powershell.exe -NoProfile -NonInteractive -STA -ExecutionPolicy Bypass -File scratch/test-organizer-gesture.ps1 -Batch && electron scratch/test-organizer-transfer-batch.cjs && powershell.exe -NoProfile -NonInteractive -STA -ExecutionPolicy Bypass -File scratch/test-desktop-return.ps1 -Batch",
+    "test:organizer-context": "electron scratch/test-organizer-context.cjs",
+    "test:organizer-shell": "powershell.exe -NoProfile -NonInteractive -STA -ExecutionPolicy Bypass -File scratch/test-windows-shell-transfer.ps1",
+    "test:organizer-gesture": "powershell.exe -NoProfile -NonInteractive -STA -ExecutionPolicy Bypass -File scratch/test-organizer-gesture.ps1",
+    "test:organizer-gesture:auto": "powershell.exe -NoProfile -NonInteractive -STA -ExecutionPolicy Bypass -File scratch/test-organizer-gesture.ps1 -Arrangement column",
+    "test:organizer-gesture:grid": "powershell.exe -NoProfile -NonInteractive -STA -ExecutionPolicy Bypass -File scratch/test-organizer-gesture.ps1 -Arrangement grid",
+    "test:organizer-return": "powershell.exe -NoProfile -NonInteractive -STA -ExecutionPolicy Bypass -File scratch/test-desktop-return.ps1"
   },
   "build": {
     "appId": "com.metech.bear.desktop.assistant",
@@ -41,7 +57,8 @@
     ],
     "asarUnpack": [
       "node_modules/youtube-dl-exec/bin/**",
-      "assets/alarm-sounds/**"
+      "assets/alarm-sounds/**",
+      "electron/*.ps1"
     ],
     "win": {
       "target": [
@@ -51,6 +68,7 @@
       "icon": "assets/icon.png"
     },
     "nsis": {
+      "artifactName": "METech-desktop-assistant-Setup-${version}.${ext}",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
@@ -66,7 +84,7 @@
       ]
     },
     "portable": {
-      "artifactName": "${productName}-Portable-${version}.${ext}"
+      "artifactName": "METech-desktop-assistant-Portable-${version}.${ext}"
     }
   },
   "keywords": [

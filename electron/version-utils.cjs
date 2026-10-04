@@ -1,4 +1,28 @@
 const RELEASE_NOTES = {
+  '1.7.0': {
+    'zh-TW': [
+      '新增桌面整理工具，可由科技球右鍵選單建立、顯示及管理多個整理視窗。',
+      '檔案、資料夾與捷徑可拖曳加入；保留原檔案名稱與路徑，收納桌面項目時隱藏原桌面圖示。',
+      '支援多項選取、同時拖入／移動／拖出，以及整理視窗之間的轉移，修正兩邊重複出現同一項目的問題。',
+      '新增自由排列與對齊排列，支援手動調整位置、拖曳位置預覽及佔用格位交換，視窗可縮至兩欄寬度。',
+      '保留 Windows 原始圖示，圖片顯示縮圖；支援檔案右鍵選單、重新命名及開啟原檔案。',
+      '可自訂視窗底色、背景圖片、圖案與透明度，以及檔名文字、標題列底色與標題列文字顏色。',
+      '設定改為獨立彈出視窗，支援即時外觀預覽、儲存與取消；鎖定後隱藏設定按鈕，解鎖後恢復。',
+      '改善最下層視窗、科技球右鍵選單與背景圖片選擇視窗的層級，避免重疊閃爍並恢復未顯示的整理視窗。',
+      '可選擇小助手固定在主螢幕或外接螢幕右下角，接上或移除螢幕時重新校正位置並避開工作列。'
+    ],
+    en: [
+      'Added desktop organizers: create, show and manage multiple boards from the technology-ball context menu.',
+      'Drag files, folders and shortcuts into a board while preserving original names and paths; collected desktop items have their original desktop icons hidden.',
+      'Select and drag multiple items in, within or out of boards; cross-board transfers no longer leave duplicate entries.',
+      'Added free placement and grid alignment with manual positions, drop previews and occupied-cell swaps; boards can shrink to two columns.',
+      'Preserved Windows file icons and added image thumbnails, file context menus, renaming and opening original files.',
+      'Customize board backgrounds, images, patterns and opacity, filename colors, title-bar backgrounds and title text colors.',
+      'Settings now open in a separate popup with live appearance previews, Save and Cancel; locking hides Settings until unlocked.',
+      'Improved window ordering for desktop boards, technology-ball menus and background pickers, preventing overlap flicker and recovering hidden boards.',
+      'Choose the primary or external display for the assistant bottom-right position; display connections and disconnections trigger repositioning above the taskbar.'
+    ]
+  },
   '1.6.0': {
     'zh-TW': [
       '修正重複開機啟動會取消小助手隱藏狀態的問題；重複啟動時保留原本的隱藏設定。',

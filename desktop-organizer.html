@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+  <title>桌面整理</title>
+</head>
+<body>
+  <main id="board">
+    <header id="header">
+      <span class="grip" aria-hidden="true">⠿</span><span id="title">桌面整理</span>
+      <button id="edit" title="設定" aria-label="設定" hidden>✎</button>
+      <button id="hide" title="隱藏，可從科技球右鍵選單開啟" aria-label="隱藏">×</button>
+      <button id="lock" title="鎖定" aria-label="鎖定">🔓</button>
+    </header>
+    <div id="items" aria-label="整理項目"></div>
+    <div id="empty">將檔案或資料夾拖曳到這裡<span>依分類建立你的桌面工具箱</span></div>
+    <footer>
+      <p id="status" role="status" hidden></p>
+    </footer>
+    <div id="resize" title="拖曳調整大小" aria-label="拖曳調整大小"></div>
+  </main>
+  <div id="item-menu" hidden><button id="open">開啟</button><button id="reveal">在檔案總管顯示</button><button id="remove">從整理視窗移除</button></div>
+  <script type="module" src="/src/desktop-organizer.js"></script>
+</body>
+</html>

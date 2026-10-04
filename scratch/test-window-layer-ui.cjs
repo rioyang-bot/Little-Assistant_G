@@ -2,10 +2,9 @@ const assert = require('node:assert/strict');
 const path = require('path');
 const { promisify } = require('util');
 const execFile = promisify(require('child_process').execFile);
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu } = require('electron');
 const { WindowLayerController } = require('../electron/window-layer-controller.cjs');
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-
 async function waitFor(check, label, timeout = 15000) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
@@ -39,7 +38,8 @@ public class OrderCheck {
 }
 
 app.whenReady().then(async () => {
-  let window, other, controller;
+  let window, other, controller, menu;
+  const organizers = [], organizerLayers = [];
   try {
     for (const [channel, value] of Object.entries({
       'get-language': 'zh-TW', 'get-bubble-font-size': 'std', 'get-sticky-notes-size': 'std',
@@ -104,14 +104,49 @@ app.whenReady().then(async () => {
       controller.setNotificationActive(true);
       await waitFor(() => isBelow(window, other), 'always bottom ignores notifications');
       console.log('Windows native bottom, persistent ordering, notification raise/return and always-top passed.');
+      for (let index = 0; index < 2; index++) {
+        const board = new BrowserWindow({ show: false, width: 260, height: 160, transparent: true, frame: false, resizable: false, thickFrame: false, hasShadow: false, opacity: 0 });
+        organizers.push(board);
+        organizerLayers.push(new WindowLayerController(board, 'bottom', { desktopOrganizer: true }));
+        board.showInactive();
+      }
+      for (const board of organizers) {
+        await waitFor(() => isBelow(board, window), 'organizer below assistant in bottom mode');
+        assert.equal(await isBelow(board, other), true, 'ordinary application stays above organizer');
+        board.moveTop();
+        await waitFor(() => isBelow(board, window), 'raised organizer returns below assistant');
+      }
+      let layerChanges = 0, lastLayerChange = Date.now();
+      for (const board of organizers) board.hookWindowMessage(0x0046, () => { layerChanges++; lastLayerChange = Date.now(); });
+      await waitFor(() => Date.now() - lastLayerChange >= 750, 'organizer sibling ordering settles');
+      layerChanges = 0;
+      await delay(1200);
+      assert.equal(layerChanges, 0, 'settled organizer siblings must not repeatedly reorder or flicker');
+      for (const board of organizers) board.unhookWindowMessage(0x0046);
+
+      controller.setMenuActive(true);
+      let dismissed = false;
+      menu = Menu.buildFromTemplate([{ label: 'Organizer layer regression test', enabled: false }]);
+      menu.popup({ window, x: 20, y: 20, callback: () => { dismissed = true; controller.setMenuActive(false); } });
+      assert.equal(window.isAlwaysOnTop(), true);
+      for (const board of organizers) assert.equal(await isBelow(board, window), true, 'menu owner stays above organizer');
+      menu.closePopup(window);
+      await waitFor(() => dismissed, 'native menu dismissal callback');
+      assert.equal(window.isAlwaysOnTop(), false, 'menu dismissal restores bottom preference');
+      await waitFor(() => isBelow(window, other), 'native bottom restored after menu');
+      for (const board of organizers) assert.equal(await isBelow(board, window), true);
+      console.log('Two transparent organizers stay below applications and assistant; idle ordering is stable; native menu raises and restores its owner.');
     }
   } catch (error) {
     console.error(error);
     process.exitCode = 1;
   } finally {
+    menu?.closePopup(window);
+    for (const layer of organizerLayers) layer.dispose();
+    for (const board of organizers) if (!board.isDestroyed()) board.destroy();
     controller?.dispose();
     if (window && !window.isDestroyed()) window.destroy();
     if (other && !other.isDestroyed()) other.destroy();
-    app.quit();
+    app.exit(process.exitCode || 0);
   }
 });

@@ -1,6 +1,7 @@
-const { app, BrowserWindow, Tray, Menu, screen, ipcMain, nativeImage, dialog, shell } = require('electron');
+const { app, BrowserWindow, Tray, Menu, screen, ipcMain, nativeImage, dialog, shell, clipboard } = require('electron');
 const path = require('path');
 const { EmailService } = require('./email-service.cjs');
+const { DesktopOrganizer } = require('./desktop-organizer.cjs');
 const { CalendarService } = require('./calendar-service.cjs');
 const { TriviaService } = require('./trivia-service.cjs');
 const { KnowledgeCardsService } = require('./knowledge-cards-service.cjs');
@@ -21,6 +22,7 @@ const {
   getBottomRightWindowBounds,
   getAssistantDisplayAnchor,
   getDisplayLayoutKey,
+  selectAssistantDisplay,
   centerWindowInWorkArea
 } = require('./layout-utils.cjs');
 
@@ -28,6 +30,7 @@ const fs = require('fs');
 const { spawn, execFileSync } = require('child_process');
 
 let mainWindow = null;
+let desktopOrganizer = null;
 let settingsWindow = null;
 let knowledgeCardWindow = null;
 let emailService = null;
@@ -64,6 +67,8 @@ let laptopShortcutOrder = [];
 let laptopBrowserAssignments = {};
 let displayPositions = {};
 let displayLayoutChangePending = false;
+let displayLayoutTimer = null;
+let assistantDisplayTarget = 'primary';
 let resetPositionCorrectionTimer = null;
 let focusModeUntil = 0;
 let focusModeTimer = null;
@@ -320,6 +325,7 @@ function loadPetPreferences() {
       if (data.windowPosition && typeof data.windowPosition.x === 'number') {
         savedWindowPosition = data.windowPosition;
       }
+      if (['primary', 'external'].includes(data.assistantDisplayTarget)) assistantDisplayTarget = data.assistantDisplayTarget;
       displayPositions = data.displayPositions && typeof data.displayPositions === 'object'
         ? data.displayPositions : {};
       focusModeUntil = Number.isFinite(Number(data.focusModeUntil)) ? Number(data.focusModeUntil) : 0;
@@ -375,6 +381,7 @@ function savePetPreferences() {
       laptopShortcutOrder,
       laptopBrowserAssignments,
       displayPositions,
+      assistantDisplayTarget,
       focusModeUntil,
       autoUpdateEnabled,
       windowPosition: mainWindow && !mainWindow.isDestroyed() ? {
@@ -487,7 +494,7 @@ function setLanguage(lang) {
 }
 
 function createPetWindow() {
-  const primaryDisplay = screen.getPrimaryDisplay();
+  const primaryDisplay = getPreferredAssistantDisplay();
   const { workArea } = primaryDisplay;
 
   const windowSize = getCompositeWindowSize(currentSizeKey, currentStickyNotesSize);
@@ -497,13 +504,7 @@ function createPetWindow() {
   let winX = Math.round(workArea.x + workArea.width - winW - 20);
   let winY = Math.round(workArea.y + workArea.height - winH - 10);
 
-  const layoutPosition = getSavedDisplayPosition();
-  const initialPosition = layoutPosition || savedWindowPosition;
-  if (initialPosition && typeof initialPosition.x === 'number' && typeof initialPosition.y === 'number') {
-    winX = initialPosition.x;
-    winY = initialPosition.y;
-    if (layoutPosition && ['left', 'right'].includes(layoutPosition.dockSide)) currentDockSide = layoutPosition.dockSide;
-  }
+  currentDockSide = 'right';
 
   const nearestDisplay = screen.getDisplayNearestPoint({ x: winX, y: winY }) || primaryDisplay;
   const dispWorkArea = nearestDisplay.workArea;
@@ -749,9 +750,15 @@ function createPetWindow() {
     if (currentBallSpeed !== speed) setBallSpeed(speed, true);
   });
 
-  ipcMain.on('show-context-menu', () => {
-    if (trayContextMenu && mainWindow) {
-      trayContextMenu.popup({ window: mainWindow });
+  ipcMain.on('show-context-menu', event => {
+    if (!trayContextMenu || !mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) return;
+    const controller = windowLayerController;
+    controller?.setMenuActive(true);
+    try {
+      trayContextMenu.popup({ window: mainWindow, callback: () => controller?.setMenuActive(false) });
+    } catch (error) {
+      controller?.setMenuActive(false);
+      console.error('無法開啟科技球選單：', error);
     }
   });
 
@@ -1275,9 +1282,19 @@ function getCurrentAssistantDisplay() {
     || screen.getPrimaryDisplay();
 }
 
+function getPreferredAssistantDisplay() {
+  return selectAssistantDisplay(screen.getAllDisplays(), screen.getPrimaryDisplay(), assistantDisplayTarget);
+}
+
+function setAssistantDisplayTarget(target) {
+  assistantDisplayTarget = target;
+  resetPosition();
+  updateTrayMenu();
+}
+
 function resetPosition(display = null) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
-  const targetDisplay = display?.workArea ? display : getCurrentAssistantDisplay();
+  const targetDisplay = display?.workArea ? display : getPreferredAssistantDisplay();
   if (!targetDisplay?.workArea) return;
   const targetDisplayId = targetDisplay.id;
 
@@ -1285,7 +1302,7 @@ function resetPosition(display = null) {
     if (!mainWindow || mainWindow.isDestroyed()) return;
     const refreshedDisplay = targetDisplayId === undefined || targetDisplayId === null
       ? targetDisplay
-      : (screen.getAllDisplays().find(candidate => String(candidate.id) === String(targetDisplayId)) || targetDisplay);
+      : (screen.getAllDisplays().find(candidate => String(candidate.id) === String(targetDisplayId)) || getPreferredAssistantDisplay());
     if (!refreshedDisplay?.workArea) return;
     const [width] = mainWindow.getSize();
     const bearSize = (SIZE_PRESETS[currentSizeKey] || SIZE_PRESETS.std).bearSize;
@@ -1305,30 +1322,6 @@ function resetPosition(display = null) {
     resetPositionCorrectionTimer = null;
     applyBottomRightBounds();
   }, 200);
-}
-
-function restorePositionForCurrentDisplayLayout() {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
-  const position = getSavedDisplayPosition();
-  if (!position) {
-    resetPosition();
-    return;
-  }
-  const display = screen.getDisplayNearestPoint({ x: position.x, y: position.y }) || screen.getPrimaryDisplay();
-  const [width] = mainWindow.getSize();
-  const bearSize = (SIZE_PRESETS[currentSizeKey] || SIZE_PRESETS.std).bearSize;
-  const height = getMonitorFittedWindowHeight(display.workArea.height, bearSize);
-  const x = Math.max(
-    display.workArea.x,
-    Math.min(display.workArea.x + display.workArea.width - width, position.x)
-  );
-  const y = clampWindowYToWorkArea(position.y, height, display.workArea);
-  currentDockSide = ['left', 'right'].includes(position.dockSide) ? position.dockSide : currentDockSide;
-  mainWindow.webContents.send('dock-side-changed', currentDockSide);
-  mainWindow.setBounds({ x: Math.round(x), y: Math.round(y), width, height: Math.round(height) });
-  savedWindowPosition = { x: Math.round(x), y: Math.round(y) };
-  savePetPreferences();
-  positionSettingsWindowOnAssistantDisplay();
 }
 
 function setMoveMode(enabled) {
@@ -1427,6 +1420,15 @@ function updateTrayMenu() {
 
   trayContextMenu = Menu.buildFromTemplate([
     {
+      label: currentLanguage === 'en' ? 'Desktop organizer' : '桌面整理工具',
+      submenu: [
+        { label: currentLanguage === 'en' ? 'New organizer window' : '新增整理視窗', click: () => desktopOrganizer?.create() },
+        { label: currentLanguage === 'en' ? 'Show all organizer windows' : '顯示所有整理視窗', enabled: !!desktopOrganizer?.boards.length, click: () => desktopOrganizer?.restore() },
+        ...(desktopOrganizer?.boards || []).map(board => ({ label: board.title, click: () => desktopOrganizer.show(board) }))
+      ]
+    },
+    { type: 'separator' },
+    {
       label: t.title,
       enabled: false
     },
@@ -1465,6 +1467,13 @@ function updateTrayMenu() {
           click: (menuItem) => {
             setMoveMode(menuItem.checked);
           }
+        },
+        {
+          label: currentLanguage === 'en' ? 'Bottom right on monitor' : '右下角所在螢幕',
+          submenu: [
+            { label: currentLanguage === 'en' ? 'Primary monitor' : '主螢幕', type: 'radio', checked: assistantDisplayTarget === 'primary', click: () => setAssistantDisplayTarget('primary') },
+            { label: currentLanguage === 'en' ? 'External monitor (primary when disconnected)' : '外接螢幕（未連接時使用主螢幕）', type: 'radio', checked: assistantDisplayTarget === 'external', click: () => setAssistantDisplayTarget('external') }
+          ]
         },
         {
           label: t.resetPosition,
@@ -1884,6 +1893,9 @@ if (!gotTheLock) {
       currentLanguage = emailService.config.language;
     }
 
+    desktopOrganizer = new DesktopOrganizer({ app, BrowserWindow, screen, ipcMain, dialog, shell, nativeImage, clipboard }, app.getPath('userData'), updateTrayMenu);
+    desktopOrganizer.register();
+    desktopOrganizer.restore();
     createPetWindow();
     createTray();
     scheduleFocusModeEnd();
@@ -1894,13 +1906,20 @@ if (!gotTheLock) {
     // settles, keeping the assistant above the taskbar at the bottom right.
     const restoreDisplayLayout = () => {
       displayLayoutChangePending = true;
-      setTimeout(() => {
-        restorePositionForCurrentDisplayLayout();
+      clearTimeout(displayLayoutTimer);
+      clearTimeout(resetPositionCorrectionTimer);
+      displayLayoutTimer = setTimeout(() => {
+        displayLayoutTimer = null;
+        resetPosition();
+        desktopOrganizer?.reposition();
         displayLayoutChangePending = false;
-      }, 200);
+      }, 500);
     };
     screen.on('display-added', restoreDisplayLayout);
     screen.on('display-removed', restoreDisplayLayout);
+    screen.on('display-metrics-changed', (_event, _display, metrics) => {
+      if (metrics.some(metric => ['bounds', 'workArea', 'scaleFactor'].includes(metric))) restoreDisplayLayout();
+    });
 
     mainWindow.webContents.once('did-finish-load', () => {
       setTimeout(() => {
@@ -1916,6 +1935,8 @@ if (!gotTheLock) {
 }
 
 app.on('before-quit', () => {
+  desktopOrganizer?.dispose();
+  clearTimeout(displayLayoutTimer);
   clearTimeout(focusModeTimer);
   clearTimeout(resetPositionCorrectionTimer);
   updateService?.stop();

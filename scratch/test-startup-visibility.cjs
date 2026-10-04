@@ -78,15 +78,17 @@ test('clicking the tray icon opens its menu without changing hidden visibility',
   assert.doesNotMatch(traySection, /setAssistantVisible\(true\)/);
 });
 
-test('removing a display schedules relocation to the primary bottom right', () => {
+test('display changes schedule relocation to the preferred bottom right', () => {
   assert.match(source, /screen\.on\('display-removed', restoreDisplayLayout\)/);
-  assert.match(source, /displayLayoutChangePending = true;[\s\S]*restorePositionForCurrentDisplayLayout\(\);[\s\S]*displayLayoutChangePending = false;/);
+  assert.match(source, /displayLayoutChangePending = true;[\s\S]*resetPosition\(\);[\s\S]*displayLayoutChangePending = false;/);
 });
 
-test('manual reset targets the assistant display and corrects its position twice', () => {
-  const resetSection = section('function getCurrentAssistantDisplay()', 'function restorePositionForCurrentDisplayLayout()');
+test('manual reset targets the preferred display and corrects its position twice', () => {
+  const resetSection = section('function getCurrentAssistantDisplay()', 'function setMoveMode(');
   assert.match(resetSection, /getAssistantDisplayAnchor\(bounds, currentDockSide\)/);
   assert.match(resetSection, /screen\.getDisplayNearestPoint\(anchor\)/);
+  assert.match(resetSection, /display\?\.workArea \? display : getPreferredAssistantDisplay\(\)/);
+  assert.match(source, /screen\.on\('display-metrics-changed'/);
   assert.match(resetSection, /const targetDisplayId = targetDisplay\.id;/);
   assert.match(resetSection, /applyBottomRightBounds\(\);[\s\S]*setTimeout\(\(\) => \{[\s\S]*applyBottomRightBounds\(\);[\s\S]*\}, 200\)/);
 });

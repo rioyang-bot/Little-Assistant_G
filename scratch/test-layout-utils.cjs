@@ -84,3 +84,23 @@ test('settings window is centered inside the assistant display work area', () =>
     { x: -1030, y: 12 }
   );
 });
+
+
+test('preferred monitor follows primary setting and falls back after unplugging', () => {
+  const { selectAssistantDisplay } = require('../electron/layout-utils.cjs');
+  const primary = { id: 1, internal: true };
+  const external = { id: 2, internal: false };
+  const other = { id: 3, internal: true };
+  assert.equal(selectAssistantDisplay([primary, external], primary, 'primary'), primary);
+  assert.equal(selectAssistantDisplay([primary, other, external], primary, 'external'), external);
+  assert.equal(selectAssistantDisplay([primary], primary, 'external'), primary);
+  assert.equal(selectAssistantDisplay([external, primary], external, 'primary'), external);
+});
+
+test('corner placement respects negative monitor coordinates and updated work area', () => {
+  const area = { x: -2560, y: -100, width: 2560, height: 1400 };
+  const height = getMonitorFittedWindowHeight(area.height, 190);
+  const bounds = getBottomRightWindowBounds({ width: 330, height }, area);
+  assert.equal(bounds.x + bounds.width, area.x + area.width - 20);
+  assert.equal(bounds.y + bounds.height, area.y + area.height - 10);
+});

@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 const VALID_SEND_CHANNELS = [
   'set-ignore-mouse-events',
@@ -16,6 +16,10 @@ const VALID_SEND_CHANNELS = [
 ];
 
 const VALID_INVOKE_CHANNELS = [
+  'organizer-get', 'organizer-update', 'organizer-add', 'organizer-position', 'organizer-layout', 'organizer-drag-out',
+  'organizer-remove', 'organizer-open', 'organizer-icon', 'organizer-hide', 'organizer-delete', 'organizer-resize', 'organizer-background',
+  'organizer-context-menu', 'organizer-rename',
+  'organizer-settings-open', 'organizer-settings-close', 'organizer-settings-preview',
   'get-language',
   'get-app-version',
   'natural-language-create',
@@ -77,6 +81,8 @@ const VALID_INVOKE_CHANNELS = [
 ];
 
 const VALID_RECEIVE_CHANNELS = [
+  'organizer-drag-state', 'organizer-items-updated',
+  'organizer-view-updated',
   'language-changed',
   'size-updated',
   'scale-updated',
@@ -107,6 +113,9 @@ const VALID_RECEIVE_CHANNELS = [
 ];
 
 const electronAPI = {
+  getDroppedFilePath: file => {
+    try { return webUtils.getPathForFile(file); } catch { return ''; }
+  },
   send: (channel, ...args) => {
     if (VALID_SEND_CHANNELS.includes(channel)) {
       ipcRenderer.send(channel, ...args);

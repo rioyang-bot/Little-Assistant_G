@@ -10,7 +10,9 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, 'index.html'),
         settings: resolve(__dirname, 'email-settings.html'),
-        knowledgeCard: resolve(__dirname, 'knowledge-card.html')
+        knowledgeCard: resolve(__dirname, 'knowledge-card.html'),
+        desktopOrganizer: resolve(__dirname, 'desktop-organizer.html'),
+        desktopOrganizerSettings: resolve(__dirname, 'desktop-organizer-settings.html')
       }
     }
   }
