@@ -44,6 +44,12 @@ app.whenReady().then(async () => {
     win.webContents.on('console-message', (_event, level, message) => { if (level >= 3) errors.push(message); });
     const initial = await win.webContents.executeJavaScript(`window.electronAPI.invoke('organizer-get').then(board => ({ title: board.title, items: board.items.length }))`);
     assert.equal(initial.items, 0);
+    service.iconErrors = ['管理員確認未完成']; service.notifyIconStatus();
+    await new Promise(resolve => setTimeout(resolve, 100));
+    assert.equal(await win.webContents.executeJavaScript(`document.getElementById('status').textContent`), '管理員確認未完成');
+    service.iconErrors = []; service.notifyIconStatus();
+    await new Promise(resolve => setTimeout(resolve, 100));
+    assert.equal(await win.webContents.executeJavaScript(`document.getElementById('status').textContent`), '');
     await service.nativeDrag.prepare();
     const result = await win.webContents.executeJavaScript(`(async () => {
       const api = window.electronAPI;

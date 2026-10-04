@@ -82,7 +82,12 @@ class DesktopOrganizer {
       if (changed) this.syncDesktopIcons();
     };
     this.iconVisibility = electron.organizerDesktopIcons === false ? null : electron.organizerDesktopIcons ||
-      (process.platform === 'win32' && electron.app ? new DesktopIconVisibility(userDir, electron.app.getPath('desktop')) : null);
+      (process.platform === 'win32' && electron.app ? new DesktopIconVisibility(userDir, electron.app.getPath('desktop'), {
+        onStatus: message => {
+          this.iconErrors = [message];
+          this.notifyIconStatus();
+        }
+      }) : null);
     this.nativeDrag = electron.organizerDrag || (process.platform === 'win32' && electron.app ? new WindowsFileDrag() : null);
     this.onChange = onChange;
     this.boards = [];
@@ -116,6 +121,17 @@ class DesktopOrganizer {
 
   notifyView(board, preview = this.settingsWindows.get(board.id)?.preview || null) {
     this.windows.get(board.id)?.webContents.send?.('organizer-view-updated', { board, preview });
+  }
+
+  notifyIconStatus() {
+    if (this.quitting) return;
+    for (const board of this.boards) {
+      const win = this.windows.get(board.id);
+      if (!win || win.isDestroyed?.() || win.webContents.isDestroyed?.()) continue;
+      try { win.webContents.send?.('organizer-view-updated', {
+        statusOnly: true, migrationErrors: this.boardResult(board).migrationErrors
+      }); } catch { /* The window may close while the native worker responds. */ }
+    }
   }
 
   closeSettings(board) {
@@ -207,6 +223,7 @@ class DesktopOrganizer {
     if (!this.iconVisibility) return [];
     try { this.iconErrors = await this.iconVisibility.sync(paths); }
     catch (error) { this.iconErrors = [error.message || '無法隱藏桌面圖示。']; }
+    this.notifyIconStatus();
     return this.iconErrors;
   }
 

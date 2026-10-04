@@ -348,6 +348,8 @@ document.addEventListener('drop', event => {
 api.on('organizer-drag-state', (_event, state) => { organizerDrag = state; if (!state) clearDropPreview(); });
 api.on('organizer-items-updated', (_event, items) => { if (board) render({ ...board, items }); });
 api.on('organizer-view-updated', (_event, state) => {
+  if (Array.isArray(state.migrationErrors)) status(state.migrationErrors.join(' '));
+  if (state.statusOnly) return;
   appearancePreview = state.preview;
   if (board && state.board) {
     // Appearance previews must not recreate file nodes or interrupt dragging.

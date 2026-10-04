@@ -5,6 +5,28 @@ const os = require('os');
 const path = require('path');
 const { DesktopOrganizer, normalizeBoard } = require('../electron/desktop-organizer.cjs');
 
+test('late desktop visibility failures reach open organizer windows and clear after retry', async () => {
+  let finish;
+  const service = new DesktopOrganizer({ organizerDesktopIcons: { sync: () => new Promise(resolve => { finish = resolve; }) } }, path.join(os.tmpdir(), 'organizer-startup-icons-' + process.pid));
+  const board = normalizeBoard({ title: '桌面項目' });
+  service.boards.push(board);
+  const messages = [];
+  service.windows.set(board.id, { webContents: { send: (channel, data) => messages.push({ channel, data }) } });
+  const pending = service.syncDesktopIcons();
+  assert.equal(messages.length, 0);
+  finish(['管理員確認未完成']);
+  await pending;
+  assert.equal(messages[0].channel, 'organizer-view-updated');
+  assert.equal(messages[0].data.statusOnly, true, 'icon status must not rebuild file nodes during dragging');
+  assert.deepEqual(messages[0].data.migrationErrors, ['管理員確認未完成']);
+  service.iconVisibility.sync = async () => [];
+  await service.syncDesktopIcons();
+  assert.deepEqual(messages[1].data.migrationErrors, []);
+  service.quitting = true;
+  await service.syncDesktopIcons();
+  assert.equal(messages.length, 2, 'late native responses must not reach windows during shutdown');
+});
+
 test('image previews cache content and fall back for unsupported or damaged images', async t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'organizer-thumbnails-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));

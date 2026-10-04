@@ -12,6 +12,7 @@ class DesktopIconVisibility {
     this.pending = new Map();
     this.allowElevation = options.allowElevation !== false;
     this.pipeTransport = options.pipeTransport === true;
+    this.onStatus = options.onStatus || (() => {});
     this.operations = Promise.resolve();
   }
   prepare() {
@@ -82,10 +83,20 @@ class DesktopIconVisibility {
       try { response = await this.request(command, input); } catch (error) { failure = error; }
       if ((this.requiresElevation || failure?.requiresElevation) && this.allowElevation && !this.elevationAttempted && !this.disposed) {
         this.elevationAttempted = true;
+        try { this.onStatus('部分桌面捷徑需要管理員權限，請在 Windows 確認視窗按「是」。'); } catch { /* A closing window must not prevent icon recovery. */ }
         await this.stopWorker();
         this.elevated = true; this.requiresElevation = false;
         try { return await this.request(command, input); }
-        catch (error) { this.elevated = false; throw error; }
+        catch (error) {
+          if (this.disposed) throw error;
+          // The normal worker restored its flags before handing off. If UAC
+          // was declined or the privileged worker failed, re-hide the entries
+          // that do not require elevation instead of leaving every icon visible.
+          await this.stopWorker();
+          this.elevated = false; this.requiresElevation = false;
+          const errors = await this.request(command, input);
+          return [...errors, '管理員確認未完成，受權限保護的桌面捷徑尚未隱藏。請重新啟動小助手，並在 Windows 確認視窗按「是」。'];
+        }
       }
       if (failure) throw failure;
       return response;

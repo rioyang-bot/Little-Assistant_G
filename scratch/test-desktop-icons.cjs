@@ -97,7 +97,28 @@ let service;
     assert.equal(fs.readFileSync(iconFile, 'utf8'), 'desktop fixture');
     const journal = JSON.parse(fs.readFileSync(path.join(root, 'actual-desktop-profile', 'desktop-icon-visibility.json'), 'utf8'));
     assert.deepEqual(journal, []);
+    // Simulate a declined UAC prompt while using real ordinary workers and
+    // a protected fixture. The unprotected entry must be hidden again after
+    // handoff rollback, and sync must not prompt repeatedly.
+    const normalRequest = actualService.request.bind(actualService);
+    let elevationRequests = 0;
+    actualService.allowElevation = true;
+    actualService.request = function(command, input) {
+      if (this.elevated) { elevationRequests++; return Promise.reject(new Error('User cancelled elevation')); }
+      return normalRequest(command, input);
+    };
+    const declinedErrors = await actualService.sync([iconFile, controlFile]);
+    assert.ok(declinedErrors.some(error => error.includes('管理員確認未完成')));
+    assert.equal(state(controlFile) & 6, 6, 'ordinary entries are re-hidden after declined elevation');
+    await waitFor(async () => !await visible(controlFile));
+    assert.equal(await visible(iconFile), true);
+    assert.equal(state(iconFile), protectedAttrs);
+    assert.equal(fs.readFileSync(controlFile, 'utf8'), 'uncollected fixture');
+    await actualService.sync([iconFile, controlFile]);
+    assert.equal(elevationRequests, 1, 'failed elevation must not produce repeated prompts');
     await actualService.sync([]); await waitFor(() => visible(iconFile));
+    await waitFor(() => visible(controlFile));
+    console.log('Declined elevation: ordinary desktop icons re-hidden, protected shortcut remains visible with an actionable error, no repeated UAC prompts, and original flags restored on removal.');
     console.log('Protected desktop item: permission error reported; original path, content, attributes and permissions retained; no false off-screen hiding. Desktop visibility probe uses physical DPI coordinates.');
   } finally {
     if (actualService?.child) {
