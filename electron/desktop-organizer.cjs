@@ -66,6 +66,7 @@ class DesktopOrganizer {
     this.icons = new Map();
     this.windows = new Map();
     this.settingsWindows = new Map();
+    this.recoveries = new Map();
     this.viewports = new Map();
     this.layers = new Map();
     this.migrationWarnings = new Map();
@@ -370,15 +371,17 @@ class DesktopOrganizer {
       if (Object.keys(fitted).some(key => fitted[key] !== bounds[key])) existing.setBounds(fitted);
       existing.showInactive();
       existing.moveTop();
-      return;
+      return existing;
     }
     const { BrowserWindow } = this.electron;
+    const creationBounds = this.fitBounds(board.bounds);
     const win = new BrowserWindow({
-      ...this.fitBounds(board.bounds), minWidth: 220, minHeight: 160,
+      ...creationBounds, minWidth: 220, minHeight: 160,
       transparent: true, frame: false, resizable: false, thickFrame: false, hasShadow: false, backgroundColor: '#00000000', movable: !board.locked,
       skipTaskbar: true, show: false, title: board.title,
       webPreferences: { preload: path.join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, webSecurity: true, backgroundThrottling: false }
     });
+    const initialNativeBounds = win.getBounds();
     this.windows.set(board.id, win);
     this.layers.set(board.id, new WindowLayerController(win, 'bottom', { desktopOrganizer: true }));
     win.setMenu(null);
@@ -386,8 +389,17 @@ class DesktopOrganizer {
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     win.webContents.on('will-navigate', event => event.preventDefault());
     const built = path.join(__dirname, '../dist/desktop-organizer.html');
+    win.once('ready-to-show', () => {
+      if (win.isDestroyed()) return;
+      // Frameless Windows creation can add a DPI-dependent frame offset.
+      // Apply the intended geometry after creation before revealing it.
+      const liveBounds = win.getBounds();
+      const changedBeforeLoad = Object.keys(initialNativeBounds).some(key => liveBounds[key] !== initialNativeBounds[key]);
+      win.setBounds(changedBeforeLoad ? this.fitBounds(liveBounds) : creationBounds, false);
+      board.bounds = win.getBounds(); this.scheduleSave();
+      win.showInactive();
+    });
     win.loadFile(fs.existsSync(built) ? built : path.join(__dirname, '../desktop-organizer.html')).catch(() => console.warn('桌面整理視窗載入失敗。'));
-    win.once('ready-to-show', () => win.showInactive());
     const remember = () => {
       if (win.isDestroyed()) return;
       board.bounds = win.getBounds();
@@ -396,7 +408,51 @@ class DesktopOrganizer {
     win.on('moved', remember);
     win.on('resized', remember);
     win.on('close', event => { if (!this.quitting) { event.preventDefault(); this.closeSettings(board); win.hide(); } });
-    win.on('closed', () => { this.closeSettings(board); this.windows.delete(board.id); this.layers.delete(board.id); this.viewports.delete(board.id); });
+    win.on('closed', () => {
+      // A retired native window must not remove a replacement window's state.
+      if (this.windows.get(board.id) !== win) return;
+      this.closeSettings(board); this.windows.delete(board.id); this.layers.delete(board.id); this.viewports.delete(board.id);
+    });
+    return win;
+  }
+
+  recover(board) {
+    if (this.recoveries.has(board.id)) return this.recoveries.get(board.id);
+    const recovery = this.recoverWindow(board).finally(() => this.recoveries.delete(board.id));
+    this.recoveries.set(board.id, recovery);
+    return recovery;
+  }
+
+  async recoverWindow(board) {
+    if (this.quitting || !this.boards.includes(board)) return false;
+    if (this.activeDrag) throw new Error('請先完成檔案拖曳，再復原整理視窗。');
+    const settings = this.settingsWindows.get(board.id);
+    this.closeSettings(board);
+    if (settings?.lifecycle) await settings.lifecycle;
+    if (this.quitting || !this.boards.includes(board)) return false;
+    if (this.activeDrag) throw new Error('請先完成檔案拖曳，再復原整理視窗。');
+    // Recreate the native window and renderer even when the page is alive but
+    // its transparent surface is blank. Showing the same HWND cannot fix it.
+    const previous = this.windows.get(board.id);
+    this.layers.get(board.id)?.dispose();
+    if (previous && !previous.isDestroyed()) previous.destroy();
+    this.windows.delete(board.id); this.layers.delete(board.id); this.viewports.delete(board.id);
+    const { screen } = this.electron;
+    const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
+    const width = Math.min(board.bounds.width, area.width);
+    const height = Math.min(board.bounds.height, area.height);
+    board.bounds = { width, height, x: Math.round(area.x + (area.width - width) / 2), y: Math.round(area.y + (area.height - height) / 2) };
+    this.save();
+    const win = this.show(board);
+    await new Promise((resolve, reject) => {
+      const cleanup = () => { clearTimeout(timer); win.removeListener('ready-to-show', ready); win.removeListener('closed', closed); win.webContents.removeListener('did-fail-load', failed); };
+      const ready = () => { cleanup(); win.showInactive(); win.moveTop(); resolve(); };
+      const closed = () => { cleanup(); reject(new Error('整理視窗復原中斷，請再試一次。')); };
+      const failed = (_event, _code, _description, _url, isMainFrame) => { if (isMainFrame) { cleanup(); reject(new Error('整理視窗載入失敗，請再試一次。')); } };
+      const timer = setTimeout(() => { cleanup(); reject(new Error('整理視窗復原逾時，請再試一次。')); }, 15000);
+      win.once('ready-to-show', ready); win.once('closed', closed); win.webContents.on('did-fail-load', failed);
+    });
+    return true;
   }
 
   register() {

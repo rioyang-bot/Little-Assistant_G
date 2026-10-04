@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync, spawn } = require('node:child_process');
+const execFile = require('node:util').promisify(require('node:child_process').execFile);
 const { DesktopIconVisibility } = require('../electron/desktop-icon-visibility.cjs');
 const pipeTransport = process.argv.includes('--pipe');
 const serviceOptions = { allowElevation: false, pipeTransport };
@@ -12,7 +13,7 @@ const state = file => Number(execFileSync('powershell.exe', ['-NoProfile', '-Non
 const setState = (file, attrs) => execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', '[IO.File]::SetAttributes($env:ORGANIZER_ICON_FIXTURE,[IO.FileAttributes][int]$env:ORGANIZER_ICON_ATTRS)'], { windowsHide: true, env: { ...process.env, ORGANIZER_ICON_FIXTURE: file, ORGANIZER_ICON_ATTRS: String(attrs) } });
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function waitFor(check) {
-  for (let attempt = 0; attempt < 30; attempt++) { if (check()) return; await delay(100); }
+  for (let attempt = 0; attempt < 30; attempt++) { if (await check()) return; await delay(100); }
   throw new Error('Native desktop icon recovery timed out.');
 }
 let service;
@@ -56,7 +57,20 @@ let service;
   const controlFile = path.join(actualDesktop, path.basename(root) + '-control.txt');
   assert.equal(fs.existsSync(iconFile), false); assert.equal(fs.existsSync(controlFile), false);
   let actualService;
-  const visible = file => execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-STA', '-File', path.join(__dirname, 'probe-desktop-icon.ps1'), '-FilePath', file], { windowsHide: true, encoding: 'utf8' }).trim() === 'True';
+  const visible = async file => {
+    for (let attempt=0;attempt<6;attempt++) {
+      try {
+        const result=await execFile('powershell.exe',['-NoProfile','-NonInteractive','-STA','-File',path.join(__dirname,'desktop-icon-probe.ps1'),'-FilePath',file],{windowsHide:true,encoding:'utf8',timeout:10000});
+        assert.ok(['True','False'].includes(result.stdout.trim()),'desktop probe must return an actual visibility result');
+        return result.stdout.trim()==='True';
+      } catch(error) {
+        // Explorer can retire its COM view while refreshing desktop icons.
+        // Retry E_FAIL only; never interpret a query failure as hidden.
+        if(attempt===5 || !String(error.stderr||error.message).includes('HRESULT E_FAIL'))throw error;
+        await delay(250);
+      }
+    }
+  };
   let fixtureAcl;
   const fixturePowerShell = command => execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], { windowsHide: true, encoding: 'utf8', env: { ...process.env, ORGANIZER_ICON_FIXTURE: iconFile, ORGANIZER_ICON_ACL: fixtureAcl || '' } }).trim();
   try {
@@ -64,8 +78,8 @@ let service;
     await waitFor(() => visible(iconFile));
     actualService = new DesktopIconVisibility(path.join(root, 'actual-desktop-profile'), actualDesktop, serviceOptions);
     assert.deepEqual(await actualService.sync([iconFile]), []);
-    await waitFor(() => !visible(iconFile));
-    assert.equal(visible(controlFile), true);
+    await waitFor(async () => !await visible(iconFile));
+    assert.equal(await visible(controlFile), true);
     assert.equal(fs.readFileSync(iconFile, 'utf8'), 'desktop fixture');
     await actualService.sync([]); await waitFor(() => visible(iconFile));
     console.log('Actual Explorer desktop: collected icon hidden, uncollected icon visible, original path/content retained, icon restored on removal.');
@@ -77,9 +91,9 @@ let service;
     const protectedErrors = await actualService.sync([iconFile]);
     assert.equal(protectedErrors.length, 1);
     assert.match(protectedErrors[0], /管理員/);
-    assert.equal(visible(iconFile), true, 'protected files must not be moved to the screen edge and falsely reported as hidden');
+    assert.equal(await visible(iconFile), true, 'protected files must not be moved to the screen edge and falsely reported as hidden');
     assert.equal(state(iconFile), protectedAttrs);
-    assert.equal(visible(controlFile), true);
+    assert.equal(await visible(controlFile), true);
     assert.equal(fs.readFileSync(iconFile, 'utf8'), 'desktop fixture');
     const journal = JSON.parse(fs.readFileSync(path.join(root, 'actual-desktop-profile', 'desktop-icon-visibility.json'), 'utf8'));
     assert.deepEqual(journal, []);

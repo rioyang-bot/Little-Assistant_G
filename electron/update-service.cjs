@@ -1,19 +1,28 @@
 class UpdateService {
-  constructor({ app, autoUpdater, getWindow, getLanguage }) {
+  constructor({ app, autoUpdater, getWindow, getWindows, getLanguage, notifyDownloaded, beforeInstall, restartDelayMs = 5000 }) {
     this.app = app;
     this.autoUpdater = autoUpdater;
-    this.getWindow = getWindow;
+    this.getWindows = getWindows || (() => [getWindow?.()]);
     this.getLanguage = getLanguage;
+    this.notifyDownloaded = notifyDownloaded;
+    this.beforeInstall = beforeInstall;
+    this.restartDelayMs = restartDelayMs;
     this.enabled = true;
     this.checkTimer = null;
     this.downloaded = false;
     this.manualCheckPending = false;
+    this.installTimer = null;
+    this.installQueued = false;
+    this.installGeneration = 0;
+    this.stopped = false;
+    this.lastStatus = null;
     this.bindEvents();
   }
 
   bindEvents() {
     this.autoUpdater.autoDownload = true;
     this.autoUpdater.autoInstallOnAppQuit = true;
+    this.autoUpdater.autoRunAppAfterInstall = true;
     this.autoUpdater.on('checking-for-update', () => this.sendStatus('checking', { manual: this.manualCheckPending }));
     this.autoUpdater.on('update-available', info => {
       this.sendStatus('available', { version: info.version, manual: this.manualCheckPending });
@@ -26,24 +35,37 @@ class UpdateService {
     this.autoUpdater.on('download-progress', progress => this.sendStatus('downloading', { percent: Math.round(progress.percent || 0) }));
     this.autoUpdater.on('update-downloaded', info => {
       this.downloaded = true;
-      this.sendStatus('downloaded', { version: info.version });
+      if (this.installTimer || this.installQueued || this.stopped) return;
+      const seconds = this.enabled && this.isSupportedBuild() ? Math.ceil(this.restartDelayMs / 1000) : 0;
+      const detail = { version: info.version, autoInstallInSeconds: seconds };
+      this.sendStatus('downloaded', detail);
+      try { this.notifyDownloaded?.(detail); } catch { /* UI delivery cannot prevent installation. */ }
+      if (seconds) this.installTimer = setTimeout(() => { this.installTimer = null; this.install(); }, this.restartDelayMs);
     });
     this.autoUpdater.on('error', error => {
+      clearTimeout(this.installTimer); this.installTimer = null; this.installQueued = false;
+      this.installGeneration++;
       this.sendStatus('error', { message: error?.message || String(error), manual: this.manualCheckPending });
       this.manualCheckPending = false;
     });
   }
 
   sendStatus(status, detail = {}) {
-    const win = this.getWindow();
-    if (win && !win.isDestroyed()) win.webContents.send('update-status', { status, ...detail });
+    this.lastStatus = { status, ...detail };
+    for (const win of new Set(this.getWindows())) {
+      if (!win || win.isDestroyed() || win.webContents.isDestroyed?.()) continue;
+      try { win.webContents.send('update-status', this.lastStatus); } catch { /* A window may close during delivery. */ }
+    }
   }
+
+  getStatus() { return this.lastStatus; }
 
   isSupportedBuild() {
     return this.app.isPackaged && !process.env.PORTABLE_EXECUTABLE_FILE;
   }
 
   start(enabled = true) {
+    this.stopped = false;
     this.enabled = enabled !== false;
     if (!this.enabled || !this.isSupportedBuild()) return;
     clearTimeout(this.checkTimer);
@@ -54,6 +76,10 @@ class UpdateService {
     this.enabled = enabled !== false;
     clearTimeout(this.checkTimer);
     this.checkTimer = null;
+    if (!this.enabled) {
+      clearTimeout(this.installTimer); this.installTimer = null;
+      if (this.downloaded && !this.installQueued) this.sendStatus('downloaded', { version: this.lastStatus?.version, autoInstallInSeconds: 0 });
+    }
     if (this.enabled) this.start(true);
     return this.enabled;
   }
@@ -68,7 +94,10 @@ class UpdateService {
     if (!this.enabled && !manual) return { success: false, code: 'disabled' };
     this.manualCheckPending = manual === true;
     try {
-      await this.autoUpdater.checkForUpdates();
+      const result = await this.autoUpdater.checkForUpdates();
+      // Download failures are reported by the updater's error event. Consume
+      // its separate promise as well so they cannot become uncaught rejections.
+      result?.downloadPromise?.catch(() => {});
       return { success: true };
     } catch (error) {
       if (this.manualCheckPending) this.sendStatus('error', { message: error.message, manual: true });
@@ -79,13 +108,42 @@ class UpdateService {
 
   install() {
     if (!this.downloaded) return { success: false, error: 'No downloaded update is ready.' };
-    setImmediate(() => this.autoUpdater.quitAndInstall(false, true));
+    if (this.stopped) return { success: false, error: 'Update service has stopped.' };
+    if (this.installQueued) return { success: true };
+    clearTimeout(this.installTimer); this.installTimer = null;
+    this.installQueued = true;
+    const generation = ++this.installGeneration;
+    setImmediate(() => this.installDownloaded(generation));
     return { success: true };
   }
 
+  async installDownloaded(generation) {
+    if (this.stopped || generation !== this.installGeneration) return;
+    try {
+      const ready = !this.beforeInstall || await this.beforeInstall() !== false;
+      if (this.stopped || generation !== this.installGeneration) return;
+      if (!ready) {
+        this.installQueued = false;
+        this.sendStatus('waiting', { version: this.lastStatus?.version });
+        if (!this.stopped && this.enabled) this.installTimer = setTimeout(() => { this.installTimer = null; this.install(); }, 1000);
+        return;
+      }
+      this.sendStatus('installing', { version: this.lastStatus?.version });
+      // /S + --force-run: perform a silent installation, then relaunch the app.
+      this.autoUpdater.quitAndInstall(true, true);
+    } catch {
+      if (this.stopped || generation !== this.installGeneration) return;
+      this.installQueued = false;
+      this.sendStatus('error', { message: this.getLanguage?.() === 'en' ? 'Unable to install the update. Please try again.' : '無法安裝更新，請再試一次。', manual: true });
+    }
+  }
+
   stop() {
+    this.stopped = true;
+    this.installGeneration++; this.installQueued = false;
     clearTimeout(this.checkTimer);
     this.checkTimer = null;
+    clearTimeout(this.installTimer); this.installTimer = null;
   }
 }
 

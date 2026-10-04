@@ -6,7 +6,7 @@
   "scripts": {
     "test": "npm run test:unit",
     "test:unit": "node --test scratch/test-translation.cjs scratch/test-trivia-service.cjs scratch/test-zh-trivia.cjs scratch/test-storage-utils.cjs scratch/test-version-utils.cjs scratch/test-sticky-notes-service.cjs scratch/test-natural-language-task.cjs scratch/test-knowledge-cards-service.cjs scratch/test-update-service.cjs scratch/test-layout-utils.cjs scratch/test-calendar-service.cjs scratch/test-email-service.cjs scratch/test-window-layer-controller.cjs scratch/test-startup-visibility.cjs scratch/test-desktop-organizer.cjs",
-    "test:electron": "npm run build && electron scratch/test-drag-simulate.cjs && electron scratch/test-docking.cjs && electron scratch/test-sticky-notes-ui.cjs && electron scratch/test-window-layer-ui.cjs && electron scratch/test-ball-speed-menu.cjs && electron scratch/test-dialogue-layout.cjs && electron scratch/test-sticky-restart.cjs && electron scratch/test-desktop-organizer-ui.cjs && npm run test:organizer-arrangement && npm run test:organizer-visibility && npm run test:organizer-modal && npm run test:organizer-native",
+    "test:electron": "npm run build && electron scratch/test-update-ui.cjs && electron scratch/test-drag-simulate.cjs && electron scratch/test-docking.cjs && electron scratch/test-sticky-notes-ui.cjs && electron scratch/test-window-layer-ui.cjs && electron scratch/test-ball-speed-menu.cjs && electron scratch/test-dialogue-layout.cjs && electron scratch/test-sticky-restart.cjs && electron scratch/test-desktop-organizer-ui.cjs && npm run test:organizer-arrangement && npm run test:organizer-visibility && npm run test:organizer-modal && npm run test:organizer-native",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",

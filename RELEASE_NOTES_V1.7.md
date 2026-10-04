@@ -4,6 +4,7 @@
 - 內部版本：1.7.0
 - 發布日期：2026-10-04
 - 適用平台：Windows x64
+- 同版修訂：更新自動安裝／重啟流程與整理視窗復原功能，完整版本號仍為 1.7.0。
 
 ## 桌面整理工具
 
@@ -30,6 +31,7 @@
 - 「固定位置與大小」改名為「鎖定」；鎖定後隱藏設定按鈕，解鎖後恢復顯示。
 - 改善整理視窗、科技球選單與背景圖片選擇視窗的層級，避免重疊時反覆閃爍。
 - 改善整理視窗重新顯示、最小化還原與移出螢幕後的位置恢復。
+- 新增「桌面整理工具 → 復原整理視窗 → 選擇名稱」，重新建立空白或無法顯示的單一視窗，置於目前螢幕內並保留檔案原路徑、排列、外觀及鎖定設定。
 
 ## 外接螢幕與位置
 
@@ -41,20 +43,22 @@
 
 - Windows 安裝版：`METech-desktop-assistant-Setup-1.7.0.exe`。
 - Windows 免安裝版：`METech-desktop-assistant-Portable-1.7.0.exe`。
-- 已開啟自動更新的安裝版，在下次啟動後約 30 秒檢查並下載新版；亦可點選「檢查更新」，下載完成後重新啟動安裝。
+- 已開啟自動更新的安裝版，在下次啟動後約 30 秒檢查並下載新版；亦可點選「檢查更新」。
+- 本修正版在更新下載完成後，會在小助手、設定及 Windows 通知提示；5 秒後保存設定、自動結束並靜默安裝，完成後自動重新開啟。檔案拖曳中會等待拖曳完成。
+- 已安裝原始 Ver.1.7.0 的使用者需下載本修正版覆蓋安裝一次，因舊程式不會偵測同版本更新。Ver.1.6.0 仍可經原有更新管道取得本修正版，但本次由舊程式控制安裝；完成安裝後，後續更新才使用新的自動安裝／重啟流程。
 - 免安裝版請下載新版手動替換。使用者資料保留於 Windows AppData。
 - 收納於整理視窗的檔案與資料夾保留在原位置，不會打包到安裝檔。
 
 ## 封裝驗證
 
-- 108 項單元測試通過。
+- 單元測試與 Windows Electron 測試涵蓋更新提示、5 秒延遲、靜默安裝及強制重啟參數、設定保存、拖曳等待與重複安裝防護。
 - 桌面整理的多檔拖入、移動、拖出與跨視窗轉移已使用 Windows 原生拖曳測試驗證。
 - 彈出設定、鎖定、外觀保存、圖示及縮圖、最小視窗尺寸與背景圖片選擇視窗重疊測試通過。
 - 核對封裝內 77 個程式、前端與資源檔案，確認包含原生 Windows 輔助程式，且未包含個人設定、文件或測試截圖。
 - 安裝版與免安裝版內嵌的應用程式壓縮檔 SHA-256 相同，確認兩種封裝內容一致。
 - 以封裝內的服務、Preload 與前端，在隔離資料目錄驗證整理視窗、便利貼設定重啟還原及舊版設定搬移。
 - 已驗證自動更新資訊的版本號、安裝檔大小、SHA-512 與 blockmap，另提供 `SHA256SUMS-1.7.0.txt`。
-- 本次產生與發布新版封裝，未覆蓋安裝到目前正在使用的小助手，也未執行實際 Windows 關機／開機測試。
+- 未執行實際 Windows 關機／開機測試。
 - 與前版相同，本次執行檔未使用 Authenticode 程式碼簽章。
 
 ## English
@@ -68,3 +72,5 @@
 - Improved window ordering, file-picker overlap stability and board recovery.
 - Choose the primary or external display for the assistant bottom-right position; display changes trigger repositioning above the taskbar.
 - Installed builds use the existing GitHub Releases update channel. Portable builds require a manual download.
+- Downloaded updates notify you before saving state, automatically installing after five seconds and relaunching; active file drags defer installation.
+- This is a same-version 1.7.0 replacement. Users of the original 1.7.0 must install the replacement once; 1.6.0 can still discover it through the existing update channel. The new automatic-install flow becomes available after the replacement is installed.

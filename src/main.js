@@ -1356,8 +1356,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     ipcRenderer.on('update-status', (event, state = {}) => {
       if (state.status === 'downloaded') {
         say(currentLang === 'en'
-          ? `Version ${state.version} is ready and will install after restart.`
-          : `${state.version} 版已下載完成，重新啟動後會自動安裝。`, 5000);
+          ? `Version ${state.version} downloaded. ${state.autoInstallInSeconds ? `Installing in ${state.autoInstallInSeconds} seconds; the assistant will reopen automatically.` : 'Restart to install.'}`
+          : `${state.version} 版下載完成。${state.autoInstallInSeconds ? `${state.autoInstallInSeconds} 秒後自動安裝，完成後會重新開啟小助手。` : '重新啟動後會自動安裝。'}`, 7000);
+        return;
+      }
+      if (state.status === 'waiting') {
+        say(currentLang === 'en' ? 'Update ready. Installation will begin after your file drag finishes.' : '更新已就緒，檔案拖曳完成後會自動安裝。', 5000);
+        return;
+      }
+      if (state.status === 'error') {
+        say(currentLang === 'en' ? 'The update could not finish. Please check for updates to try again.' : '更新未能完成，請點選「檢查更新」再試一次。', 5000);
         return;
       }
       if (!state.manual) return;

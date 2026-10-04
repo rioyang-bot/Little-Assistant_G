@@ -1119,6 +1119,7 @@
     const checkUpdatesNow = document.getElementById('check-updates-now');
     const updateStatus = document.getElementById('update-status');
     let updateReadyToInstall = false;
+    let currentUpdateState = null;
     const btnTestAllCal = document.getElementById('btn-test-all-cal');
     const btnCheckCalNow = document.getElementById('btn-check-cal-now');
 
@@ -1808,9 +1809,10 @@
       document.getElementById('focus-mode-label').innerHTML = `<strong>${lang === 'en' ? '🎯 Do Not Disturb / Focus mode' : '🎯 勿擾／專注模式'}</strong>`;
       document.getElementById('focus-mode-tip').textContent = lang === 'en' ? 'Pauses email, calendar, wellness and trivia alerts. Explicit sticky-note alarms still ring.' : '啟用時暫停郵件、行事曆、健康與生活資訊提醒，便利貼鬧鐘仍會響起。';
       document.getElementById('auto-update-label').innerHTML = `<strong>${lang === 'en' ? '🔄 Automatic updates' : '🔄 自動更新'}</strong>`;
-      document.getElementById('auto-update-tip').textContent = lang === 'en' ? 'The installed app checks GitHub Releases and downloads new versions automatically.' : '安裝版會從 GitHub Releases 自動檢查並下載新版本。';
+      document.getElementById('auto-update-tip').textContent = lang === 'en' ? 'The installed app checks and downloads updates, then notifies you before automatically installing and restarting.' : '安裝版會自動檢查並下載更新，下載完成後提示，再自動安裝並重新開啟。';
       focusApply.textContent = lang === 'en' ? 'Apply' : '套用';
       checkUpdatesNow.textContent = lang === 'en' ? 'Check now' : '立即檢查';
+      if (currentUpdateState) renderUpdateStatus(currentUpdateState);
       [...focusDuration.options].forEach((option, index) => { option.textContent = (lang === 'en' ? ['Off', '30 minutes', '1 hour', '2 hours', 'Until 8:00 AM tomorrow'] : ['關閉', '30 分鐘', '1 小時', '2 小時', '到明天上午 8:00'])[index]; });
       document.getElementById('shortcut-section-tip').textContent = extra.shortcutTip;
       document.getElementById('shortcut-settings-empty').textContent = extra.empty;
@@ -2720,6 +2722,7 @@
 
         focusDuration.value = focusState?.active ? '30' : '0';
         autoUpdateEnabledCheck.checked = updateSettings?.enabled !== false;
+        if (updateSettings?.state) renderUpdateStatus(updateSettings.state);
 
         if (panelOpacity) {
           // The stored/CSS value is opacity, while the setting shown to users is transparency.
@@ -3216,24 +3219,31 @@
       ipc.on('focus-mode-updated', (event, state = {}) => {
         focusDuration.value = state.active ? '30' : '0';
       });
-      ipc.on('update-status', (event, state = {}) => {
+      ipc.on('update-status', (event, state = {}) => renderUpdateStatus(state));
+    }
+
+    function renderUpdateStatus(state = {}) {
+        currentUpdateState = state;
         const en = currentLanguage === 'en';
         const messages = {
           checking: en ? 'Checking for updates…' : '正在檢查更新…',
           available: en ? `Version ${state.version} is available and downloading.` : `已找到 ${state.version} 版，正在下載。`,
           current: en ? 'You already have the latest version.' : '目前已是最新版本。',
           downloading: en ? `Downloading… ${state.percent || 0}%` : `正在下載… ${state.percent || 0}%`,
-          downloaded: en ? `Version ${state.version} is ready. Restart to install.` : `${state.version} 版已就緒，可立即重新啟動安裝。`,
+          downloaded: en
+            ? `Version ${state.version} downloaded. ${state.autoInstallInSeconds ? `Installation starts in ${state.autoInstallInSeconds} seconds; the assistant will reopen automatically.` : 'Restart to install.'}`
+            : `${state.version} 版下載完成。${state.autoInstallInSeconds ? `${state.autoInstallInSeconds} 秒後自動安裝，完成後會重新開啟小助手。` : '可立即重新啟動安裝。'}`,
+          waiting: en ? 'Update ready. Waiting for the file drag to finish.' : '更新已就緒，等待檔案拖曳完成後自動安裝。',
+          installing: en ? 'Installing the update. The assistant will reopen automatically.' : '正在安裝更新，完成後會自動重新開啟小助手。',
           development: en ? 'Update checks run only in the installed app.' : '僅安裝版會檢查更新。',
           portable: en ? 'Automatic updates are unavailable in the portable edition.' : '免安裝版不支援自動更新。',
           error: en ? `Update check failed: ${state.message || ''}` : `更新檢查失敗：${state.message || ''}`
         };
         updateStatus.textContent = messages[state.status] || '';
-        updateReadyToInstall = state.status === 'downloaded';
+        updateReadyToInstall = ['downloaded', 'waiting'].includes(state.status);
         checkUpdatesNow.textContent = updateReadyToInstall
           ? (en ? 'Restart and install' : '重新啟動並安裝')
           : (en ? 'Check now' : '立即檢查');
-      });
     }
 
     applyLanguage('zh-TW');

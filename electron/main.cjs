@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, screen, ipcMain, nativeImage, dialog, shell, clipboard } = require('electron');
+const { app, BrowserWindow, Tray, Menu, screen, ipcMain, nativeImage, dialog, shell, clipboard, Notification } = require('electron');
 const path = require('path');
 const { EmailService } = require('./email-service.cjs');
 const { DesktopOrganizer } = require('./desktop-organizer.cjs');
@@ -40,6 +40,7 @@ let knowledgeCardsService = null;
 let stickyNotesService = null;
 let alarmService = null;
 let updateService = null;
+let updateNotification = null;
 let tray = null;
 let currentSizeKey = 'std';
 let currentBubbleFontSize = 'std';
@@ -1054,7 +1055,7 @@ function createPetWindow() {
     return { success: true, ...getFocusModeState() };
   });
 
-  ipcMain.handle('get-update-settings', () => ({ enabled: autoUpdateEnabled }));
+  ipcMain.handle('get-update-settings', () => ({ enabled: autoUpdateEnabled, state: updateService?.getStatus() || null }));
   ipcMain.handle('set-update-settings', (event, input = {}) => {
     autoUpdateEnabled = input.enabled !== false;
     updateService?.setEnabled(autoUpdateEnabled);
@@ -1424,6 +1425,19 @@ function updateTrayMenu() {
       submenu: [
         { label: currentLanguage === 'en' ? 'New organizer window' : '新增整理視窗', click: () => desktopOrganizer?.create() },
         { label: currentLanguage === 'en' ? 'Show all organizer windows' : '顯示所有整理視窗', enabled: !!desktopOrganizer?.boards.length, click: () => desktopOrganizer?.restore() },
+        {
+          label: currentLanguage === 'en' ? 'Recover organizer window' : '復原整理視窗',
+          enabled: !!desktopOrganizer?.boards.length,
+          submenu: (desktopOrganizer?.boards || []).map(board => ({
+            label: board.title,
+            click: async () => {
+              try { await desktopOrganizer.recover(board); }
+              catch {
+                dialog.showMessageBox({ type: 'error', message: currentLanguage === 'en' ? 'Unable to recover this organizer window. Finish any file drag and try again.' : '無法復原整理視窗，請先完成檔案拖曳，再試一次。' });
+              }
+            }
+          }))
+        },
         ...(desktopOrganizer?.boards || []).map(board => ({ label: board.title, click: () => desktopOrganizer.show(board) }))
       ]
     },
@@ -1845,7 +1859,7 @@ function positionSettingsWindowOnAssistantDisplay() {
 
 // Set application identity
 app.name = 'METechAssistant';
-app.setAppUserModelId('com.metech.assistant');
+app.setAppUserModelId('com.metech.bear.desktop.assistant');
 
 // Prevent multiple instances of the assistant app
 const gotTheLock = app.requestSingleInstanceLock();
@@ -1885,8 +1899,25 @@ if (!gotTheLock) {
     updateService = new UpdateService({
       app,
       autoUpdater,
-      getWindow: () => settingsWindow && !settingsWindow.isDestroyed() ? settingsWindow : mainWindow,
-      getLanguage: () => currentLanguage
+      getWindows: () => [mainWindow, settingsWindow],
+      getLanguage: () => currentLanguage,
+      notifyDownloaded: ({ version, autoInstallInSeconds }) => {
+        if (!Notification.isSupported()) return;
+        updateNotification = new Notification({
+          title: currentLanguage === 'en' ? 'METech Assistant update' : 'METech小助手更新',
+          body: currentLanguage === 'en'
+            ? `Version ${version} downloaded. ${autoInstallInSeconds ? `Installation starts in ${autoInstallInSeconds} seconds and the assistant will reopen automatically.` : 'Open Settings to restart and install.'}`
+            : `${version} 版下載完成。${autoInstallInSeconds ? `${autoInstallInSeconds} 秒後自動結束並安裝，完成後會重新開啟小助手。` : '可從設定重新啟動並安裝。'}`,
+          silent: true
+        });
+        updateNotification.show();
+      },
+      beforeInstall: () => {
+        if (desktopOrganizer?.activeDrag) return false;
+        desktopOrganizer?.save();
+        savePetPreferences();
+        return true;
+      }
     });
 
     if (emailService.config && emailService.config.language) {

@@ -9,7 +9,9 @@ const RELEASE_NOTES = {
       '可自訂視窗底色、背景圖片、圖案與透明度，以及檔名文字、標題列底色與標題列文字顏色。',
       '設定改為獨立彈出視窗，支援即時外觀預覽、儲存與取消；鎖定後隱藏設定按鈕，解鎖後恢復。',
       '改善最下層視窗、科技球右鍵選單與背景圖片選擇視窗的層級，避免重疊閃爍並恢復未顯示的整理視窗。',
-      '可選擇小助手固定在主螢幕或外接螢幕右下角，接上或移除螢幕時重新校正位置並避開工作列。'
+      '可選擇小助手固定在主螢幕或外接螢幕右下角，接上或移除螢幕時重新校正位置並避開工作列。',
+      '更新下載完成後提示，5 秒後自動保存、結束及安裝，完成後重新開啟小助手；檔案拖曳中會等待完成。',
+      '新增「復原整理視窗」，可重建未顯示的單一視窗，保留原檔案路徑、排列、背景及鎖定設定。'
     ],
     en: [
       'Added desktop organizers: create, show and manage multiple boards from the technology-ball context menu.',
@@ -20,7 +22,9 @@ const RELEASE_NOTES = {
       'Customize board backgrounds, images, patterns and opacity, filename colors, title-bar backgrounds and title text colors.',
       'Settings now open in a separate popup with live appearance previews, Save and Cancel; locking hides Settings until unlocked.',
       'Improved window ordering for desktop boards, technology-ball menus and background pickers, preventing overlap flicker and recovering hidden boards.',
-      'Choose the primary or external display for the assistant bottom-right position; display connections and disconnections trigger repositioning above the taskbar.'
+      'Choose the primary or external display for the assistant bottom-right position; display connections and disconnections trigger repositioning above the taskbar.',
+      'Downloaded updates notify you, then save state, quit and install after five seconds, automatically relaunching the assistant; active file drags delay installation.',
+      'Added Recover organizer window to recreate a missing board while preserving original paths, positions, appearance and locking.'
     ]
   },
   '1.6.0': {
