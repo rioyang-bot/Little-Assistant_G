@@ -7,7 +7,8 @@ const archive = path.resolve(process.argv[2] || path.join(root, 'release/win-unp
 const names = asar.listPackage(archive).map(name => name.replace(/^[\\/]+/, '').replace(/\\/g, '/'));
 const pkg = JSON.parse(asar.extractFile(archive, 'package.json'));
 assert.equal(pkg.version, require('../package.json').version);
-assert.equal(pkg.version, '1.7.0');
+const expectedVersion = require('../package.json').version;
+assert.equal(pkg.version, expectedVersion);
 assert.equal(pkg.main, 'electron/main.cjs');
 for (const name of names) {
   assert.ok(!/^(scratch|\.snapshots|\.git)(\/|$)/.test(name), `Development artifact: ${name}`);
@@ -26,7 +27,7 @@ for (const name of checked) {
   assert.ok(asar.extractFile(archive, path.normalize(name)).equals(fs.readFileSync(path.join(root, name))), `Outdated packaged file: ${name}`);
 }
 const settings = asar.extractFile(archive, 'dist/email-settings.html').toString();
-assert.ok(settings.includes('Ver.1.7.0'));
+assert.ok(settings.includes(`Ver.${expectedVersion}`));
 assert.ok(!settings.includes('Ver.1.6.0'));
 for (const name of files('electron').filter(name => name.endsWith('.ps1'))) {
   assert.ok(fs.existsSync(path.join(archive + '.unpacked', name)), `Native helper must be unpacked: ${name}`);

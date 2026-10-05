@@ -1,4 +1,14 @@
 const RELEASE_NOTES = {
+  '1.7.1': {
+    'zh-TW': [
+      '按下 Windows「顯示桌面」（Win+D 或工作列右下角）時，置底模式的小助手與桌面整理視窗會保留在桌面上；回到其他視窗後恢復置底。',
+      '本版起自動更新會先驗證 METech 更新簽章才安裝；安裝至 Program Files，更新時需要一次 Windows 管理員確認。'
+    ],
+    en: [
+      'Windows Show desktop (Win+D or the taskbar corner) now keeps the bottom-mode assistant and desktop organizers visible on the desktop; they return below other windows afterwards.',
+      'Automatic updates are now installed only after the METech update signature is verified; the app installs under Program Files and each update needs one Windows administrator confirmation.'
+    ]
+  },
   '1.7.0': {
     'zh-TW': [
       '安全性修訂：修正鬧鐘音效可執行指令、設定頁取得郵件密碼等問題，加入頁面安全原則，之後的自動更新須通過 METech 簽章驗證。',
