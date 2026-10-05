@@ -134,7 +134,8 @@ test('app windows may only navigate to pages inside the application', () => {
   const source = fs.readFileSync(path.join(root, 'electron/main.cjs'), 'utf8');
   const start = source.indexOf('function isAppPageUrl(');
   const context = { path, fileURLToPath: require('node:url').fileURLToPath, URL, __dirname: path.join(root, 'electron') };
-  vm.runInNewContext(source.slice(start, source.indexOf('\n}\n', start) + 3), context);
+  const end = source.slice(start).search(/\r?\n\}\r?\n/);
+  vm.runInNewContext(source.slice(start, start + end) + '\n}\n', context);
   const { pathToFileURL } = require('node:url');
   assert.equal(context.isAppPageUrl(pathToFileURL(path.join(root, 'dist/email-settings.html')).href), true);
   assert.equal(context.isAppPageUrl('https://evil.example/'), false);

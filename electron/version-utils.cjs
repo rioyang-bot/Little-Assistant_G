@@ -1,6 +1,8 @@
 const RELEASE_NOTES = {
   '1.7.0': {
     'zh-TW': [
+      '安全性修訂：修正鬧鐘音效可執行指令、設定頁取得郵件密碼等問題，加入頁面安全原則，之後的自動更新須通過 METech 簽章驗證。',
+      '改為安裝至 Program Files（所有使用者）；桌面整理工具開機時不再要求管理員權限。',
       '總覽設定新增「小助手設定」頁簽，集中顯示層級、位置、助手與便利貼尺寸、對話字體及球體速度，沿用既有設定並即時保存。',
       '右鍵選單將桌面整理工具放在勿擾模式上方，只保留小助手名稱下方的分隔線；語言與冷知識／笑話改由總覽設定操作。',
       '新增選用的桌面捷徑一次授權與背景輔助程序，修正再次設定權限時的 Replace 路徑格式錯誤；靜默更新保留既有權限設定。',
@@ -17,6 +19,8 @@ const RELEASE_NOTES = {
       '新增「復原整理視窗」，可重建未顯示的單一視窗，保留原檔案路徑、排列、背景及鎖定設定。'
     ],
     en: [
+      'Security revision: fixed command execution through alarm sounds and email password exposure to the settings page, added a Content Security Policy, and later automatic updates must pass a METech signature check.',
+      'Now installs for all users under Program Files; desktop organizers no longer ask for administrator rights at startup.',
       'Added an Assistant settings tab for display layers, position, assistant/sticky-note sizes, dialogue fonts and globe speed; existing settings are retained and changes save immediately.',
       'Moved Desktop organizer above Focus mode and kept only the separator below the assistant name; language and trivia controls remain in Overview Settings.',
       'Added optional one-time shortcut attribute authorization and a background helper; fixed the File.Replace pathname error during repeated setup. Silent updates preserve existing permission settings.',

@@ -6,6 +6,26 @@
 - 同版修訂發布日期：2026-10-05；重新封裝並更新 GitHub Release 與自動更新管道。
 - 適用平台：Windows x64
 - 同版修訂：新增總覽設定的「小助手設定」頁簽；保留自動安裝／重啟流程、整理視窗復原、桌面捷徑一次授權及選用背景輔助程序，完整版本號仍為 1.7.0。
+- 同版安全性修訂（2026-10-05 第二次）：修正多項安全性問題，改為安裝至 Program Files，桌面整理工具開機不再要求管理員權限，並加入更新簽章驗證；完整版本號仍為 1.7.0，已安裝者需手動安裝一次。
+
+## 安全性修訂
+
+- 修正鬧鐘自訂音效或網址可被用來執行 PowerShell 指令的問題；自訂音效僅接受音訊檔。
+- 每個視窗只能使用自己所需的內部功能；瀏覽器設定不再接受命令列程式，應用程式捷徑須由檔案選擇視窗選取。
+- 郵件設定頁不再取得已儲存的密碼；變更伺服器、連接埠、帳號或加密方式時須重新輸入密碼，並檢查伺服器與連接埠格式。
+- 私人 iCal 網址改為加密儲存；系統無法加密時，不再以可還原的編碼儲存密碼。
+- 行事曆顏色只接受 `#RRGGBB` 格式；行事曆重新導向必須維持 https。
+- 新增頁面內容安全原則（CSP），禁止前往外部網站或開啟程式內新視窗；網頁連結改由預設瀏覽器開啟。
+- YouTube 鬧鐘不再於執行時下載遠端元件。
+- 自動更新改為先驗證 METech 更新簽章才安裝，結束程式時不再自動安裝；此保護自下一個版本的更新開始生效。
+
+## 安裝位置與管理員權限
+
+- 改為安裝至 `C:\Program Files\METech-desktop-assistant`（所有使用者），安裝目錄不可變更；安裝及之後每次更新需要 Windows 管理員確認一次。
+- 安裝時自動移除舊的個人安裝版本（`%LOCALAPPDATA%\Programs`），保留設定、整理視窗與背景輔助程序。
+- 桌面整理工具在開機及自動同步時不再要求管理員權限；遇到受保護的捷徑時顯示提示，可安裝背景輔助程序或一次授權捷徑，完成後開機不需再確認。
+- 安裝程式預設建議安裝背景輔助程序；從一般帳號可寫入的位置執行時，會拒絕需要管理員權限的設定。
+- 更新時若拒絕管理員確認，小助手會以原版本自動重新開啟。
 
 ## 總覽設定與選單
 
@@ -66,7 +86,8 @@
 - 統一只提供上述安裝檔；移除免安裝版、重複中文檔名及 ZIP 封裝，後續也只產生 NSIS 安裝版。
 - 已開啟自動更新的安裝版，在下次啟動後約 30 秒檢查並下載新版；亦可點選「檢查更新」。
 - 本修正版在更新下載完成後，會在小助手、設定及 Windows 通知提示；5 秒後保存設定、自動結束並靜默安裝，完成後自動重新開啟。檔案拖曳中會等待拖曳完成。
-- 本次以完整版本號 1.7.0 更新公開發布與自動更新檔案。已安裝舊 1.7.0 的使用者需手動覆蓋安裝一次；低於 1.7.0 的安裝版可透過既有自動更新管道取得。維持原本安裝目錄可避免產生第二份安裝。
+- 本次以完整版本號 1.7.0 更新公開發布與自動更新檔案。已安裝任何 1.7.0 版本的使用者需手動安裝一次；低於 1.7.0 的安裝版可透過既有自動更新管道取得。之後的版本將以經簽章驗證的自動更新提供。
+- 安裝目錄固定於 Program Files；舊的個人安裝版本會在安裝時自動移除，不會產生第二份安裝。
 - 原免安裝版使用者請改用安裝版。使用者資料保留於 Windows AppData。
 - 收納於整理視窗的檔案與資料夾保留在原位置，不會打包到安裝檔。
 
@@ -83,10 +104,18 @@
 - 已驗證自動更新資訊的版本號、安裝檔大小、SHA-512 與 blockmap，另提供 `SHA256SUMS-1.7.0.txt`。
 - 未執行實際 Windows 關機／開機測試。
 - 與前版相同，本次執行檔未使用 Authenticode 程式碼簽章。
+- 安全性修訂：159 項單元測試通過；以封裝後的程式碼在隔離資料目錄實際啟動，43 項視窗權限、內容安全原則與頁面跳轉檢查通過，包含阻擋插入的腳本及外部網站。
+- 安全性修訂：核對封裝內 85 個程式、前端與資源檔與原始碼一致，未包含個人設定或簽章私鑰；更新資訊含管理員權限需求與 METech 更新簽章，並以內建公鑰驗證通過。
+- 安全性修訂尚未執行：實際安裝至 Program Files 及移除舊個人安裝版、更新時拒絕管理員確認後的重新開啟、背景輔助程序的 SYSTEM 整合測試，以及會修改實際桌面的原生圖示測試。
 
 ## English
 
 - Release revision: October 5, 2026. Full version remains 1.7.0; GitHub Release assets and the automatic-update channel are updated with this build.
+- Security revision (second same-version revision, October 5, 2026): fixed PowerShell command injection through alarm sounds, restricted each window to its own IPC channels, stopped returning saved email passwords to the settings page, encrypted private iCal addresses, added a Content Security Policy and navigation guard, and stopped downloading remote yt-dlp components. Users who already installed any 1.7.0 build must install this build once manually.
+- The app now installs for all users under `C:\Program Files\METech-desktop-assistant` (fixed directory); installation and each later update need one Windows administrator confirmation. An earlier per-user installation is removed automatically while settings, boards and the background helper are kept. If the update confirmation is declined, the assistant reopens on the current version.
+- Desktop organizers no longer ask for administrator rights at startup; protected shortcuts show a hint to install the background helper or grant shortcuts once. The installer recommends the helper by default.
+- Later updates are installed only after their METech update signature is verified; installing on exit is disabled.
+- Security revision verification: 159 unit tests and 43 isolated launch checks of the packaged code (window permissions, CSP, navigation blocking) passed; the package matches the source and contains no user data or signing private key. Not yet run: a real Program Files installation over a per-user install, declining the update confirmation, SYSTEM helper integration and native tests that modify the real desktop. The executable is still not Authenticode-signed.
 - Added an Assistant settings tab for display layers, dragging, primary/external monitor selection, position reset, assistant/sticky-note sizes, dialogue font size and globe speed. Existing preferences are preserved; changes apply and save immediately, and mouse-wheel speed adjustments stay synchronized.
 - Removed the migrated controls and duplicate language/trivia entries from the context menu. Language and trivia controls remain in Overview Settings. The new tab supports Chinese, English and narrower window layouts.
 - Put the assistant name first and Desktop organizer directly above Focus mode; the main menu retains only the separator below the assistant name.
