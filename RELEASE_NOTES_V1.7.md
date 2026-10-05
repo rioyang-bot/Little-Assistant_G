@@ -132,4 +132,4 @@
 - Choose the primary or external display for the assistant bottom-right position; display changes trigger repositioning above the taskbar.
 - Only the NSIS installer is distributed and built going forward; portable executables, duplicate Chinese filenames and ZIP packages are removed. Existing portable users should switch to the installer. Installed builds use the existing GitHub Releases update channel.
 - Downloaded updates notify you before saving state, automatically installing after five seconds and relaunching; active file drags defer installation.
-- Existing 1.7.0 installations require one manual replacement installation into the original directory; installed versions below 1.7.0 can obtain this build through the automatic-update channel.
+- Existing 1.7.0 installations require one manual installation of this build, which installs into Program Files and removes an earlier per-user copy; installed versions below 1.7.0 can obtain this build through the automatic-update channel.
