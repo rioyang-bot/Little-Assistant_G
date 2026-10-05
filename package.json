@@ -5,7 +5,7 @@
   "main": "electron/main.cjs",
   "scripts": {
     "test": "npm run test:unit",
-    "test:unit": "node --test scratch/test-translation.cjs scratch/test-trivia-service.cjs scratch/test-zh-trivia.cjs scratch/test-storage-utils.cjs scratch/test-version-utils.cjs scratch/test-sticky-notes-service.cjs scratch/test-natural-language-task.cjs scratch/test-knowledge-cards-service.cjs scratch/test-update-service.cjs scratch/test-layout-utils.cjs scratch/test-calendar-service.cjs scratch/test-email-service.cjs scratch/test-window-layer-controller.cjs scratch/test-startup-visibility.cjs scratch/test-desktop-organizer.cjs scratch/test-desktop-icon-permissions.cjs",
+    "test:unit": "node --test scratch/test-translation.cjs scratch/test-trivia-service.cjs scratch/test-zh-trivia.cjs scratch/test-storage-utils.cjs scratch/test-version-utils.cjs scratch/test-sticky-notes-service.cjs scratch/test-natural-language-task.cjs scratch/test-knowledge-cards-service.cjs scratch/test-update-service.cjs scratch/test-layout-utils.cjs scratch/test-calendar-service.cjs scratch/test-email-service.cjs scratch/test-window-layer-controller.cjs scratch/test-startup-visibility.cjs scratch/test-desktop-organizer.cjs scratch/test-desktop-icon-permissions.cjs scratch/test-release-cleanup.cjs",
     "test:electron": "npm run build && electron scratch/test-update-ui.cjs && electron scratch/test-drag-simulate.cjs && electron scratch/test-docking.cjs && electron scratch/test-sticky-notes-ui.cjs && electron scratch/test-window-layer-ui.cjs && electron scratch/test-ball-speed-menu.cjs && electron scratch/test-dialogue-layout.cjs && electron scratch/test-sticky-restart.cjs && electron scratch/test-desktop-organizer-ui.cjs && npm run test:organizer-arrangement && npm run test:organizer-visibility && npm run test:organizer-modal && npm run test:organizer-native",
     "test:assistant-settings": "electron scratch/test-ball-speed-menu.cjs",
     "dev": "vite",
@@ -15,9 +15,9 @@
     "desktop": "vite build && electron electron/main.cjs",
     "electron": "electron electron/main.cjs",
     "pack": "vite build && electron-builder --dir",
-    "dist": "vite build && electron-builder --win",
-    "dist:portable": "vite build && electron-builder --win portable",
-    "dist:nsis": "vite build && electron-builder --win nsis",
+    "dist": "vite build && electron-builder --win nsis",
+    "postdist": "node build/clean-release-artifacts.cjs",
+    "dist:nsis": "npm run dist",
     "test:organizer-native": "npm run test:desktop-icons && npm run test:desktop-icons:pipe && npm run test:organizer-shell && powershell.exe -NoProfile -NonInteractive -STA -ExecutionPolicy Bypass -File scratch/test-windows-file-drag.ps1 && npm run test:organizer-return && npm run test:organizer-gesture && npm run test:organizer-gesture:auto && npm run test:organizer-gesture:grid && npm run test:organizer-transfer && npm run test:organizer-context && npm run test:organizer-inbound && npm run test:organizer-inbound:auto && npm run test:organizer-batch",
     "test:desktop-icons": "node scratch/test-desktop-icons.cjs",
     "test:desktop-icons:pipe": "node scratch/test-desktop-icons.cjs --pipe",
@@ -65,8 +65,7 @@
     ],
     "win": {
       "target": [
-        "nsis",
-        "portable"
+        "nsis"
       ],
       "icon": "assets/icon.png"
     },
@@ -85,9 +84,6 @@
         "zh_TW",
         "en_US"
       ]
-    },
-    "portable": {
-      "artifactName": "METech-desktop-assistant-Portable-${version}.${ext}"
     }
   },
   "keywords": [

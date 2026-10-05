@@ -63,11 +63,11 @@
 ## 安裝與自動更新
 
 - Windows 安裝版：`METech-desktop-assistant-Setup-1.7.0.exe`。
-- Windows 免安裝版：`METech-desktop-assistant-Portable-1.7.0.exe`。
+- 統一只提供上述安裝檔；移除免安裝版、重複中文檔名及 ZIP 封裝，後續也只產生 NSIS 安裝版。
 - 已開啟自動更新的安裝版，在下次啟動後約 30 秒檢查並下載新版；亦可點選「檢查更新」。
 - 本修正版在更新下載完成後，會在小助手、設定及 Windows 通知提示；5 秒後保存設定、自動結束並靜默安裝，完成後自動重新開啟。檔案拖曳中會等待拖曳完成。
 - 本次以完整版本號 1.7.0 更新公開發布與自動更新檔案。已安裝舊 1.7.0 的使用者需手動覆蓋安裝一次；低於 1.7.0 的安裝版可透過既有自動更新管道取得。維持原本安裝目錄可避免產生第二份安裝。
-- 免安裝版請下載新版手動替換。使用者資料保留於 Windows AppData。
+- 原免安裝版使用者請改用安裝版。使用者資料保留於 Windows AppData。
 - 收納於整理視窗的檔案與資料夾保留在原位置，不會打包到安裝檔。
 
 ## 封裝驗證
@@ -78,7 +78,7 @@
 - 桌面整理的多檔拖入、移動、拖出與跨視窗轉移已使用 Windows 原生拖曳測試驗證。
 - 彈出設定、鎖定、外觀保存、圖示及縮圖、最小視窗尺寸與背景圖片選擇視窗重疊測試通過。
 - 核對封裝內 80 個程式、前端與資源檔案，確認包含原生 Windows 輔助程式，且未包含個人設定、文件或測試截圖。
-- 安裝版與免安裝版內嵌的應用程式壓縮檔 SHA-256 相同，確認兩種封裝內容一致。
+- 核對實際安裝檔內嵌的應用程式內容，確認與已驗證的程式、前端及資源一致。
 - 以封裝內的服務、Preload 與前端，在隔離資料目錄驗證整理視窗、便利貼設定重啟還原及舊版設定搬移。
 - 已驗證自動更新資訊的版本號、安裝檔大小、SHA-512 與 blockmap，另提供 `SHA256SUMS-1.7.0.txt`。
 - 未執行實際 Windows 關機／開機測試。
@@ -101,6 +101,6 @@
 - Settings open in a separate popup with live previews, Save and Cancel; locking hides Settings until unlocked.
 - Improved window ordering, file-picker overlap stability and board recovery.
 - Choose the primary or external display for the assistant bottom-right position; display changes trigger repositioning above the taskbar.
-- Installed builds use the existing GitHub Releases update channel. Portable builds require a manual download.
+- Only the NSIS installer is distributed and built going forward; portable executables, duplicate Chinese filenames and ZIP packages are removed. Existing portable users should switch to the installer. Installed builds use the existing GitHub Releases update channel.
 - Downloaded updates notify you before saving state, automatically installing after five seconds and relaunching; active file drags defer installation.
 - Existing 1.7.0 installations require one manual replacement installation into the original directory; installed versions below 1.7.0 can obtain this build through the automatic-update channel.

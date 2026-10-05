@@ -8,7 +8,6 @@ const dir = path.resolve(process.argv[2] || path.join(__dirname, '../release'));
 const metadata = yaml.load(fs.readFileSync(path.join(dir, 'latest.yml'), 'utf8'));
 assert.equal(metadata.version, pkg.version);
 const setupName = `METech-desktop-assistant-Setup-${pkg.version}.exe`;
-const portableName = `METech-desktop-assistant-Portable-${pkg.version}.exe`;
 assert.equal(metadata.path, setupName);
 assert.equal(metadata.files.length, 1);
 assert.equal(metadata.files[0].url, setupName);
@@ -18,16 +17,15 @@ assert.equal(metadata.sha512, sha512);
 assert.equal(metadata.files[0].sha512, sha512);
 assert.equal(metadata.files[0].size, setup.length);
 assert.ok(fs.statSync(path.join(dir, setupName + '.blockmap')).size > 0);
-assert.ok(fs.statSync(path.join(dir, portableName)).size > 0);
 const updateConfig = yaml.load(fs.readFileSync(path.join(dir, 'win-unpacked/resources/app-update.yml'), 'utf8'));
 assert.equal(updateConfig.provider, 'github');
 assert.equal(updateConfig.owner, pkg.build.publish[0].owner);
 assert.equal(updateConfig.repo, pkg.build.publish[0].repo);
-const sums = [setupName, portableName].map(name => {
+const sums = [setupName].map(name => {
   const bytes = fs.readFileSync(path.join(dir, name));
   const digest = crypto.createHash('sha256').update(bytes).digest('hex');
   console.log(`${name}: ${bytes.length} bytes, SHA-256 ${digest}`);
   return `${digest}  ${name}`;
 });
 fs.writeFileSync(path.join(dir, `SHA256SUMS-${pkg.version}.txt`), sums.join('\n') + '\n');
-console.log(`Update version ${metadata.version}, setup size/hash, blockmap, portable and GitHub provider verified.`);
+console.log(`Update version ${metadata.version}, setup size/hash, blockmap and GitHub provider verified.`);
