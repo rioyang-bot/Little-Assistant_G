@@ -2,6 +2,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 const { randomUUID } = require('crypto');
 const { getNativeScriptPath } = require('./organizer-files.cjs');
+const { readBroker } = require('./desktop-icon-permissions.cjs');
 
 // Keep file paths intact. The native service journals only the attribute bits
 // it adds and restores them when the owner exits, including an owner crash.
@@ -10,9 +11,14 @@ class DesktopIconVisibility {
     this.journal = path.join(userDir, 'desktop-icon-visibility.json');
     this.desktopDirectory = desktopDirectory;
     this.pending = new Map();
-    this.allowElevation = options.allowElevation !== false;
+    this.allowElevation = options.allowElevation !== false && !process.argv.includes('--no-icon-elevation');
     this.pipeTransport = options.pipeTransport === true;
     this.onStatus = options.onStatus || (() => {});
+    this.broker = this.allowElevation && options.allowBroker !== false ? readBroker(userDir) : null;
+    this.useBroker = this.broker?.enabled === true;
+    if (this.broker && !this.useBroker) {
+      try { this.useBroker = JSON.parse(require('node:fs').readFileSync(path.join(this.broker.root, this.broker.sid, 'visibility.json'), 'utf8')).length > 0; } catch {}
+    }
     this.operations = Promise.resolve();
   }
   prepare() {
@@ -22,16 +28,17 @@ class DesktopIconVisibility {
       const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-File',
         getNativeScriptPath('windows-desktop-icons.ps1'), '-JournalPath', this.journal,
         '-OwnerPid', String(process.pid), '-DesktopDirectory', this.desktopDirectory,
-        this.elevated ? '-ElevateWorker' : this.pipeTransport ? '-PipeWorker' : '-LaunchWorker'],
+        ...(this.useBroker ? ['-ScheduledWorker', '-TaskName', this.broker.taskName, '-RequestPath', this.broker.requestFile] : [this.elevated ? '-ElevateWorker' : this.pipeTransport ? '-PipeWorker' : '-LaunchWorker'])],
       { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
       this.child = child;
       let buffer = '', diagnostics = '';
-      let timer = setTimeout(() => { child.kill(); reject(new Error('桌面圖示服務尚未就緒。')); }, 15000);
+      let timer = setTimeout(() => { child.kill(); const error = new Error('桌面圖示服務尚未就緒。'); error.brokerFailed = this.useBroker; reject(error); }, 15000);
       child.stderr.on('data', chunk => { diagnostics = (diagnostics + chunk).slice(-1000); });
       const failed = (code, signal) => {
         if (this.child !== child) return;
         clearTimeout(timer); this.child = null; this.ready = null;
         const error = new Error(`桌面圖示服務已停止（${code ?? signal ?? '啟動失敗'}）。${diagnostics}`);
+        error.brokerFailed = this.useBroker;
         error.requiresElevation = this.requiresElevation;
         reject(error);
         for (const task of this.pending.values()) { clearTimeout(task.timer); task.reject(error); }
@@ -51,9 +58,11 @@ class DesktopIconVisibility {
           } else if (message.ready) {
             this.workerPid = message.workerPid; this.workerIsElevated = message.elevated;
             this.requiresElevation = false; clearTimeout(timer); resolve();
+            if (this.useBroker) { try { require('node:fs').writeFileSync(this.journal, '[]', 'utf8'); } catch {} }
           } else if (message.ready === false) {
             this.requiresElevation = message.requiresElevation === true;
             const error = new Error(message.error); error.requiresElevation = this.requiresElevation;
+            error.brokerFailed = this.useBroker;
             clearTimeout(timer); reject(error);
           }
           else if (this.pending.has(message.id)) {
@@ -81,6 +90,12 @@ class DesktopIconVisibility {
     const result = this.operations.then(async () => {
       let response, failure;
       try { response = await this.request(command, input); } catch (error) { failure = error; }
+      if (failure?.brokerFailed && !this.disposed) {
+        await this.stopWorker();
+        this.useBroker = false; this.elevationAttempted = true;
+        response = await this.request(command, input); failure = null;
+        response = [...response, '背景圖示程序未啟動，請從「桌面圖示權限」重新安裝背景程序。'];
+      }
       if ((this.requiresElevation || failure?.requiresElevation) && this.allowElevation && !this.elevationAttempted && !this.disposed) {
         this.elevationAttempted = true;
         try { this.onStatus('部分桌面捷徑需要管理員權限，請在 Windows 確認視窗按「是」。'); } catch { /* A closing window must not prevent icon recovery. */ }

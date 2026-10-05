@@ -2,6 +2,7 @@ const { app, BrowserWindow, Tray, Menu, screen, ipcMain, nativeImage, dialog, sh
 const path = require('path');
 const { EmailService } = require('./email-service.cjs');
 const { DesktopOrganizer } = require('./desktop-organizer.cjs');
+const { DesktopIconPermissions, readBroker } = require('./desktop-icon-permissions.cjs');
 const { CalendarService } = require('./calendar-service.cjs');
 const { TriviaService } = require('./trivia-service.cjs');
 const { KnowledgeCardsService } = require('./knowledge-cards-service.cjs');
@@ -1071,6 +1072,7 @@ function createPetWindow() {
   });
 
   // Bubble Font Size IPC Handlers
+  registerAssistantSettingsIpc();
   ipcMain.handle('get-bubble-font-size', () => currentBubbleFontSize);
   ipcMain.handle('set-bubble-font-size', (event, sizeKey) => {
     setBubbleFontSize(sizeKey);
@@ -1287,6 +1289,50 @@ function getPreferredAssistantDisplay() {
   return selectAssistantDisplay(screen.getAllDisplays(), screen.getPrimaryDisplay(), assistantDisplayTarget);
 }
 
+function getAssistantSettings() {
+  return {
+    windowLayerMode, moveMode: isMoveMode, displayTarget: assistantDisplayTarget,
+    sizeKey: currentSizeKey, stickyNotesSize: currentStickyNotesSize,
+    bubbleFontSize: currentBubbleFontSize, ballSpeed: currentBallSpeed
+  };
+}
+
+function notifyAssistantSettings() {
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.webContents.send('assistant-settings-updated', getAssistantSettings());
+  }
+}
+
+function registerAssistantSettingsIpc() {
+  const authorize = event => {
+    if (!settingsWindow || settingsWindow.isDestroyed() || event.sender !== settingsWindow.webContents) throw new Error('無法存取小助手設定。');
+  };
+  ipcMain.handle('get-assistant-settings', event => { authorize(event); return getAssistantSettings(); });
+  ipcMain.handle('set-assistant-settings', (event, input) => {
+    authorize(event);
+    const choices = {
+      windowLayerMode: ['top', 'bottom', 'bottom-notify'], displayTarget: ['primary', 'external'],
+      sizeKey: ['mini', 'std', 'lg'], stickyNotesSize: ['sm', 'std', 'lg'], bubbleFontSize: ['sm', 'std', 'lg', 'xl']
+    };
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('小助手設定格式無效。');
+    for (const [key, value] of Object.entries(input)) {
+      const valid = Object.hasOwn(choices, key) ? choices[key].includes(value)
+        : key === 'moveMode' || key === 'resetPosition' ? typeof value === 'boolean'
+        : key === 'ballSpeed' && typeof value === 'number' && Number.isFinite(value) && value >= 0.2 && value <= 5;
+      if (!valid) throw new Error('小助手設定值無效。');
+    }
+    if ('windowLayerMode' in input) setWindowLayerMode(input.windowLayerMode);
+    if ('sizeKey' in input) setAssistantSize(input.sizeKey);
+    if ('stickyNotesSize' in input) setStickyNotesSize(input.stickyNotesSize);
+    if ('bubbleFontSize' in input) setBubbleFontSize(input.bubbleFontSize);
+    if ('ballSpeed' in input) setBallSpeed(input.ballSpeed);
+    if ('moveMode' in input) setMoveMode(input.moveMode);
+    if ('displayTarget' in input) setAssistantDisplayTarget(input.displayTarget);
+    else if (input.resetPosition) resetPosition();
+    return getAssistantSettings();
+  });
+}
+
 function setAssistantDisplayTarget(target) {
   assistantDisplayTarget = target;
   resetPosition();
@@ -1413,7 +1459,25 @@ function setFocusMode(minutes, untilTomorrow = false) {
   notifyFocusModeChanged();
 }
 
+async function configureDesktopIconPermissions(mode) {
+  if (!desktopOrganizer || desktopOrganizer.permissionOperation) return;
+  const service = new DesktopIconPermissions(app.getPath('userData'), () => desktopOrganizer.desktopPaths());
+  try {
+    const result = await desktopOrganizer.withIconServiceStopped(async () => {
+      if (['Enable', 'Disable'].includes(mode)) { service.setBrokerEnabled(mode === 'Enable'); return { changed: 0, errors: [] }; }
+      const result = await service.run(mode);
+      if (mode === 'Install') service.setBrokerEnabled(true);
+      return result;
+    });
+    const en = currentLanguage === 'en';
+    dialog.showMessageBox({ type: result.errors?.length ? 'warning' : 'info', message: en ? 'Desktop icon permissions updated.' : '桌面圖示權限設定完成。', detail: result.errors?.length ? result.errors.join('\n') : en ? `Updated ${result.changed || 0} shortcut(s). Original file paths are retained.` : `已更新 ${result.changed || 0} 個捷徑，檔案保留原路徑。` });
+  } catch (error) {
+    dialog.showMessageBox({ type: 'error', message: currentLanguage === 'en' ? 'Unable to update desktop icon permissions.' : '桌面圖示權限設定未完成。', detail: error.message });
+  } finally { updateTrayMenu(); }
+}
+
 function updateTrayMenu() {
+  notifyAssistantSettings();
   if (!tray) return;
 
   const t = getLocale().tray;
@@ -1421,10 +1485,36 @@ function updateTrayMenu() {
 
   trayContextMenu = Menu.buildFromTemplate([
     {
+      label: t.title,
+      enabled: false
+    },
+    { type: 'separator' },
+    {
+      label: isAssistantVisible ? t.hideAssistant : t.showAssistant,
+      click: () => setAssistantVisible(!isAssistantVisible)
+    },
+    {
+      label: t.toggleQuotes,
+      type: 'checkbox',
+      checked: isBubbleEnabled,
+      click: (menuItem) => setBubbleEnabled(menuItem.checked)
+    },
+    {
       label: currentLanguage === 'en' ? 'Desktop organizer' : '桌面整理工具',
       submenu: [
         { label: currentLanguage === 'en' ? 'New organizer window' : '新增整理視窗', click: () => desktopOrganizer?.create() },
         { label: currentLanguage === 'en' ? 'Show all organizer windows' : '顯示所有整理視窗', enabled: !!desktopOrganizer?.boards.length, click: () => desktopOrganizer?.restore() },
+        {
+          label: currentLanguage === 'en' ? 'Desktop icon permissions' : '桌面圖示權限',
+          submenu: [
+            { label: currentLanguage === 'en' ? 'Authorize collected shortcuts once' : '一次授權已收納的捷徑', click: () => configureDesktopIconPermissions('Grant') },
+            { label: currentLanguage === 'en' ? 'Restore shortcut permissions' : '還原捷徑原本權限', click: () => configureDesktopIconPermissions('Restore') },
+            { type: 'separator' },
+            { label: currentLanguage === 'en' ? 'Install or repair background helper' : '安裝／修復背景輔助程序', click: () => configureDesktopIconPermissions('Install') },
+            { label: currentLanguage === 'en' ? 'Use background helper' : '使用背景輔助程序', type: 'checkbox', enabled: !!readBroker(app.getPath('userData')), checked: readBroker(app.getPath('userData'))?.enabled === true, click: item => configureDesktopIconPermissions(item.checked ? 'Enable' : 'Disable') },
+            { label: currentLanguage === 'en' ? 'Remove background helper' : '移除背景輔助程序', enabled: !!readBroker(app.getPath('userData')), click: () => configureDesktopIconPermissions('Remove') }
+          ]
+        },
         {
           label: currentLanguage === 'en' ? 'Recover organizer window' : '復原整理視窗',
           enabled: !!desktopOrganizer?.boards.length,
@@ -1441,208 +1531,6 @@ function updateTrayMenu() {
         ...(desktopOrganizer?.boards || []).map(board => ({ label: board.title, click: () => desktopOrganizer.show(board) }))
       ]
     },
-    { type: 'separator' },
-    {
-      label: t.title,
-      enabled: false
-    },
-    { type: 'separator' },
-    {
-      label: isAssistantVisible ? t.hideAssistant : t.showAssistant,
-      click: () => setAssistantVisible(!isAssistantVisible)
-    },
-    { type: 'separator' },
-    {
-      label: t.alwaysOnBottom,
-      type: 'radio',
-      checked: windowLayerMode === 'bottom',
-      click: () => setWindowLayerMode('bottom')
-    },
-    {
-      label: t.alwaysOnTop,
-      type: 'radio',
-      checked: windowLayerMode === 'top',
-      click: () => setWindowLayerMode('top')
-    },
-    {
-      label: t.bottomUntilNotification,
-      type: 'radio',
-      checked: windowLayerMode === 'bottom-notify',
-      click: () => setWindowLayerMode('bottom-notify')
-    },
-    { type: 'separator' },
-    {
-      label: t.windowMenu,
-      submenu: [
-        {
-          label: t.moveMode,
-          type: 'checkbox',
-          checked: isMoveMode,
-          click: (menuItem) => {
-            setMoveMode(menuItem.checked);
-          }
-        },
-        {
-          label: currentLanguage === 'en' ? 'Bottom right on monitor' : '右下角所在螢幕',
-          submenu: [
-            { label: currentLanguage === 'en' ? 'Primary monitor' : '主螢幕', type: 'radio', checked: assistantDisplayTarget === 'primary', click: () => setAssistantDisplayTarget('primary') },
-            { label: currentLanguage === 'en' ? 'External monitor (primary when disconnected)' : '外接螢幕（未連接時使用主螢幕）', type: 'radio', checked: assistantDisplayTarget === 'external', click: () => setAssistantDisplayTarget('external') }
-          ]
-        },
-        {
-          label: t.resetPosition,
-          click: () => resetPosition()
-        }
-      ]
-    },
-    {
-      label: t.assistantSize,
-      submenu: [
-        {
-          label: t.sizeMini,
-          type: 'radio',
-          checked: currentSizeKey === 'mini',
-          click: () => setAssistantSize('mini')
-        },
-        {
-          label: t.sizeStd,
-          type: 'radio',
-          checked: currentSizeKey === 'std',
-          click: () => setAssistantSize('std')
-        },
-        {
-          label: t.sizeLg,
-          type: 'radio',
-          checked: currentSizeKey === 'lg',
-          click: () => setAssistantSize('lg')
-        }
-      ]
-    },
-    {
-      label: t.stickyNotesSize,
-      submenu: [
-        {
-          label: t.stickySizeSm,
-          type: 'radio',
-          checked: currentStickyNotesSize === 'sm',
-          click: () => setStickyNotesSize('sm')
-        },
-        {
-          label: t.stickySizeStd,
-          type: 'radio',
-          checked: currentStickyNotesSize === 'std',
-          click: () => setStickyNotesSize('std')
-        },
-        {
-          label: t.stickySizeLg,
-          type: 'radio',
-          checked: currentStickyNotesSize === 'lg',
-          click: () => setStickyNotesSize('lg')
-        }
-      ]
-    },
-    {
-      label: t.bubbleFontSize,
-      submenu: [
-        {
-          label: t.fontSizeSm,
-          type: 'radio',
-          checked: currentBubbleFontSize === 'sm',
-          click: () => setBubbleFontSize('sm')
-        },
-        {
-          label: t.fontSizeStd,
-          type: 'radio',
-          checked: currentBubbleFontSize === 'std',
-          click: () => setBubbleFontSize('std')
-        },
-        {
-          label: t.fontSizeLg,
-          type: 'radio',
-          checked: currentBubbleFontSize === 'lg',
-          click: () => setBubbleFontSize('lg')
-        },
-        {
-          label: t.fontSizeXl,
-          type: 'radio',
-          checked: currentBubbleFontSize === 'xl',
-          click: () => setBubbleFontSize('xl')
-        }
-      ]
-    },
-    {
-      label: t.globeSpeed,
-      submenu: [
-        {
-          label: t.speedSlow,
-          type: 'radio',
-          checked: currentBallSpeed === 0.5,
-          click: () => setBallSpeed(0.5)
-        },
-        {
-          label: t.speedNormal,
-          type: 'radio',
-          checked: currentBallSpeed === 1.0,
-          click: () => setBallSpeed(1.0)
-        },
-        {
-          label: t.speedDefault,
-          type: 'radio',
-          checked: currentBallSpeed === 1.2,
-          click: () => setBallSpeed(1.2)
-        },
-        {
-          label: t.speedFast,
-          type: 'radio',
-          checked: currentBallSpeed === 2.5,
-          click: () => setBallSpeed(2.5)
-        },
-        {
-          label: t.speedTurbo,
-          type: 'radio',
-          checked: currentBallSpeed === 5.0,
-          click: () => setBallSpeed(5.0)
-        },
-        ...([0.5, 1.0, 1.2, 2.5, 5.0].includes(currentBallSpeed) ? [] : [{
-          label: `${currentBallSpeed.toFixed(1)}x ${t.speedCustom}`,
-          type: 'radio',
-          checked: true,
-          enabled: false
-        }])
-      ]
-    },
-    {
-      label: t.toggleQuotes,
-      type: 'checkbox',
-      checked: isBubbleEnabled,
-      click: (menuItem) => setBubbleEnabled(menuItem.checked)
-    },
-    {
-      label: t.languageMenu,
-      submenu: [
-        {
-          label: t.langZh,
-          type: 'radio',
-          checked: currentLanguage === 'zh-TW',
-          click: () => setLanguage('zh-TW')
-        },
-        {
-          label: t.langEn,
-          type: 'radio',
-          checked: currentLanguage === 'en',
-          click: () => setLanguage('en')
-        }
-      ]
-    },
-    {
-      label: t.exploreTrivia,
-      click: () => {
-        if (triviaService) {
-          triviaService.fetchAndTrigger(true);
-        }
-      }
-    },
-    { type: 'separator' },
     {
       label: isFocusModeActive() ? t.focusModeActive : t.focusMode,
       submenu: [
@@ -1657,12 +1545,10 @@ function updateTrayMenu() {
       label: t.checkUpdates,
       click: () => updateService?.check(true)
     },
-    { type: 'separator' },
     {
       label: t.emailSettings,
       click: () => openSettingsWindow()
     },
-    { type: 'separator' },
     {
       label: t.quit,
       click: () => app.quit()
@@ -1748,7 +1634,7 @@ function openKnowledgeCardWindow() {
 }
 
 function openSettingsWindow(initialPanel = '') {
-  const requestedPanel = ['panel-email', 'panel-calendar', 'panel-health', 'panel-trivia', 'panel-knowledge', 'panel-alarm', 'panel-shortcuts'].includes(initialPanel)
+  const requestedPanel = ['panel-assistant', 'panel-email', 'panel-calendar', 'panel-health', 'panel-trivia', 'panel-knowledge', 'panel-alarm', 'panel-shortcuts'].includes(initialPanel)
     ? initialPanel
     : '';
   if (settingsWindow && !settingsWindow.isDestroyed()) {
@@ -1913,7 +1799,7 @@ if (!gotTheLock) {
         updateNotification.show();
       },
       beforeInstall: () => {
-        if (desktopOrganizer?.activeDrag) return false;
+        if (desktopOrganizer?.activeDrag || desktopOrganizer?.permissionOperation) return false;
         desktopOrganizer?.save();
         savePetPreferences();
         return true;

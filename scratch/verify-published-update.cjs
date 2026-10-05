@@ -7,7 +7,8 @@ const { httpExecutor } = require('builder-util/out/nodeHttpExecutor');
 const { GitHubProvider } = require('electron-updater/out/providers/GitHubProvider');
 const { NsisUpdater } = require('electron-updater/out/NsisUpdater');
 const pkg = require('../package.json');
-const local = yaml.load(fs.readFileSync(path.join(__dirname, '../release/latest.yml'), 'utf8'));
+const artifactDirectory = path.resolve(process.argv[2] || path.join(__dirname, '../release'));
+const local = yaml.load(fs.readFileSync(path.join(artifactDirectory, 'latest.yml'), 'utf8'));
 const provider = new GitHubProvider(pkg.build.publish[0], {
   currentVersion: new SemVer('1.6.0'), allowPrerelease: false, fullChangelog: false, channel: null
 }, { executor: httpExecutor, platform: 'win32' });

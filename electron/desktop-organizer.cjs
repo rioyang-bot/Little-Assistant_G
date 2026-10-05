@@ -220,11 +220,34 @@ class DesktopOrganizer {
   }
 
   async syncDesktopIcons(paths = this.desktopPaths()) {
+    if (this.permissionOperation) return this.iconErrors;
     if (!this.iconVisibility) return [];
     try { this.iconErrors = await this.iconVisibility.sync(paths); }
     catch (error) { this.iconErrors = [error.message || '無法隱藏桌面圖示。']; }
     this.notifyIconStatus();
     return this.iconErrors;
+  }
+
+  async withIconServiceStopped(operation) {
+    if (this.activeDrag) throw new Error('請先完成檔案拖曳。');
+    if (this.permissionOperation) throw new Error('桌面圖示權限正在設定中。');
+    this.permissionOperation = true;
+    try {
+      await this.iconVisibility?.stopWorker();
+      this.iconVisibility?.dispose();
+      return await operation();
+    } finally {
+      this.permissionOperation = false;
+      if (!this.quitting && !this.iconVisibility?.child) {
+        this.iconVisibility = new DesktopIconVisibility(path.dirname(this.file), this.electron.app.getPath('desktop'), {
+          onStatus: message => { this.iconErrors = [message]; this.notifyIconStatus(); }
+        });
+        // A permission action already made the user's consent decision. Do
+        // not immediately open a second UAC prompt when ordinary sync resumes.
+        this.iconVisibility.elevationAttempted = true;
+        await this.syncDesktopIcons();
+      }
+    }
   }
 
   boardResult(board) {
@@ -534,6 +557,7 @@ class DesktopOrganizer {
       return { positions: board.items.map(item => ({ id: item.id, position: item.position })) };
     });
     ipcMain.handle('organizer-drag-out', async (event, id) => {
+      if (this.permissionOperation) throw new Error('桌面圖示權限正在設定中，請稍後再拖曳。');
       const board = ownBoard(event);
       const ids = [...new Set(Array.isArray(id) ? id : [id])];
       const items = ids.map(value=>board.items.find(item=>item.id===value));
@@ -654,6 +678,7 @@ class DesktopOrganizer {
       return { board, skipped, errors };
     };
     ipcMain.handle('organizer-add', (event, paths, position, token) => {
+      if (this.permissionOperation) throw new Error('桌面圖示權限正在設定中，請稍後再加入檔案。');
       const result = add(ownBoard(event), paths, position, token);
       if (!this.iconVisibility) return result;
       return this.syncDesktopIcons().then(errors => ({ ...result, errors: [...result.errors, ...errors] }));
@@ -679,10 +704,12 @@ class DesktopOrganizer {
       this.save(); return board;
     });
     ipcMain.handle('organizer-remove', (event, id) => {
+      if (this.permissionOperation) throw new Error('桌面圖示權限正在設定中，請稍後再移除。');
       const board = ownBoard(event);
       return this.removeFromBoard(board, id);
     });
     ipcMain.handle('organizer-context-menu', async (event, id, point = {}) => {
+      if (this.permissionOperation) throw new Error('桌面圖示權限正在設定中，請稍後再試。');
       const board = ownBoard(event), item = board.items.find(item => item.id === id);
       if (!item || !fs.existsSync(item.path)) throw new Error('找不到檔案或資料夾，可能已移動或刪除。');
       if (!this.contextMenu) return { fallback:true };
@@ -715,6 +742,7 @@ class DesktopOrganizer {
       return { action:result.action, id, items:board.items };
     });
     ipcMain.handle('organizer-rename', async (event, id, name) => {
+      if (this.permissionOperation) throw new Error('桌面圖示權限正在設定中，請稍後再重新命名。');
       const board = ownBoard(event), item = board.items.find(item => item.id === id);
       if (!item || !fs.existsSync(item.path)) throw new Error('找不到要重新命名的檔案。');
       if (typeof name !== 'string' || !name || name.length > 255 || /[<>:"/\\|?*\x00-\x1f]/.test(name) || /[. ]$/.test(name) || /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/i.test(name)) throw new Error('檔案名稱無效，請使用 Windows 可接受的名稱。');
@@ -761,6 +789,7 @@ class DesktopOrganizer {
     });
     ipcMain.handle('organizer-hide', event => { const board = ownBoard(event); this.closeSettings(board); this.windows.get(board.id).hide(); });
     ipcMain.handle('organizer-delete', async event => {
+      if (this.permissionOperation) throw new Error('桌面圖示權限正在設定中，請稍後再刪除整理視窗。');
       const board = ownBoard(event, true);
       const fromSettings = this.settingsWindows.get(board.id)?.window?.webContents === event.sender;
       if (fromSettings) settingsBoard(event);
@@ -768,6 +797,7 @@ class DesktopOrganizer {
       const parent = fromSettings ? this.settingsWindows.get(board.id).window : win;
       const result = await this.withDialog(board, () => dialog.showMessageBox(parent, { type: 'question', buttons: ['取消', '刪除整理視窗'], defaultId: 0, cancelId: 0, message: `刪除「${board.title}」？`, detail: board.items.some(item => item.originalPath) ? '尚未恢復原位置的舊項目會先移回；遇到同名檔案會保留視窗，避免覆蓋。' : '原檔案及資料夾會保留在原位置，桌面圖示會恢復顯示；仍收納於其他整理視窗的項目會繼續隱藏。' }));
       if (result.response !== 1) return false;
+      if (this.permissionOperation) throw new Error('桌面圖示權限正在設定中，請稍後再刪除整理視窗。');
       if (fromSettings) settingsBoard(event);
       for (const item of [...board.items]) {
         this.restoreItem(item);

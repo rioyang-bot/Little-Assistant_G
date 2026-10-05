@@ -52,6 +52,7 @@
 
   <!-- Navigation Tabs -->
   <div class="nav-tabs" role="tablist">
+    <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="panel-assistant" id="tab-btn-assistant"><span>🧸</span><span id="tab-label-assistant">小助手設定</span></button>
     <button type="button" class="tab-btn active" role="tab" aria-selected="true" data-tab="panel-email" id="tab-btn-email">
       <span>📬</span>
       <span id="tab-label-email">郵箱帳號與規則</span>
@@ -74,6 +75,32 @@
     </button>
     <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="panel-alarm" id="tab-btn-alarm"><span>📝</span><span id="tab-label-alarm">便利貼</span></button>
     <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="panel-shortcuts" id="tab-btn-shortcuts"><span>🚀</span><span id="tab-label-shortcuts">快捷捷徑</span></button>
+  </div>
+
+  <div id="panel-assistant" class="tab-panel">
+    <div class="feature-intro"><span aria-hidden="true">ⓘ</span><span id="intro-assistant">調整小助手的顯示層級、位置、尺寸與球體速度，變更會立即套用並儲存。</span></div>
+    <div class="section">
+      <div class="section-title" data-assistant-label="layerTitle">顯示層級</div>
+      <label class="checkbox-wrap"><input type="radio" name="assistant-layer" value="bottom" data-assistant-setting="windowLayerMode"><span data-assistant-label="bottom">保持最下層顯示</span></label>
+      <label class="checkbox-wrap"><input type="radio" name="assistant-layer" value="top" data-assistant-setting="windowLayerMode"><span data-assistant-label="top">保持最上層顯示</span></label>
+      <label class="checkbox-wrap"><input type="radio" name="assistant-layer" value="bottom-notify" data-assistant-setting="windowLayerMode"><span data-assistant-label="notify">最下層顯示，當有新事件通知時跳至最上層</span></label>
+    </div>
+    <div class="section">
+      <div class="section-title" data-assistant-label="positionTitle">視窗與位置設定</div>
+      <div class="rule-item"><label class="checkbox-wrap"><input type="checkbox" id="assistant-move-mode" data-assistant-setting="moveMode"><span data-assistant-label="moveMode">允許拖曳小助手</span></label></div>
+      <div class="rule-item"><label class="rule-label" for="assistant-display-target" data-assistant-label="displayTarget">右下角所在螢幕</label><select id="assistant-display-target" class="rule-input" data-assistant-setting="displayTarget"><option value="primary" data-assistant-label="primary">主螢幕</option><option value="external" data-assistant-label="external">外接螢幕（未連接時使用主螢幕）</option></select></div>
+      <button type="button" class="action-btn btn-secondary" id="assistant-reset-position" data-assistant-label="resetPosition">重設至右下角</button>
+    </div>
+    <div class="section">
+      <div class="section-title" data-assistant-label="sizeTitle">尺寸與動畫</div>
+      <div class="assistant-settings-grid">
+        <div class="rule-item"><label class="rule-label" for="assistant-size" data-assistant-label="sizeKey">助手尺寸</label><select id="assistant-size" class="rule-input" data-assistant-setting="sizeKey"><option value="mini" data-assistant-label="mini">迷你</option><option value="std" data-assistant-label="standard">標準</option><option value="lg" data-assistant-label="large">大型</option></select></div>
+        <div class="rule-item"><label class="rule-label" for="assistant-sticky-size" data-assistant-label="stickyNotesSize">便利貼尺寸</label><select id="assistant-sticky-size" class="rule-input" data-assistant-setting="stickyNotesSize"><option value="sm" data-assistant-label="small">小型</option><option value="std" data-assistant-label="standard">標準</option><option value="lg" data-assistant-label="large">大型</option></select></div>
+        <div class="rule-item"><label class="rule-label" for="assistant-font-size" data-assistant-label="bubbleFontSize">對話字體大小</label><select id="assistant-font-size" class="rule-input" data-assistant-setting="bubbleFontSize"><option value="sm" data-assistant-label="small">小型</option><option value="std" data-assistant-label="standard">標準</option><option value="lg" data-assistant-label="large">大型</option><option value="xl" data-assistant-label="extraLarge">特大</option></select></div>
+        <div class="rule-item"><label class="rule-label" for="assistant-ball-speed" data-assistant-label="ballSpeed">球體自轉速度</label><select id="assistant-ball-speed" class="rule-input" data-assistant-setting="ballSpeed"><option value="0.5">0.5x</option><option value="1">1.0x</option><option value="1.2">1.2x</option><option value="2.5">2.5x</option><option value="5">5.0x</option></select></div>
+      </div>
+    </div>
+    <div id="assistant-settings-status" class="tip" role="status"></div>
   </div>
 
   <div id="panel-alarm" class="tab-panel">
@@ -1163,6 +1190,82 @@
     const btnLangEn = document.getElementById('btn-lang-en');
 
     // Tab Switching
+    const assistantSettingsControls = [...document.querySelectorAll('[data-assistant-setting]')];
+    const assistantSettingsStatus = document.getElementById('assistant-settings-status');
+    const assistantResetPosition = document.getElementById('assistant-reset-position');
+    let assistantSettingsState = null;
+    let assistantSettingsQueue = Promise.resolve();
+    const assistantSettingsLocales = {
+      'zh-TW': {
+        tab: '小助手設定', intro: '調整小助手的顯示層級、位置、尺寸與球體速度，變更會立即套用並儲存。',
+        layerTitle: '顯示層級', bottom: '保持最下層顯示', top: '保持最上層顯示', notify: '最下層顯示，當有新事件通知時跳至最上層',
+        positionTitle: '視窗與位置設定', moveMode: '允許拖曳小助手', displayTarget: '右下角所在螢幕', primary: '主螢幕', external: '外接螢幕（未連接時使用主螢幕）', resetPosition: '重設至右下角',
+        sizeTitle: '尺寸與動畫', sizeKey: '助手尺寸', stickyNotesSize: '便利貼尺寸', bubbleFontSize: '對話字體大小', ballSpeed: '球體自轉速度',
+        mini: '迷你', small: '小型', standard: '標準', large: '大型', extraLarge: '特大', custom: '自訂', error: '小助手設定未完成：'
+      },
+      en: {
+        tab: 'Assistant settings', intro: 'Change display layers, position, sizes and globe speed. Changes apply and save immediately.',
+        layerTitle: 'Display layer', bottom: 'Always on bottom', top: 'Always on top', notify: 'Stay on bottom; bring to top for new notifications',
+        positionTitle: 'Window and position', moveMode: 'Allow dragging the assistant', displayTarget: 'Bottom-right monitor', primary: 'Primary monitor', external: 'External monitor (primary when disconnected)', resetPosition: 'Reset to bottom right',
+        sizeTitle: 'Sizes and animation', sizeKey: 'Assistant size', stickyNotesSize: 'Sticky note size', bubbleFontSize: 'Dialogue font size', ballSpeed: 'Globe rotation speed',
+        mini: 'Mini', small: 'Small', standard: 'Standard', large: 'Large', extraLarge: 'Extra large', custom: 'Custom', error: 'Unable to update assistant settings: '
+      }
+    };
+    function applyAssistantSettingsLanguage() {
+      const labels = assistantSettingsLocales[currentLanguage] || assistantSettingsLocales['zh-TW'];
+      document.getElementById('tab-label-assistant').textContent = labels.tab;
+      document.getElementById('intro-assistant').textContent = labels.intro;
+      document.querySelectorAll('[data-assistant-label]').forEach(element => { element.textContent = labels[element.dataset.assistantLabel]; });
+      if (assistantSettingsState) renderAssistantSettings(assistantSettingsState);
+    }
+    function renderAssistantSettings(state) {
+      if (!state) return;
+      assistantSettingsState = state;
+      const speed = document.getElementById('assistant-ball-speed');
+      speed.querySelector('[data-custom-speed]')?.remove();
+      if (![...speed.options].some(option => Number(option.value) === state.ballSpeed)) {
+        const option = new Option(`${Number(state.ballSpeed).toFixed(1)}x (${assistantSettingsLocales[currentLanguage].custom})`, String(state.ballSpeed));
+        option.dataset.customSpeed = 'true'; option.disabled = true; speed.add(option);
+      }
+      for (const control of assistantSettingsControls) {
+        const value = state[control.dataset.assistantSetting];
+        if (control.type === 'radio') control.checked = control.value === value;
+        else if (control.type === 'checkbox') control.checked = value === true;
+        else control.value = String(value);
+      }
+    }
+    function setAssistantSettingsBusy(busy) {
+      assistantSettingsControls.forEach(control => { control.disabled = busy; });
+      assistantResetPosition.disabled = busy;
+    }
+    function changeAssistantSettings(patch) {
+      assistantSettingsQueue = assistantSettingsQueue.then(async () => {
+        setAssistantSettingsBusy(true);
+        try {
+          renderAssistantSettings(await ipc.invoke('set-assistant-settings', patch));
+          assistantSettingsStatus.textContent = '';
+        } catch (error) {
+          renderAssistantSettings(assistantSettingsState);
+          assistantSettingsStatus.textContent = assistantSettingsLocales[currentLanguage].error + error.message;
+        } finally { setAssistantSettingsBusy(false); }
+      });
+      return assistantSettingsQueue;
+    }
+    for (const control of assistantSettingsControls) control.addEventListener('change', () => {
+      if (!ipc || (control.type === 'radio' && !control.checked)) return;
+      const value = control.type === 'checkbox' ? control.checked : control.dataset.assistantSetting === 'ballSpeed' ? Number(control.value) : control.value;
+      changeAssistantSettings({ [control.dataset.assistantSetting]: value });
+    });
+    assistantResetPosition.addEventListener('click', () => { if (ipc) changeAssistantSettings({ resetPosition: true }); });
+    async function loadAssistantSettings() {
+      if (!ipc) return;
+      setAssistantSettingsBusy(true);
+      try { renderAssistantSettings(await ipc.invoke('get-assistant-settings')); }
+      catch (error) { assistantSettingsStatus.textContent = assistantSettingsLocales[currentLanguage].error + error.message; }
+      finally { setAssistantSettingsBusy(false); }
+    }
+    if (ipc) ipc.on('assistant-settings-updated', (_event, state) => renderAssistantSettings(state));
+
     function switchTab(panelId) {
       document.querySelectorAll('.tab-panel').forEach(panel => {
         panel.classList.remove('active');
@@ -1733,6 +1836,7 @@
 
       document.body.classList.toggle('lang-en', lang === 'en');
       document.body.classList.toggle('lang-zh', lang === 'zh-TW');
+      applyAssistantSettingsLanguage();
 
       document.title = s.windowTitle;
       document.getElementById('header-title').textContent = s.headerTitle;
@@ -3233,7 +3337,7 @@
           downloaded: en
             ? `Version ${state.version} downloaded. ${state.autoInstallInSeconds ? `Installation starts in ${state.autoInstallInSeconds} seconds; the assistant will reopen automatically.` : 'Restart to install.'}`
             : `${state.version} 版下載完成。${state.autoInstallInSeconds ? `${state.autoInstallInSeconds} 秒後自動安裝，完成後會重新開啟小助手。` : '可立即重新啟動安裝。'}`,
-          waiting: en ? 'Update ready. Waiting for the file drag to finish.' : '更新已就緒，等待檔案拖曳完成後自動安裝。',
+          waiting: en ? 'Update ready. Waiting for the current operation to finish.' : '更新已就緒，等待目前操作完成後自動安裝。',
           installing: en ? 'Installing the update. The assistant will reopen automatically.' : '正在安裝更新，完成後會自動重新開啟小助手。',
           development: en ? 'Update checks run only in the installed app.' : '僅安裝版會檢查更新。',
           portable: en ? 'Automatic updates are unavailable in the portable edition.' : '免安裝版不支援自動更新。',
@@ -3249,6 +3353,7 @@
     applyLanguage('zh-TW');
     switchTab('panel-email');
     loadConfig();
+    loadAssistantSettings();
     loadShortcutSettings();
   </script>
 </body>

@@ -1,4 +1,4 @@
-﻿param([Parameter(Mandatory=$true)][string]$JournalPath, [Parameter(Mandatory=$true)][int]$OwnerPid, [Parameter(Mandatory=$true)][string]$DesktopDirectory, [switch]$LaunchWorker, [switch]$ElevateWorker, [switch]$PipeWorker, [string]$PipeName, [string]$PipeToken)
+﻿param([Parameter(Mandatory=$true)][string]$JournalPath, [Parameter(Mandatory=$true)][int]$OwnerPid, [Parameter(Mandatory=$true)][string]$DesktopDirectory, [switch]$LaunchWorker, [switch]$ElevateWorker, [switch]$PipeWorker, [switch]$ScheduledWorker, [string]$TaskName, [string]$RequestPath, [string]$RecoveryJournal, [string]$PipeName, [string]$PipeToken)
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 Add-Type -ReferencedAssemblies 'System.dll','System.Core.dll','System.Web.Extensions.dll' -TypeDefinition @'
@@ -108,6 +108,7 @@ public static class OrganizerDesktopIcons {
   static readonly JavaScriptSerializer Json = new JavaScriptSerializer();
   static readonly Dictionary<string, OrganizerIconRecord> Records = new Dictionary<string, OrganizerIconRecord>(StringComparer.OrdinalIgnoreCase);
   static string Journal, Desktop, CommonDesktop;
+  public static string RecoveryJournal;
   static bool NeedsElevation;
   static TextReader ProtocolInput;
   static TextWriter ProtocolOutput = Console.Out;
@@ -121,8 +122,19 @@ public static class OrganizerDesktopIcons {
     return info.volume + ":" + info.indexHigh + ":" + info.indexLow;
   }
   static IntPtr Open(string file) {
-    IntPtr handle = CreateFile(file, 0, 7, IntPtr.Zero, 3, 0x02000000, IntPtr.Zero);
+    // Background operations pin the desktop entry until it is revealed. A
+    // caller cannot swap the pathname after validation or rename it outside
+    // the desktop while the privileged worker holds its identity.
+    IntPtr handle = CreateFile(file, RecoveryJournal != null ? 0x80000000u : 0u, RecoveryJournal != null ? 3u : 7u, IntPtr.Zero, 3, 0x02000000, IntPtr.Zero);
     if (handle == new IntPtr(-1)) throw new IOException("無法存取桌面檔案。");
+    if (RecoveryJournal != null) {
+      var actual = new StringBuilder(32768); uint length = GetFinalPathNameByHandle(handle, actual, (uint)actual.Capacity, 0);
+      string finalPath = actual.ToString();
+      if (finalPath.StartsWith("\\\\?\\")) finalPath = finalPath.Substring(4);
+      if (length == 0 || length >= actual.Capacity || !OnDesktop(finalPath) || !string.Equals(Key(finalPath), Key(file), StringComparison.OrdinalIgnoreCase)) {
+        CloseHandle(handle); throw new IOException("背景模式僅處理原位置的桌面項目。");
+      }
+    }
     return handle;
   }
   static void Trace(string text) {
@@ -149,6 +161,10 @@ public static class OrganizerDesktopIcons {
     if ((GetFileAttributes(file) & 0x400) != 0 && GetFileAttributes(file) != uint.MaxValue) throw new IOException("無法還原重新導向其他位置的桌面項目。");
     if (temporary) { if (!File.Exists(file) && !Directory.Exists(file)) return; handle = Open(file); }
     try {
+      if (RecoveryJournal != null) {
+        FileInfo linkInfo;
+        if (!GetFileInformationByHandle(handle, out linkInfo) || linkInfo.links > 1) throw new IOException("背景模式不還原多個硬連結的桌面項目。");
+      }
       if (Identity(handle) != record.identity) return;
       var name = new StringBuilder(32768); uint length = GetFinalPathNameByHandle(handle, name, (uint)name.Capacity, 0);
       if (length > 0 && length < name.Capacity) {
@@ -156,6 +172,7 @@ public static class OrganizerDesktopIcons {
         if (file.StartsWith("\\\\?\\UNC\\")) file = "\\\\" + file.Substring(8);
         else if (file.StartsWith("\\\\?\\")) file = file.Substring(4);
       }
+      if (RecoveryJournal != null && (!OnDesktop(file) || !string.Equals(Key(file), Key(record.path), StringComparison.OrdinalIgnoreCase))) throw new IOException("背景模式不還原桌面以外的檔案。");
       uint attrs = GetFileAttributes(file); if (attrs == uint.MaxValue) return;
       if (record.viewOnly) {
         using (var desktopView = new OrganizerDesktopView()) {
@@ -176,6 +193,10 @@ public static class OrganizerDesktopIcons {
     // targets reached through user-created junctions or symbolic links.
     if ((GetFileAttributes(key) & 0x400) != 0) throw new IOException("無法隱藏重新導向其他位置的桌面項目。");
     IntPtr handle = Open(key); OrganizerIconRecord record;
+    if (RecoveryJournal != null) {
+      FileInfo linkInfo;
+      if (!GetFileInformationByHandle(handle, out linkInfo) || linkInfo.links > 1) { CloseHandle(handle); throw new IOException("背景模式不處理多個硬連結的桌面項目。"); }
+    }
     try { record = new OrganizerIconRecord { path = key, handle = handle, identity = Identity(handle) }; }
     catch { CloseHandle(handle); throw; }
     uint attrs = GetFileAttributes(key);
@@ -202,18 +223,37 @@ public static class OrganizerDesktopIcons {
     return errors;
   }
   static void Reply(object value) { ProtocolOutput.WriteLine(Json.Serialize(value)); ProtocolOutput.Flush(); }
-  public static void LaunchElevated(string script, string journal, int ownerPid, string desktop, bool elevate) {
+  public static void LaunchElevated(string script, string journal, int ownerPid, string desktop, bool elevate, string taskName = null, string requestPath = null) {
     string pipeName = "METech-desktop-icons-" + Guid.NewGuid().ToString("N"), token = Guid.NewGuid().ToString("N");
     var security = new PipeSecurity(); security.SetAccessRuleProtection(true, false);
     security.AddAccessRule(new PipeAccessRule(WindowsIdentity.GetCurrent().User, PipeAccessRights.FullControl, AccessControlType.Allow));
     security.AddAccessRule(new PipeAccessRule(new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null), PipeAccessRights.FullControl, AccessControlType.Allow));
+    security.AddAccessRule(new PipeAccessRule(new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null), PipeAccessRights.FullControl, AccessControlType.Allow));
     using (var pipe = new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous, 4096, 4096, security)) {
       var start = new ProcessStartInfo();
       start.FileName = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell\\v1.0\\powershell.exe");
       start.Arguments = "-NoProfile -NonInteractive -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File \"" + script + "\" -JournalPath \"" + journal + "\" -OwnerPid " + ownerPid + " -DesktopDirectory \"" + desktop.TrimEnd('\\') + "\" -PipeName " + pipeName + " -PipeToken " + token;
       start.UseShellExecute = true; start.WindowStyle = ProcessWindowStyle.Hidden;
       if (elevate) { start.Verb = "runas"; Reply(new { waitingForElevation = true }); }
-      using (var child = Process.Start(start)) {
+      Process child = null;
+      if (taskName != null) {
+        if (!System.Text.RegularExpressions.Regex.IsMatch(taskName, "^METechAssistant-DesktopIcons-S-1-5-21-(\\d+-){3}\\d+$")) throw new IOException("背景程序名稱無效。");
+        string temporary = requestPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        Directory.CreateDirectory(Path.GetDirectoryName(requestPath));
+        using (var file = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None)) {
+          byte[] data = new UTF8Encoding(false).GetBytes(Json.Serialize(new { ownerPid = ownerPid, ownerStarted = Process.GetProcessById(ownerPid).StartTime.ToUniversalTime().Ticks.ToString(), pipeName = pipeName, token = token }));
+          file.Write(data, 0, data.Length);
+        }
+        if (File.Exists(requestPath)) File.Replace(temporary, requestPath, null); else File.Move(temporary, requestPath);
+        var scheduled = new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "schtasks.exe"), "/Run /TN \"" + taskName + "\"");
+        scheduled.UseShellExecute = false; scheduled.CreateNoWindow = true;
+        scheduled.RedirectStandardOutput = true; scheduled.RedirectStandardError = true;
+        using (var trigger = Process.Start(scheduled)) {
+          trigger.StandardOutput.ReadToEnd(); trigger.StandardError.ReadToEnd();
+          if (!trigger.WaitForExit(10000) || trigger.ExitCode != 0) throw new IOException("背景程序無法啟動，請重新安裝桌面圖示背景程序。");
+        }
+      } else child = Process.Start(start);
+      using (child) {
         var connection = pipe.WaitForConnectionAsync();
         if (!connection.Wait(30000)) throw new IOException("桌面圖示程序未連線。");
         using (var input = new StreamReader(pipe, new UTF8Encoding(false), true, 4096, true))
@@ -231,10 +271,18 @@ public static class OrganizerDesktopIcons {
           // The normal relay owns the pipe, while the worker alone is elevated.
           // A killed relay closes the pipe and the worker restores its flags.
           string response;
-          while ((response = input.ReadLine()) != null) { Console.WriteLine(response); Console.Out.Flush(); }
+          while ((response = input.ReadLine()) != null) {
+            Console.WriteLine(response); Console.Out.Flush();
+            if (taskName != null) {
+              SHChangeNotify(0x1000, 0x2005, desktop, IntPtr.Zero);
+              SHChangeNotify(0x1000, 0x2005, Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory), IntPtr.Zero);
+            }
+          }
         }
-        child.WaitForExit();
-        if (child.ExitCode != 0) throw new IOException("桌面圖示管理員程序已停止。");
+        if (child != null) {
+          child.WaitForExit();
+          if (child.ExitCode != 0) throw new IOException("桌面圖示管理員程序已停止。");
+        }
       }
     }
   }
@@ -270,13 +318,38 @@ public static class OrganizerDesktopIcons {
     if (child.ExitCode != 0) throw new IOException("桌面圖示復原程序已停止。"); child.Dispose();
   }
   public static void Run(string journal, int ownerPid, string desktop) {
+    // PowerShell converts $null assigned to a .NET string property to "".
+    // Treat an absent recovery path as ordinary mode before applying pins.
+    if (string.IsNullOrEmpty(RecoveryJournal)) RecoveryJournal = null;
     Journal = journal; Desktop = Key(desktop); CommonDesktop = Key(Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory));
     var owner = Process.GetProcessById(ownerPid); Trace("Owner " + ownerPid + " helper " + Process.GetCurrentProcess().Id);
-    if (File.Exists(Journal)) {
-      foreach (var record in Json.Deserialize<List<OrganizerIconRecord>>(File.ReadAllText(Journal))) {
-        if (!OnDesktop(record.path) || (record.added & ~6u) != 0) throw new IOException("桌面圖示復原記錄無效。");
+    var pinnedDirectories = new List<IntPtr>();
+    if (RecoveryJournal != null) {
+      foreach (string directory in new string[] { Desktop, CommonDesktop }) {
+        if ((GetFileAttributes(directory) & 0x400) != 0) throw new IOException("背景模式不支援重新導向連結桌面。");
+        IntPtr handle = CreateFile(directory, 0x80000000, 3, IntPtr.Zero, 3, 0x02000000, IntPtr.Zero);
+        if (handle == new IntPtr(-1)) throw new IOException("無法固定桌面路徑。");
+        var finalName = new StringBuilder(32768); GetFinalPathNameByHandle(handle, finalName, (uint)finalName.Capacity, 0);
+        if (!string.Equals(finalName.ToString().Replace("\\\\?\\", "").TrimEnd('\\'), directory, StringComparison.OrdinalIgnoreCase)) { CloseHandle(handle); throw new IOException("桌面路徑經過重新導向，已停止背景程序。"); }
+        pinnedDirectories.Add(handle);
+      }
+    }
+    if (RecoveryJournal != null && File.Exists(RecoveryJournal)) {
+      if (new System.IO.FileInfo(RecoveryJournal).Length > 2000000) throw new IOException("舊版桌面圖示記錄過大。");
+      foreach (var record in Json.Deserialize<List<OrganizerIconRecord>>(File.ReadAllText(RecoveryJournal))) {
+        record.handle = IntPtr.Zero;
+        if (!OnDesktop(record.path) || (record.added & ~6u) != 0 || record.viewOnly) throw new IOException("舊版桌面圖示復原記錄無效。");
         Records[Key(record.path)] = record;
       }
+    }
+    if (File.Exists(Journal)) {
+      foreach (var record in Json.Deserialize<List<OrganizerIconRecord>>(File.ReadAllText(Journal))) {
+        record.handle = IntPtr.Zero;
+        if (!OnDesktop(record.path) || (record.added & ~6u) != 0 || (RecoveryJournal != null && record.viewOnly)) throw new IOException("桌面圖示復原記錄無效。");
+        Records[Key(record.path)] = record;
+      }
+    }
+    if (Records.Count > 0) {
       var recovery = Sync(new string[0]); if (recovery.Count != 0) {
         Reply(new { ready = false, requiresElevation = NeedsElevation, error = string.Join(" ", recovery) });
         throw new IOException(string.Join(" ", recovery));
@@ -308,11 +381,14 @@ public static class OrganizerDesktopIcons {
       var errors = Sync(new string[0]); Trace("Restored; errors=" + string.Join(" ", errors));
       foreach (string error in errors) Console.Error.WriteLine(error);
       foreach (var record in Records.Values) if (record.handle != IntPtr.Zero) CloseHandle(record.handle);
+      foreach (var handle in pinnedDirectories) CloseHandle(handle);
     }
   }
 }
 '@
+[OrganizerDesktopIcons]::RecoveryJournal = if ($RecoveryJournal) { $RecoveryJournal } else { $null }
 if ($PipeName) { [OrganizerDesktopIcons]::RunPipe($JournalPath, $OwnerPid, $DesktopDirectory, $PipeName, $PipeToken) }
+elseif ($ScheduledWorker) { [OrganizerDesktopIcons]::LaunchElevated($PSCommandPath, $JournalPath, $OwnerPid, $DesktopDirectory, $false, $TaskName, $RequestPath) }
 elseif ($ElevateWorker) { [OrganizerDesktopIcons]::LaunchElevated($PSCommandPath, $JournalPath, $OwnerPid, $DesktopDirectory, $true) }
 elseif ($PipeWorker) { [OrganizerDesktopIcons]::LaunchElevated($PSCommandPath, $JournalPath, $OwnerPid, $DesktopDirectory, $false) }
 elseif ($LaunchWorker) { [OrganizerDesktopIcons]::Launch($PSCommandPath, $JournalPath, $OwnerPid, $DesktopDirectory) }

@@ -387,6 +387,13 @@ h1 {
 #tab-btn-trivia { --tab-color: #fde047; --tab-rgb: 250, 204, 21; }
 #tab-btn-alarm { --tab-color: #c084fc; --tab-rgb: 168, 85, 247; }
 #tab-btn-shortcuts { --tab-color: #f472b6; --tab-rgb: 236, 72, 153; }
+#tab-btn-assistant { --tab-color: #2dd4bf; --tab-rgb: 45, 212, 191; }
+.nav-tabs { flex-wrap: wrap; }
+.tab-btn { flex-basis: 150px; }
+.assistant-settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; }
+.assistant-settings-grid .rule-input { width: 145px !important; min-width: 100px; }
+#assistant-display-target { width: 360px !important; max-width: 62%; }
+@media (max-width: 740px) { .assistant-settings-grid { grid-template-columns: 1fr; } }
 
 .tab-btn > span:first-child {
   display: grid;

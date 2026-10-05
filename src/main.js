@@ -1361,7 +1361,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
       if (state.status === 'waiting') {
-        say(currentLang === 'en' ? 'Update ready. Installation will begin after your file drag finishes.' : '更新已就緒，檔案拖曳完成後會自動安裝。', 5000);
+        say(currentLang === 'en' ? 'Update ready. Installation will begin after the current operation finishes.' : '更新已就緒，目前操作完成後會自動安裝。', 5000);
         return;
       }
       if (state.status === 'error') {

@@ -25,6 +25,7 @@ app.whenReady().then(async()=>{
     service=new UpdateService({app:{isPackaged:true,getVersion:()=> '1.6.0'},autoUpdater:updater,getWindows:()=>[main,settings],getLanguage:()=> 'zh-TW',beforeInstall:()=>{saves++;return true;}});
     const values={
       'get-language':'zh-TW','get-bubble-font-size':'std','get-sticky-notes-size':'std','sticky-notes-list':{active:[]},
+      'get-assistant-settings':{windowLayerMode:'bottom',moveMode:false,displayTarget:'primary',sizeKey:'std',stickyNotesSize:'std',bubbleFontSize:'std',ballSpeed:1.2},
       'laptop-get-shortcuts':{shortcuts:[],emailAccounts:[],calendars:[]},'get-focus-mode':{active:false},
       'email-get-config':{enabled:false,language:'zh-TW',accounts:[],rules:{}},'calendar-get-config':{enabled:false,calendars:[],rules:{}},
       'trivia-get-config':{enabled:false},'knowledge-cards-get-config':{enabled:false,cards:[],intervalMinutes:20},

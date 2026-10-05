@@ -1,6 +1,9 @@
 const RELEASE_NOTES = {
   '1.7.0': {
     'zh-TW': [
+      '總覽設定新增「小助手設定」頁簽，集中顯示層級、位置、助手與便利貼尺寸、對話字體及球體速度，沿用既有設定並即時保存。',
+      '右鍵選單將桌面整理工具放在勿擾模式上方，只保留小助手名稱下方的分隔線；語言與冷知識／笑話改由總覽設定操作。',
+      '新增選用的桌面捷徑一次授權與背景輔助程序，修正再次設定權限時的 Replace 路徑格式錯誤；靜默更新保留既有權限設定。',
       '新增桌面整理工具，可由科技球右鍵選單建立、顯示及管理多個整理視窗。',
       '檔案、資料夾與捷徑可拖曳加入；保留原檔案名稱與路徑，收納桌面項目時隱藏原桌面圖示。',
       '支援多項選取、同時拖入／移動／拖出，以及整理視窗之間的轉移，修正兩邊重複出現同一項目的問題。',
@@ -14,6 +17,9 @@ const RELEASE_NOTES = {
       '新增「復原整理視窗」，可重建未顯示的單一視窗，保留原檔案路徑、排列、背景及鎖定設定。'
     ],
     en: [
+      'Added an Assistant settings tab for display layers, position, assistant/sticky-note sizes, dialogue fonts and globe speed; existing settings are retained and changes save immediately.',
+      'Moved Desktop organizer above Focus mode and kept only the separator below the assistant name; language and trivia controls remain in Overview Settings.',
+      'Added optional one-time shortcut attribute authorization and a background helper; fixed the File.Replace pathname error during repeated setup. Silent updates preserve existing permission settings.',
       'Added desktop organizers: create, show and manage multiple boards from the technology-ball context menu.',
       'Drag files, folders and shortcuts into a board while preserving original names and paths; collected desktop items have their original desktop icons hidden.',
       'Select and drag multiple items in, within or out of boards; cross-board transfers no longer leave duplicate entries.',
