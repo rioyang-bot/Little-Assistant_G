@@ -12,6 +12,7 @@ const { WindowLayerController, normalizeWindowLayerMode } = require('./window-la
 const { parseNaturalLanguageTask } = require('./natural-language-task.cjs');
 const { UpdateService } = require('./update-service.cjs');
 const { startRelaunchWatchdog } = require('./update-relaunch-watchdog.cjs');
+const { verifyDownloadedUpdate } = require('./update-signature.cjs');
 const { autoUpdater } = require('electron-updater');
 const { locales } = require('./locales.cjs');
 const { isNewerVersion, formatDisplayVersion, getReleaseNotes } = require('./version-utils.cjs');
@@ -1876,7 +1877,8 @@ if (!gotTheLock) {
         savePetPreferences();
         return true;
       },
-      beforeQuitForInstall: () => startRelaunchWatchdog(app.getPath('exe'))
+      beforeQuitForInstall: () => startRelaunchWatchdog(app.getPath('exe')),
+      verifyDownloadedUpdate
     });
 
     if (emailService.config && emailService.config.language) {

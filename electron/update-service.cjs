@@ -1,5 +1,5 @@
 class UpdateService {
-  constructor({ app, autoUpdater, getWindow, getWindows, getLanguage, notifyDownloaded, beforeInstall, beforeQuitForInstall, restartDelayMs = 5000 }) {
+  constructor({ app, autoUpdater, getWindow, getWindows, getLanguage, notifyDownloaded, beforeInstall, beforeQuitForInstall, verifyDownloadedUpdate, restartDelayMs = 5000 }) {
     this.app = app;
     this.autoUpdater = autoUpdater;
     this.getWindows = getWindows || (() => [getWindow?.()]);
@@ -7,6 +7,8 @@ class UpdateService {
     this.notifyDownloaded = notifyDownloaded;
     this.beforeInstall = beforeInstall;
     this.beforeQuitForInstall = beforeQuitForInstall;
+    this.verifyDownloadedUpdate = verifyDownloadedUpdate;
+    this.verifyGeneration = 0;
     this.restartDelayMs = restartDelayMs;
     this.enabled = true;
     this.checkTimer = null;
@@ -22,7 +24,9 @@ class UpdateService {
 
   bindEvents() {
     this.autoUpdater.autoDownload = true;
-    this.autoUpdater.autoInstallOnAppQuit = true;
+    // Installing on quit would bypass signature verification, so it is only
+    // enabled when no verifier is configured.
+    this.autoUpdater.autoInstallOnAppQuit = !this.verifyDownloadedUpdate;
     this.autoUpdater.autoRunAppAfterInstall = true;
     this.autoUpdater.on('checking-for-update', () => this.sendStatus('checking', { manual: this.manualCheckPending }));
     this.autoUpdater.on('update-available', info => {
@@ -35,13 +39,22 @@ class UpdateService {
     });
     this.autoUpdater.on('download-progress', progress => this.sendStatus('downloading', { percent: Math.round(progress.percent || 0) }));
     this.autoUpdater.on('update-downloaded', info => {
-      this.downloaded = true;
-      if (this.installTimer || this.installQueued || this.stopped) return;
-      const seconds = this.enabled && this.isSupportedBuild() ? Math.ceil(this.restartDelayMs / 1000) : 0;
-      const detail = { version: info.version, autoInstallInSeconds: seconds };
-      this.sendStatus('downloaded', detail);
-      try { this.notifyDownloaded?.(detail); } catch { /* UI delivery cannot prevent installation. */ }
-      if (seconds) this.installTimer = setTimeout(() => { this.installTimer = null; this.install(); }, this.restartDelayMs);
+      if (!this.verifyDownloadedUpdate) return this.acceptDownloaded(info);
+      const generation = ++this.verifyGeneration;
+      Promise.resolve().then(() => this.verifyDownloadedUpdate(info)).then(() => {
+        if (generation === this.verifyGeneration) this.acceptDownloaded(info);
+      }, error => {
+        if (generation !== this.verifyGeneration) return;
+        this.downloaded = false;
+        console.warn('Rejected downloaded update:', error?.message || error);
+        this.sendStatus('error', {
+          message: this.getLanguage?.() === 'en'
+            ? 'The downloaded update failed the METech signature check and was not installed.'
+            : '下載的更新未通過 METech 簽章驗證，已停止安裝。',
+          manual: this.manualCheckPending
+        });
+        this.manualCheckPending = false;
+      });
     });
     this.autoUpdater.on('error', error => {
       clearTimeout(this.installTimer); this.installTimer = null; this.installQueued = false;
@@ -49,6 +62,16 @@ class UpdateService {
       this.sendStatus('error', { message: error?.message || String(error), manual: this.manualCheckPending });
       this.manualCheckPending = false;
     });
+  }
+
+  acceptDownloaded(info) {
+    this.downloaded = true;
+    if (this.installTimer || this.installQueued || this.stopped) return;
+    const seconds = this.enabled && this.isSupportedBuild() ? Math.ceil(this.restartDelayMs / 1000) : 0;
+    const detail = { version: info.version, autoInstallInSeconds: seconds };
+    this.sendStatus('downloaded', detail);
+    try { this.notifyDownloaded?.(detail); } catch { /* UI delivery cannot prevent installation. */ }
+    if (seconds) this.installTimer = setTimeout(() => { this.installTimer = null; this.install(); }, this.restartDelayMs);
   }
 
   sendStatus(status, detail = {}) {

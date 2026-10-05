@@ -4,6 +4,10 @@ dist/
 release/
 .snapshots/
 
+# Update signing private keys are kept offline, never in the repository
+*private*.pem
+*.key
+
 # Local account and application state
 email-config.json
 calendar-config.json
