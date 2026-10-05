@@ -27,6 +27,37 @@ const PRESET_SOUND_FILES = {
   'ringtone-042': 'universfield-ringtone-042-487904.mp3',
   'notification-066': 'universfield-new-notification-066-494545.mp3'
 };
+// Custom alarm sounds must be absolute paths to known audio files; anything else
+// (executables, relative paths, non-strings) is rejected before it can reach a player.
+function isPlayableAudioPath(value) {
+  return typeof value === 'string'
+    && value.length <= 1024
+    && path.isAbsolute(value)
+    && AUDIO_EXTENSIONS.has(path.extname(value).toLowerCase());
+}
+
+function isPlayableUrl(value) {
+  try {
+    return ['http:', 'https:'].includes(new URL(String(value)).protocol);
+  } catch (error) {
+    return false;
+  }
+}
+
+// The media source is passed through an environment variable, never interpolated
+// into the PowerShell command text, so no file name or URL can inject commands.
+const MEDIA_PLAYER_SCRIPT = 'Add-Type -AssemblyName PresentationCore; $player = New-Object System.Windows.Media.MediaPlayer; $player.Volume = 1.0; $player.Open([Uri]$env:METECH_ALARM_SOURCE); Start-Sleep -Milliseconds 1500; $player.Play(); while ($true) { Start-Sleep -Milliseconds 250; if ($player.NaturalDuration.HasTimeSpan -and $player.Position.TotalMilliseconds -ge ($player.NaturalDuration.TimeSpan.TotalMilliseconds - 500)) { $player.Position = [TimeSpan]::Zero; $player.Play() } }';
+
+function buildMediaPlayerLaunch(source, baseEnv = process.env) {
+  const value = String(source || '');
+  if (!isPlayableAudioPath(value) && !isPlayableUrl(value)) return null;
+  return {
+    file: 'powershell.exe',
+    args: ['-NoProfile', '-NonInteractive', '-Sta', '-WindowStyle', 'Hidden', '-Command', MEDIA_PLAYER_SCRIPT],
+    env: { ...baseEnv, METECH_ALARM_SOURCE: value }
+  };
+}
+
 const DEFAULT_CONFIG = {
   soundType: 'preset',
   preset: 'notification-064',
@@ -64,7 +95,7 @@ class AlarmService {
     this.config = {
       soundType: type,
       preset: ALARM_PRESETS.includes(input.preset) ? input.preset : 'notification-064',
-      customPaths: Array.isArray(input.customPaths) ? input.customPaths.filter(value => typeof value === 'string').slice(0, 500) : [],
+      customPaths: Array.isArray(input.customPaths) ? input.customPaths.filter(isPlayableAudioPath).slice(0, 500) : [],
       url: typeof input.url === 'string' ? input.url.trim().slice(0, 2000) : '',
       duration,
       cachedSourceUrl: '',
@@ -157,13 +188,15 @@ class AlarmService {
 
   async runYoutubeDl(url, extraArgs = []) {
     const videoId = this.getYoutubeId(url);
-    if (!videoId) throw new Error('無法辨識 YouTube 影片 ID');
+    if (!/^[A-Za-z0-9_-]{11}$/.test(videoId)) throw new Error('無法辨識 YouTube 影片 ID');
     const nodeRuntime = this.getNodeRuntimePath();
     if (!nodeRuntime) throw new Error('找不到 YouTube 所需的 Node.js JavaScript runtime');
     const cleanUrl = `https://www.youtube.com/watch?v=${videoId}`;
     const args = [
       '--js-runtimes', `node:${nodeRuntime}`,
-      '--remote-components', 'ejs:github',
+      // The official yt-dlp executable bundles its challenge solver; never
+      // download and run remote JavaScript components at alarm time.
+      '--no-remote-components',
       '--no-playlist',
       '--no-warnings',
       ...extraArgs,
@@ -241,7 +274,7 @@ class AlarmService {
     } else if (youtubeId) {
       this.startYoutubeStream(this.config.url);
     } else if (this.config.soundType === 'custom') {
-      const playable = (this.config.customPaths || []).filter(file => fs.existsSync(file));
+      const playable = (this.config.customPaths || []).filter(file => isPlayableAudioPath(file) && fs.existsSync(file));
       const selected = playable.length ? playable[Math.floor(Math.random() * playable.length)] : '';
       this.stopNativeSound();
       if (!selected || !this.startWindowsMediaPlayer(selected)) this.startNativeSound();
@@ -261,10 +294,14 @@ class AlarmService {
 
   startWindowsMediaPlayer(source) {
     if (process.platform !== 'win32' || !source) return false;
+    const launch = buildMediaPlayerLaunch(source);
+    if (!launch) {
+      console.warn('Rejected unsupported alarm audio source.');
+      return false;
+    }
     try {
-      const safeSource = String(source).replace(/'/g, "''");
-      const script = `Add-Type -AssemblyName PresentationCore; $player = New-Object System.Windows.Media.MediaPlayer; $player.Volume = 1.0; $player.Open([Uri]'${safeSource}'); Start-Sleep -Milliseconds 1500; $player.Play(); while ($true) { Start-Sleep -Milliseconds 250; if ($player.NaturalDuration.HasTimeSpan -and $player.Position.TotalMilliseconds -ge ($player.NaturalDuration.TimeSpan.TotalMilliseconds - 500)) { $player.Position = [TimeSpan]::Zero; $player.Play() } }`;
-      const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Sta', '-WindowStyle', 'Hidden', '-Command', script], {
+      const child = spawn(launch.file, launch.args, {
+        env: launch.env,
         windowsHide: true,
         stdio: 'ignore'
       });
@@ -351,4 +388,4 @@ class AlarmService {
   }
 }
 
-module.exports = { AlarmService, DEFAULT_CONFIG, AUDIO_EXTENSIONS, ALARM_PRESETS, PRESET_SOUND_FILES };
+module.exports = { AlarmService, DEFAULT_CONFIG, AUDIO_EXTENSIONS, ALARM_PRESETS, PRESET_SOUND_FILES, isPlayableAudioPath, buildMediaPlayerLaunch };

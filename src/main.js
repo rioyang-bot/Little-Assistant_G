@@ -128,6 +128,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       .replace(/"/g, '&quot;');
   };
 
+  // Calendar colours are placed inside style attributes; accept #rrggbb only.
+  const safeCalendarColor = (value, fallback) => /^#[0-9a-f]{6}$/i.test(String(value || '')) ? value : fallback;
+
   stickyNotesController = new StickyNotesController(ipcRenderer, () => currentLang);
   stickyNotesController.init();
 
@@ -1068,7 +1071,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (reminderData.type === 'connection-test') {
       headerText = currentLang === 'en' ? 'Calendar connection test succeeded' : '行事曆連線測試成功';
       const events = Array.isArray(reminderData.events) ? reminderData.events : [];
-      const calColor = reminderData.calendarColor || '#38bdf8';
+      const calColor = safeCalendarColor(reminderData.calendarColor, '#38bdf8');
       const calendarName = escapeHtml(reminderData.calendarName || (currentLang === 'en' ? 'Calendar' : '行事曆'));
       const countText = currentLang === 'en'
         ? `Today ${Number(reminderData.todayCount) || 0}, tomorrow ${Number(reminderData.tomorrowCount) || 0}`
@@ -1084,7 +1087,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const events = Array.isArray(reminderData.events) ? reminderData.events : [];
       if (events.length > 0) {
         contentHtml = '<div class="cal-list-container">' + events.map(ev => {
-          const calColor = ev.calendarColor || '#38bdf8';
+          const calColor = safeCalendarColor(ev.calendarColor, '#38bdf8');
           const title = escapeHtml(ev.summary);
           const time = escapeHtml(ev.timeLabel || '');
           const locText = ev.location ? `<div class="cal-item-loc">📍 ${escapeHtml(ev.location)}</div>` : '';
@@ -1111,7 +1114,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         todayHtml = `<div class="mail-more-hint">${loc.calendar.noEventsToday}</div>`;
       } else {
         todayHtml = todayList.slice(0, 3).map(ev => {
-          const calColor = ev.calendarColor || '#38bdf8';
+          const calColor = safeCalendarColor(ev.calendarColor, '#38bdf8');
           const title = escapeHtml(ev.summary);
           const time = escapeHtml(ev.timeLabel || '');
           const tag = ev.calendarName ? `<span class="cal-tag-pill" style="background: ${calColor}33; color: ${calColor};">${escapeHtml(ev.calendarName)}</span>` : '';
@@ -1131,7 +1134,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (reminderData.isTomorrowPreviewActive && tomorrowList.length > 0) {
         tomorrowHtml = `<div class="cal-section-tag">🌙 ${loc.calendar.tomorrowHeader(tomorrowList.length)}</div>` +
           tomorrowList.slice(0, 2).map(ev => {
-            const calColor = ev.calendarColor || '#fbbf24';
+            const calColor = safeCalendarColor(ev.calendarColor, '#fbbf24');
             const title = escapeHtml(ev.summary);
             const time = escapeHtml(ev.timeLabel || '');
             const tag = ev.calendarName ? `<span class="cal-tag-pill" style="background: ${calColor}33; color: ${calColor};">${escapeHtml(ev.calendarName)}</span>` : '';

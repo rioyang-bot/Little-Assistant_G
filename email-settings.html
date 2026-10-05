@@ -4,6 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-ypJhf4FvMNtyBObDlYv/MQ0vCFrRTCjO3HDnsBdx+FI='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; media-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-src 'none'">
   <title id="window-title">總覽設定 - METech小助手</title>
   <link rel="stylesheet" href="src/email-settings.css">
 </head>
@@ -743,6 +744,7 @@
         placeholderUser: 'example@gmail.com',
         labelPass: '密碼 / 應用程式專用密碼 (App Password)',
         placeholderPass: '16 位專用密碼 (例如: abcd efgh ijkl mnop)',
+        placeholderPassSaved: '已儲存密碼（留空即沿用；變更伺服器或帳號需重新輸入）',
         labelHost: 'IMAP 伺服器主機',
         labelPort: '連接埠 (Port)',
         btnTestAccount: '測試連線',
@@ -930,6 +932,7 @@
         placeholderUser: 'example@gmail.com',
         labelPass: 'Password / App Password',
         placeholderPass: '16-digit App Password (e.g. abcd efgh ijkl mnop)',
+        placeholderPassSaved: 'Password saved (leave blank to keep; re-enter after changing server or account)',
         labelHost: 'IMAP Server Host',
         labelPort: 'Port',
         btnTestAccount: 'Test Connection',
@@ -2283,7 +2286,7 @@
 
           <div class="form-group">
             <label for="acc-pass-${acc.id}">${s.labelPass}</label>
-            <input type="password" id="acc-pass-${acc.id}" class="acc-pass-input" value="${escapeAttr(acc.pass || '')}" autocomplete="current-password" placeholder="${s.placeholderPass}">
+            <input type="password" id="acc-pass-${acc.id}" class="acc-pass-input" value="${escapeAttr(acc.pass || '')}" autocomplete="current-password" placeholder="${acc.hasPassword ? s.placeholderPassSaved : s.placeholderPass}">
           </div>
 
           <div class="row">
@@ -2412,6 +2415,7 @@
           showStatus(`⏳ [${acc.name || acc.user || '#' + (index+1)}] ${s.statusTesting}`);
           try {
             const currentAccData = {
+              id: acc.id,
               provider: acc.provider,
               name: nameInp.value.trim(),
               user: userInp.value.trim(),
@@ -2492,7 +2496,7 @@
         card.className = 'account-card';
         card.dataset.id = cal.id;
 
-        const calColor = cal.color || colorPalette[index % colorPalette.length];
+        const calColor = /^#[0-9a-f]{6}$/i.test(String(cal.color || '')) ? cal.color : colorPalette[index % colorPalette.length];
 
         card.innerHTML = `
           <div class="account-card-header">
@@ -2733,7 +2737,8 @@
           port: parseInt(a.port, 10) || 993,
           secure: true,
           user: (a.user || '').trim(),
-          pass: (a.pass || '').trim()
+          pass: (a.pass || '').trim(),
+          hasPassword: a.hasPassword === true
         })),
         rules: {
           maxAgeHours: parseFloat(maxAgeSel.value) || 2,
@@ -2978,7 +2983,7 @@
       const data = getEmailFormData();
       showStatus(s.statusChecking);
       try {
-        if (data.accounts.some(a => a.user && a.pass)) {
+        if (data.accounts.some(a => a.user && (a.pass || a.hasPassword))) {
           await ipc.invoke('email-save-config', data);
         }
         const res = await ipc.invoke('email-check-now', data);

@@ -11,6 +11,7 @@ const { AlarmService } = require('./alarm-service.cjs');
 const { WindowLayerController, normalizeWindowLayerMode } = require('./window-layer-controller.cjs');
 const { parseNaturalLanguageTask } = require('./natural-language-task.cjs');
 const { UpdateService } = require('./update-service.cjs');
+const { startRelaunchWatchdog } = require('./update-relaunch-watchdog.cjs');
 const { autoUpdater } = require('electron-updater');
 const { locales } = require('./locales.cjs');
 const { isNewerVersion, formatDisplayVersion, getReleaseNotes } = require('./version-utils.cjs');
@@ -29,6 +30,37 @@ const {
 
 const fs = require('fs');
 const { spawn, execFileSync } = require('child_process');
+const { fileURLToPath } = require('url');
+const { installIpcSenderPolicy } = require('./ipc-sender-policy.cjs');
+
+// Must run before any service registers handlers so every channel is covered.
+installIpcSenderPolicy(ipcMain, sender => getIpcSenderRole(sender));
+
+function isAppPageUrl(url) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'file:') return false;
+    const relative = path.relative(path.resolve(__dirname, '..'), fileURLToPath(parsed));
+    return Boolean(relative) && !relative.startsWith('..') && !path.isAbsolute(relative);
+  } catch (error) {
+    return false;
+  }
+}
+
+// App pages are local files that hold the preload API. They must never navigate
+// to remote content or open in-app windows; web links go to the system browser.
+app.on('web-contents-created', (_event, contents) => {
+  contents.setWindowOpenHandler(({ url }) => {
+    try {
+      if (['http:', 'https:'].includes(new URL(url).protocol)) shell.openExternal(url);
+    } catch (error) { /* Ignore malformed links. */ }
+    return { action: 'deny' };
+  });
+  contents.on('will-navigate', (event, url) => {
+    if (!isAppPageUrl(url)) event.preventDefault();
+  });
+  contents.on('will-attach-webview', event => event.preventDefault());
+});
 
 let mainWindow = null;
 let desktopOrganizer = null;
@@ -216,6 +248,38 @@ function detectInstalledBrowsers() {
   return detected;
 }
 
+// Command interpreters and system launchers treat a URL argument as code, so they
+// can never act as a "browser" even if one was saved by an earlier version.
+const NON_BROWSER_EXECUTABLES = new Set([
+  'powershell.exe', 'powershell_ise.exe', 'pwsh.exe', 'cmd.exe', 'wscript.exe', 'cscript.exe', 'mshta.exe',
+  'rundll32.exe', 'regsvr32.exe', 'conhost.exe', 'wt.exe', 'bash.exe', 'wsl.exe', 'node.exe', 'python.exe',
+  'pythonw.exe', 'msiexec.exe', 'explorer.exe', 'certutil.exe', 'bitsadmin.exe', 'schtasks.exe', 'reg.exe',
+  'msbuild.exe', 'installutil.exe', 'forfiles.exe', 'hh.exe', 'control.exe', 'cmstp.exe', 'msxsl.exe'
+]);
+// Paths the user picked in a native dialog during this session.
+const userChosenBrowserPaths = new Set();
+const userChosenAppPaths = new Set();
+
+function getPathKey(value) {
+  return path.resolve(String(value || '')).toLowerCase();
+}
+
+function isUsableBrowserPath(browserPath) {
+  if (!browserPath || !path.isAbsolute(browserPath) || !fs.existsSync(browserPath)) return false;
+  if (NON_BROWSER_EXECUTABLES.has(path.basename(browserPath).toLowerCase())) return false;
+  return process.platform !== 'win32' || path.extname(browserPath).toLowerCase() === '.exe';
+}
+
+// A browser may be assigned only if it was detected, chosen by the user in the
+// file dialog, or is already part of the saved assignments.
+function isApprovedBrowserPath(browserPath) {
+  if (!isUsableBrowserPath(browserPath)) return false;
+  const key = getPathKey(browserPath);
+  return userChosenBrowserPaths.has(key)
+    || Object.values(laptopBrowserAssignments).some(saved => getPathKey(saved) === key)
+    || detectInstalledBrowsers().some(browser => getPathKey(browser.path) === key);
+}
+
 function normalizeBrowserAssignments(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return {};
   const normalized = {};
@@ -223,8 +287,7 @@ function normalizeBrowserAssignments(input) {
     const key = String(rawKey || '').trim();
     const browserPath = String(rawBrowserPath || '').trim();
     if (!/^(email|calendar|custom):.+/.test(key) || !browserPath) continue;
-    if (!path.isAbsolute(browserPath) || !fs.existsSync(browserPath)) continue;
-    if (process.platform === 'win32' && path.extname(browserPath).toLowerCase() !== '.exe') continue;
+    if (!isUsableBrowserPath(browserPath)) continue;
     normalized[key] = browserPath;
   }
   return normalized;
@@ -232,7 +295,7 @@ function normalizeBrowserAssignments(input) {
 
 async function openWebUrl(url, assignmentKey = '') {
   const browserPath = laptopBrowserAssignments[String(assignmentKey || '')];
-  if (!browserPath) {
+  if (!browserPath || !isUsableBrowserPath(browserPath)) {
     await shell.openExternal(url);
     return;
   }
@@ -832,6 +895,7 @@ function createPetWindow() {
         : []
     });
     if (result.canceled || !result.filePaths[0]) return { canceled: true };
+    if (isUsableBrowserPath(result.filePaths[0])) userChosenBrowserPaths.add(getPathKey(result.filePaths[0]));
     return { canceled: false, path: result.filePaths[0] };
   });
 
@@ -841,10 +905,7 @@ function createPetWindow() {
       const key = String(rawKey || '').trim();
       const browserPath = String(rawBrowserPath || '').trim();
       if (!browserPath) return false;
-      return !/^(email|calendar|custom):.+/.test(key)
-        || !path.isAbsolute(browserPath)
-        || !fs.existsSync(browserPath)
-        || (process.platform === 'win32' && path.extname(browserPath).toLowerCase() !== '.exe');
+      return !/^(email|calendar|custom):.+/.test(key) || !isApprovedBrowserPath(browserPath);
     });
     if (invalidPath) {
       return { ok: false, error: currentLanguage === 'en' ? 'Please choose a valid browser application.' : '請選擇有效的瀏覽器應用程式。' };
@@ -864,6 +925,7 @@ function createPetWindow() {
     });
     if (result.canceled || !result.filePaths[0]) return { canceled: true };
     const selectedPath = result.filePaths[0];
+    userChosenAppPaths.add(getPathKey(selectedPath));
     return { canceled: false, target: selectedPath, suggestedName: path.basename(selectedPath, path.extname(selectedPath)) };
   });
 
@@ -929,7 +991,11 @@ function createPetWindow() {
           const parsed = new URL(target);
           if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Only HTTP and HTTPS websites are supported.');
           target = parsed.href;
-        } else if (item?.type !== 'app' || !fs.existsSync(target)) {
+        } else if (item?.type !== 'app' || !fs.existsSync(target) || !(
+          // Applications must come from the file dialog or an already saved shortcut.
+          userChosenAppPaths.has(getPathKey(target))
+          || laptopShortcuts.some(saved => saved.type === 'app' && getPathKey(saved.target) === getPathKey(target))
+        )) {
           throw new Error('Please choose a valid application.');
         }
         return normalizeLaptopShortcut({ ...item, target });
@@ -1301,6 +1367,12 @@ function notifyAssistantSettings() {
   if (settingsWindow && !settingsWindow.isDestroyed()) {
     settingsWindow.webContents.send('assistant-settings-updated', getAssistantSettings());
   }
+}
+
+function getIpcSenderRole(sender) {
+  const owner = [[mainWindow, 'main'], [settingsWindow, 'settings'], [knowledgeCardWindow, 'knowledge']]
+    .find(([window]) => window && !window.isDestroyed() && window.webContents === sender);
+  return owner ? owner[1] : null;
 }
 
 function registerAssistantSettingsIpc() {
@@ -1803,7 +1875,8 @@ if (!gotTheLock) {
         desktopOrganizer?.save();
         savePetPreferences();
         return true;
-      }
+      },
+      beforeQuitForInstall: () => startRelaunchWatchdog(app.getPath('exe'))
     });
 
     if (emailService.config && emailService.config.language) {

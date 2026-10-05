@@ -103,6 +103,9 @@ let service;
     const normalRequest = actualService.request.bind(actualService);
     let elevationRequests = 0;
     actualService.allowElevation = true;
+    // This checkout is user-writable; simulate the Program Files install that UAC requires.
+    actualService.isProtectedInstall = true;
+    actualService.autoElevate = true;
     actualService.request = function(command, input) {
       if (this.elevated) { elevationRequests++; return Promise.reject(new Error('User cancelled elevation')); }
       return normalRequest(command, input);

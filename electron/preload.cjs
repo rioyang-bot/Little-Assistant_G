@@ -135,7 +135,8 @@ const electronAPI = {
   },
   on: (channel, listener) => {
     if (VALID_RECEIVE_CHANNELS.includes(channel)) {
-      const subscription = (event, ...args) => listener(event, ...args);
+      // Keep the (event, ...args) signature but never expose the IPC event itself.
+      const subscription = (_event, ...args) => listener(Object.freeze({}), ...args);
       ipcRenderer.on(channel, subscription);
       return () => {
         ipcRenderer.removeListener(channel, subscription);

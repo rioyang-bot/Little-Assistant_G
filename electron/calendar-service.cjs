@@ -5,6 +5,33 @@ const ical = require('node-ical');
 const { ipcMain } = require('electron');
 const { locales } = require('./locales.cjs');
 const { getStoragePath } = require('./storage-utils.cjs');
+const { encryptSecret, decryptSecret } = require('./secret-storage.cjs');
+
+const DEFAULT_CALENDAR_COLOR = '#38bdf8';
+
+// Calendar colours are interpolated into renderer styles, so only #rrggbb is kept.
+function normalizeCalendarColor(value) {
+  const color = String(value || '').trim();
+  return /^#[0-9a-f]{6}$/i.test(color) ? color : DEFAULT_CALENDAR_COLOR;
+}
+
+function normalizeCalendars(calendars) {
+  return (Array.isArray(calendars) ? calendars : [])
+    .filter(calendar => calendar && typeof calendar === 'object')
+    .map(({ urlEncrypted, ...calendar }) => ({
+      ...calendar,
+      url: typeof calendar.url === 'string' ? calendar.url.trim() : decryptSecret(urlEncrypted),
+      color: normalizeCalendarColor(calendar.color)
+    }));
+}
+
+// Private iCal addresses are credentials: store them encrypted, never as text.
+function toDiskCalendars(calendars) {
+  return normalizeCalendars(calendars).map(({ url, ...calendar }) => {
+    const urlEncrypted = encryptSecret(url);
+    return urlEncrypted ? { ...calendar, urlEncrypted } : calendar;
+  });
+}
 
 function getConfigFilePath() {
   return getStoragePath('calendar-config.json');
@@ -69,7 +96,7 @@ class CalendarService {
         const data = JSON.parse(fs.readFileSync(configFile, 'utf8'));
         return {
           language: data.language || DEFAULT_CONFIG.language,
-          calendars: Array.isArray(data.calendars) && data.calendars.length > 0 ? data.calendars : DEFAULT_CONFIG.calendars,
+          calendars: Array.isArray(data.calendars) && data.calendars.length > 0 ? normalizeCalendars(data.calendars) : DEFAULT_CONFIG.calendars,
           rules: {
             ...DEFAULT_CONFIG.rules,
             ...(data.rules || {})
@@ -96,6 +123,7 @@ class CalendarService {
       const mergedConfig = {
         ...this.config,
         ...newConfig,
+        calendars: Array.isArray(newConfig.calendars) ? normalizeCalendars(newConfig.calendars) : this.config.calendars,
         rules: {
           ...this.config.rules,
           ...(newConfig.rules || {})
@@ -106,7 +134,7 @@ class CalendarService {
       const diskConfig = {
         ...existing,
         language: mergedConfig.language || existing.language || 'zh-TW',
-        calendars: mergedConfig.calendars,
+        calendars: toDiskCalendars(mergedConfig.calendars),
         rules: mergedConfig.rules
       };
       // Calendar dialogue reminders are controlled per calendar. Remove the
@@ -165,32 +193,44 @@ class CalendarService {
           return reject(new Error('Too many redirects'));
         }
 
-        const req = https.get(reqUrl, requestOptions, (res) => {
-          if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-            let nextUrl = res.headers.location;
-            if (!nextUrl.startsWith('http')) {
-              const parsed = new URL(reqUrl);
-              nextUrl = new URL(nextUrl, parsed.origin).href;
+        let req;
+        try {
+          req = https.get(reqUrl, requestOptions, (res) => {
+            if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+              res.resume();
+              let nextUrl;
+              try {
+                nextUrl = new URL(res.headers.location, reqUrl);
+              } catch (error) {
+                return reject(new Error('Invalid calendar redirect'));
+              }
+              // Every hop must stay on TLS; https.get would otherwise throw here.
+              if (nextUrl.protocol !== 'https:') {
+                return reject(new Error('Calendar redirect must stay on https://'));
+              }
+              return handleRequest(nextUrl.href, redirectCount + 1);
             }
-            return handleRequest(nextUrl, redirectCount + 1);
-          }
 
-          if (res.statusCode !== 200) {
-            return reject(new Error(`HTTP ${res.statusCode}: ${res.statusMessage}`));
-          }
-
-          let data = '';
-          res.setEncoding('utf8');
-          res.on('data', (chunk) => {
-            data += chunk;
-            // Prevent excessively large calendar files (max 10MB)
-            if (data.length > 10 * 1024 * 1024) {
-              req.destroy();
-              reject(new Error('Calendar data exceeded maximum size limit (10MB)'));
+            if (res.statusCode !== 200) {
+              res.resume();
+              return reject(new Error(`HTTP ${res.statusCode}: ${res.statusMessage}`));
             }
+
+            let data = '';
+            res.setEncoding('utf8');
+            res.on('data', (chunk) => {
+              data += chunk;
+              // Prevent excessively large calendar files (max 10MB)
+              if (data.length > 10 * 1024 * 1024) {
+                req.destroy();
+                reject(new Error('Calendar data exceeded maximum size limit (10MB)'));
+              }
+            });
+            res.on('end', () => resolve(data));
           });
-          res.on('end', () => resolve(data));
-        });
+        } catch (error) {
+          return reject(error);
+        }
 
         req.on('error', (err) => reject(err));
         req.on('timeout', () => {
@@ -304,7 +344,7 @@ class CalendarService {
           id: uid,
           calendarId: cal.id,
           calendarName: cal.name || (isEn ? 'Calendar' : '行事曆'),
-          calendarColor: cal.color || '#38bdf8',
+          calendarColor: normalizeCalendarColor(cal.color),
           summary,
           location,
           description,
@@ -503,7 +543,7 @@ class CalendarService {
         mainWindow.webContents.send('calendar-reminder', {
           type: 'connection-test',
           calendarName: calData.name || (isEn ? 'Calendar' : '行事曆'),
-          calendarColor: calData.color || '#38bdf8',
+          calendarColor: normalizeCalendarColor(calData.color),
           todayCount: res.todayEvents.length,
           tomorrowCount: res.tomorrowEvents.length,
           events: [...res.todayEvents, ...res.tomorrowEvents].slice(0, 3),
@@ -631,4 +671,4 @@ class CalendarService {
   }
 }
 
-module.exports = { CalendarService, DEFAULT_CONFIG };
+module.exports = { CalendarService, DEFAULT_CONFIG, normalizeCalendarColor };

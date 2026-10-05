@@ -1,11 +1,12 @@
 class UpdateService {
-  constructor({ app, autoUpdater, getWindow, getWindows, getLanguage, notifyDownloaded, beforeInstall, restartDelayMs = 5000 }) {
+  constructor({ app, autoUpdater, getWindow, getWindows, getLanguage, notifyDownloaded, beforeInstall, beforeQuitForInstall, restartDelayMs = 5000 }) {
     this.app = app;
     this.autoUpdater = autoUpdater;
     this.getWindows = getWindows || (() => [getWindow?.()]);
     this.getLanguage = getLanguage;
     this.notifyDownloaded = notifyDownloaded;
     this.beforeInstall = beforeInstall;
+    this.beforeQuitForInstall = beforeQuitForInstall;
     this.restartDelayMs = restartDelayMs;
     this.enabled = true;
     this.checkTimer = null;
@@ -129,6 +130,8 @@ class UpdateService {
         return;
       }
       this.sendStatus('installing', { version: this.lastStatus?.version });
+      // A per-machine update asks for UAC after quitting; keep a way back if it is declined.
+      try { this.beforeQuitForInstall?.(); } catch { /* Installation proceeds without the safety net. */ }
       // /S + --force-run: perform a silent installation, then relaunch the app.
       this.autoUpdater.quitAndInstall(true, true);
     } catch {

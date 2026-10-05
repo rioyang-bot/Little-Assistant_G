@@ -1,9 +1,32 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFile } = require('node:child_process');
+const { randomUUID } = require('node:crypto');
 const { promisify } = require('node:util');
 const { getNativeScriptPath } = require('./organizer-files.cjs');
 const execute = promisify(execFile);
+const protectedDirectoryCache = new Map();
+
+// Elevated PowerShell may only run scripts that ordinary programs cannot
+// replace. The app runs with a normal token, so a successful write probe means
+// the install directory is user-writable (development copy or an old per-user
+// installation) and UAC elevation from it must be refused.
+function isAdminProtectedDirectory(directory = path.dirname(getNativeScriptPath('windows-desktop-icons.ps1'))) {
+  const key = path.resolve(directory).toLowerCase();
+  if (protectedDirectoryCache.has(key)) return protectedDirectoryCache.get(key);
+  let protectedDirectory = false;
+  const probe = path.join(directory, `.metech-write-probe-${process.pid}-${randomUUID()}`);
+  try {
+    fs.writeFileSync(probe, '', { flag: 'wx' });
+    try { fs.unlinkSync(probe); } catch { /* Best effort cleanup of an empty probe. */ }
+  } catch (error) {
+    protectedDirectory = ['EPERM', 'EACCES'].includes(error.code);
+  }
+  protectedDirectoryCache.set(key, protectedDirectory);
+  return protectedDirectory;
+}
+
+const UNPROTECTED_INSTALL_ERROR = '小助手未安裝在受管理員保護的 Program Files 位置，已停止需要管理員權限的設定。請使用最新安裝程式重新安裝後再試。';
 
 function readBroker(userDir) {
   try {
@@ -28,6 +51,7 @@ class DesktopIconPermissions {
   }
   async execute(mode) {
     if (!['Setup', 'Install', 'Grant', 'Restore', 'Remove', 'Status'].includes(mode)) throw new Error('Invalid permission operation');
+    if (mode !== 'Status' && !(this.isProtectedInstall ?? isAdminProtectedDirectory())) throw new Error(UNPROTECTED_INSTALL_ERROR);
     const paths = [...new Set(this.getPaths())].filter(file => /\.(lnk|url)$/i.test(file));
     let result;
     try { result = await execute('powershell.exe', ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-File',
@@ -50,4 +74,4 @@ class DesktopIconPermissions {
     fs.writeFileSync(path.join(this.userDir, 'desktop-icon-broker.json'), JSON.stringify(broker, null, 2));
   }
 }
-module.exports = { DesktopIconPermissions, readBroker };
+module.exports = { DesktopIconPermissions, readBroker, isAdminProtectedDirectory, UNPROTECTED_INSTALL_ERROR };

@@ -2,7 +2,9 @@ const { spawn } = require('child_process');
 const path = require('path');
 const { randomUUID } = require('crypto');
 const { getNativeScriptPath } = require('./organizer-files.cjs');
-const { readBroker } = require('./desktop-icon-permissions.cjs');
+const { readBroker, isAdminProtectedDirectory, UNPROTECTED_INSTALL_ERROR } = require('./desktop-icon-permissions.cjs');
+
+const ELEVATION_SETUP_HINT = '部分桌面捷徑受權限保護，小助手不會在每次開機要求管理員權限。請從「桌面整理工具 → 桌面圖示權限」安裝背景輔助程序，或一次授權已收納的捷徑；完成後開機不需再確認。';
 
 // Keep file paths intact. The native service journals only the attribute bits
 // it adds and restores them when the owner exits, including an owner crash.
@@ -12,6 +14,9 @@ class DesktopIconVisibility {
     this.desktopDirectory = desktopDirectory;
     this.pending = new Map();
     this.allowElevation = options.allowElevation !== false && !process.argv.includes('--no-icon-elevation');
+    // Automatic syncs (startup, desktop changes) never open UAC. Persistent
+    // permission comes from the one-time broker install or shortcut grant.
+    this.autoElevate = options.autoElevate === true;
     this.pipeTransport = options.pipeTransport === true;
     this.onStatus = options.onStatus || (() => {});
     this.broker = this.allowElevation && options.allowBroker !== false ? readBroker(userDir) : null;
@@ -96,7 +101,22 @@ class DesktopIconVisibility {
         response = await this.request(command, input); failure = null;
         response = [...response, '背景圖示程序未啟動，請從「桌面圖示權限」重新安裝背景程序。'];
       }
-      if ((this.requiresElevation || failure?.requiresElevation) && this.allowElevation && !this.elevationAttempted && !this.disposed) {
+      const needsElevation = (this.requiresElevation || failure?.requiresElevation) && this.allowElevation && !this.elevationAttempted && !this.disposed;
+      // The SYSTEM broker already has full rights, so a UAC worker cannot help;
+      // without autoElevate, point to the one-time setup instead of prompting.
+      if (needsElevation && (this.useBroker || !this.autoElevate)) {
+        this.elevationAttempted = true;
+        if (failure) throw failure;
+        return this.useBroker ? response : [...response, ELEVATION_SETUP_HINT];
+      }
+      // The SYSTEM broker always runs the Program Files copy. A UAC worker would
+      // run this installation's script, so it is refused when that is user-writable.
+      if (needsElevation && !(this.isProtectedInstall ?? isAdminProtectedDirectory())) {
+        this.elevationAttempted = true;
+        if (failure) throw failure;
+        return [...response, UNPROTECTED_INSTALL_ERROR];
+      }
+      if (needsElevation) {
         this.elevationAttempted = true;
         try { this.onStatus('部分桌面捷徑需要管理員權限，請在 Windows 確認視窗按「是」。'); } catch { /* A closing window must not prevent icon recovery. */ }
         await this.stopWorker();
@@ -137,4 +157,4 @@ class DesktopIconVisibility {
     this.child?.stdin.end(); // EOF restores all owned flags before exiting.
   }
 }
-module.exports = { DesktopIconVisibility };
+module.exports = { DesktopIconVisibility, ELEVATION_SETUP_HINT };

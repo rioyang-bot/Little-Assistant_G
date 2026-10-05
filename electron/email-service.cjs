@@ -1,9 +1,10 @@
 const fs = require('fs');
-const { ipcMain, safeStorage } = require('electron');
+const { ipcMain } = require('electron');
 const { ImapFlow } = require('imapflow');
 const { simpleParser } = require('mailparser');
 const { locales } = require('./locales.cjs');
 const { getStoragePath } = require('./storage-utils.cjs');
+const { encryptSecret, decryptSecret } = require('./secret-storage.cjs');
 
 function getConfigFilePath() {
   return getStoragePath('email-config.json');
@@ -25,34 +26,21 @@ function normalizeLabelList(value) {
   return [...new Set(value.map(label => String(label || '').trim()).filter(Boolean))].slice(0, 300);
 }
 
-function encryptSecret(plaintext) {
-  if (!plaintext) return '';
-  try {
-    if (safeStorage && safeStorage.isEncryptionAvailable()) {
-      return safeStorage.encryptString(plaintext).toString('base64');
-    }
-  } catch (e) {
-    console.error('safeStorage encryption error:', e.message);
-  }
-  // Fallback encoding if OS keychain is unavailable
-  return Buffer.from(plaintext, 'utf8').toString('base64');
+const IMAP_HOST_PATTERN = /^(?=.{1,253}$)(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))*$/i;
+
+function isValidImapEndpoint(account = {}) {
+  const port = parseInt(account.port, 10);
+  return IMAP_HOST_PATTERN.test(String(account.host || '').trim())
+    && Number.isInteger(port) && port >= 1 && port <= 65535;
 }
 
-function decryptSecret(cipherBase64) {
-  if (!cipherBase64) return '';
-  try {
-    const buffer = Buffer.from(cipherBase64, 'base64');
-    if (safeStorage && safeStorage.isEncryptionAvailable()) {
-      return safeStorage.decryptString(buffer);
-    }
-    return buffer.toString('utf8');
-  } catch (e) {
-    try {
-      return Buffer.from(cipherBase64, 'base64').toString('utf8');
-    } catch (err) {
-      return '';
-    }
-  }
+// A stored password may only be reused for the exact server and login it was
+// entered for, so a changed host or port can never receive the saved secret.
+function isSameImapLogin(a = {}, b = {}) {
+  return String(a.host || '').trim().toLowerCase() === String(b.host || '').trim().toLowerCase()
+    && (parseInt(a.port, 10) || 993) === (parseInt(b.port, 10) || 993)
+    && String(a.user || '').trim().toLowerCase() === String(b.user || '').trim().toLowerCase()
+    && (a.secure !== false) === (b.secure !== false);
 }
 
 const DEFAULT_CONFIG = {
@@ -115,9 +103,9 @@ class EmailService {
       const diskAccounts = (this.config.accounts || []).map(acc => {
         const accCopy = { ...acc };
         if (accCopy.pass) {
+          // Without OS encryption the password stays in memory for this session only.
           accCopy.passEncrypted = encryptSecret(accCopy.pass);
-        } else if (accCopy.passEncrypted) {
-          accCopy.passEncrypted = accCopy.passEncrypted;
+          if (!accCopy.passEncrypted) delete accCopy.passEncrypted;
         }
         delete accCopy.pass; // Never persist plaintext password to disk
         return accCopy;
@@ -239,16 +227,38 @@ class EmailService {
     return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
   }
 
+  // Renderers never receive passwords; they only learn whether one is saved.
+  getRendererConfig() {
+    return {
+      ...this.config,
+      accounts: (this.config.accounts || []).map(({ pass, passEncrypted, ...account }) => ({
+        ...account,
+        pass: '',
+        hasPassword: Boolean(pass)
+      }))
+    };
+  }
+
+  // Fill a blank renderer-supplied password from the saved account only when the
+  // login target is unchanged.
+  withStoredPassword(account = {}) {
+    const resolved = { ...account, pass: String(account.pass || '').trim() };
+    if (resolved.pass || !resolved.id) return resolved;
+    const existing = (this.config.accounts || []).find(item => item.id === resolved.id);
+    if (existing && existing.pass && isSameImapLogin(existing, resolved)) resolved.pass = existing.pass;
+    return resolved;
+  }
+
   saveConfig(newConfig) {
     try {
       let updatedAccounts = this.config.accounts;
       if (Array.isArray(newConfig.accounts)) {
+        const invalidAccount = newConfig.accounts.find(acc => !isValidImapEndpoint({ host: acc.host || 'imap.gmail.com', port: acc.port || 993 }));
+        if (invalidAccount) {
+          return { success: false, error: this.config.language === 'en' ?'Invalid IMAP server or port.' : 'IMAP 伺服器或連接埠格式無效。' };
+        }
         updatedAccounts = newConfig.accounts.map((acc, idx) => {
-          let passVal = (acc.pass || '').trim();
-          if (!passVal && acc.id) {
-            const existing = (this.config.accounts || []).find(a => a.id === acc.id);
-            if (existing && existing.pass) passVal = existing.pass;
-          }
+          const passVal = this.withStoredPassword({ ...acc, host: acc.host || 'imap.gmail.com' }).pass;
 
           return {
             id: acc.id || `acc-${Date.now()}-${idx}`,
@@ -297,8 +307,8 @@ class EmailService {
       const intervalMin = Math.max(1, parseFloat(this.config.rules.checkIntervalMinutes) || 5);
       const loc = this.getLocale();
       return { 
-        success: true, 
-        config: this.config,
+        success: true,
+        config: this.getRendererConfig(),
         intervalMinutes: intervalMin,
         message: loc.service.saveSuccess(intervalMin)
       };
@@ -825,7 +835,7 @@ class EmailService {
     if (!ipcMain) return;
 
     ipcMain.handle('email-get-config', () => {
-      return this.config;
+      return this.getRendererConfig();
     });
 
     ipcMain.handle('email-save-config', (event, newConfig) => {
@@ -833,19 +843,22 @@ class EmailService {
     });
 
     ipcMain.handle('email-test-connection', async (event, testAccount) => {
-      return await this.testConnection(testAccount);
+      return await this.testConnection(this.withStoredPassword(testAccount || {}));
     });
 
     ipcMain.handle('email-test-all', async (event, accountsList) => {
-      return await this.testAllConnections(accountsList);
+      return await this.testAllConnections(Array.isArray(accountsList) ? accountsList.map(account => this.withStoredPassword(account)) : accountsList);
     });
 
     ipcMain.handle('email-list-labels', async (event, account) => {
-      return await this.listGmailLabels(account);
+      return await this.listGmailLabels(this.withStoredPassword(account || {}));
     });
 
     ipcMain.handle('email-check-now', async (event, customConfig) => {
-      return await this.checkEmails('manual', customConfig);
+      const config = customConfig && Array.isArray(customConfig.accounts)
+        ? { ...customConfig, accounts: customConfig.accounts.map(account => this.withStoredPassword(account)) }
+        : null;
+      return await this.checkEmails('manual', config);
     });
   }
 }

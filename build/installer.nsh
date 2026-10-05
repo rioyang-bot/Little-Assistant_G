@@ -1,5 +1,9 @@
+; Install for all users under Program Files. Only administrators can modify
+; this directory, so the PowerShell helpers that run elevated (permission setup
+; and the protected icon worker) cannot be replaced by ordinary programs.
+; electron-builder removes an earlier per-user installation automatically.
 !macro customInit
-  StrCpy $INSTDIR "$LOCALAPPDATA\Programs\METech-desktop-assistant"
+  StrCpy $INSTDIR "$PROGRAMFILES64\METech-desktop-assistant"
 !macroend
 
 ; Start the installed assistant whenever the current user signs in.  Keeping
@@ -10,10 +14,11 @@
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" \
     "METechAssistant" '"$INSTDIR\METech-desktop-assistant.exe"'
   ; The optional privileged helper is registered only with explicit consent.
-  ; Silent upgrades preserve its existing registration and ordinary app token.
+  ; The per-machine installer is already elevated, so accepting here avoids any
+  ; later administrator prompt. Silent upgrades preserve the existing choice.
   ${IfNot} ${Silent}
-    MessageBox MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2 \
-      "是否安裝桌面圖示背景輔助程序？$\r$\n它以 SYSTEM 權限執行，僅處理桌面圖示的隱藏及還原。首次需 Windows 管理員確認，之後可免除每次詢問。$\r$\n也可以稍後從小助手右鍵選單啟用。" IDNO metech_skip_helper
+    MessageBox MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON1 \
+      "是否安裝桌面圖示背景輔助程序？（建議）$\r$\n它以 SYSTEM 權限執行，僅處理桌面圖示的隱藏及還原。安裝後，桌面整理工具開機時不需要再確認管理員權限。$\r$\n也可以稍後從小助手右鍵選單啟用。" IDNO metech_skip_helper
     nsExec::ExecToLog '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "$INSTDIR\resources\app.asar.unpacked\electron\windows-desktop-icon-permissions.ps1" -Mode Install'
     Pop $0
     metech_skip_helper:
