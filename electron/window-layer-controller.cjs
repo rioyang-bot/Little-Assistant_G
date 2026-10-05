@@ -29,7 +29,34 @@ public static class AssistantWindowLayer {
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder name, int count);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr GetProp(IntPtr h, string name);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern bool SetProp(IntPtr h, string name, IntPtr value);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr FindWindowEx(IntPtr parent, IntPtr after, string className, string title);
   const string OrganizerProperty = "METechOrganizerWindow";
+  // The shell window hosting the desktop icons. Windows "Show desktop" raises
+  // it above every ordinary window instead of minimizing them.
+  static bool IsDesktopHost(IntPtr window) {
+    var name = new StringBuilder(256);
+    GetClassName(window, name, name.Capacity);
+    string type = name.ToString();
+    return (type == "Progman" || type == "WorkerW") && IsWindowVisible(window)
+      && FindWindowEx(window, IntPtr.Zero, "SHELLDLL_DefView", null) != IntPtr.Zero;
+  }
+  static IntPtr DesktopBelow(IntPtr window) {
+    IntPtr current = window;
+    for (int i = 0; i < 10000; i++) {
+      current = GetWindow(current, 2); // GW_HWNDNEXT
+      if (current == IntPtr.Zero || IsDesktopHost(current)) return current;
+    }
+    return IntPtr.Zero;
+  }
+  static bool CoveredByDesktop(IntPtr window) {
+    IntPtr current = window;
+    for (int i = 0; i < 10000; i++) {
+      current = GetWindow(current, 3); // GW_HWNDPREV: windows above this one.
+      if (current == IntPtr.Zero) return false;
+      if (IsDesktopHost(current)) return true;
+    }
+    return false;
+  }
   static bool OwnedBy(IntPtr window, IntPtr owner) {
     for (int i = 0; i < 64; i++) {
       window = GetWindow(window, 4); // GW_OWNER
@@ -43,6 +70,9 @@ public static class AssistantWindowLayer {
     for (int i = 0; i < 10000; i++) {
       current = GetWindow(current, 2); // GW_HWNDNEXT: windows below this one.
       if (current == IntPtr.Zero) return false;
+      // Anything below the desktop is hidden by it (for example during Show
+      // desktop), so it must not push this window back underneath.
+      if (IsDesktopHost(current)) return false;
       if (!IsWindowVisible(current) || IsIconic(current) || GetProp(current, OrganizerProperty) != IntPtr.Zero) continue;
       if (OwnedBy(current, window)) continue;
       var name = new StringBuilder(256);
@@ -71,10 +101,25 @@ public static class AssistantWindowLayer {
       }
       // Windows keeps modal dialogs above their disabled owner. Reordering the
       // owner during that time repeatedly drags the whole modal group down.
-      if (IsWindowVisible(window) && IsWindowEnabled(window) && !IsIconic(window) && NeedsLowering(window)) {
-        // HWND_BOTTOM; SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE.
-        if (!SetWindowPos(window, new IntPtr(1), 0, 0, 0, 0, 0x13))
-          throw new InvalidOperationException("Could not lower assistant window");
+      if (IsWindowVisible(window) && IsWindowEnabled(window) && !IsIconic(window)) {
+        if (CoveredByDesktop(window)) {
+          // Show desktop: stay visible on the desktop. The desktop is then the
+          // foreground window and HWND_TOP is ignored for background callers;
+          // TOPMOST followed by NOTOPMOST lands at the top of the normal band.
+          // Restored applications return above it and lowering resumes.
+          if (!SetWindowPos(window, new IntPtr(-1), 0, 0, 0, 0, 0x13) || !SetWindowPos(window, new IntPtr(-2), 0, 0, 0, 0, 0x13))
+            throw new InvalidOperationException("Could not raise assistant window above the desktop");
+        } else if (NeedsLowering(window)) {
+          // Settle directly above the desktop rather than at HWND_BOTTOM: while
+          // Show desktop is active the desktop is not at the bottom, and
+          // HWND_BOTTOM would drop this window underneath it.
+          IntPtr desktop = DesktopBelow(window);
+          IntPtr above = desktop == IntPtr.Zero ? IntPtr.Zero : GetWindow(desktop, 3);
+          IntPtr after = above != IntPtr.Zero && above != window ? above : new IntPtr(1); // else HWND_BOTTOM
+          // SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE.
+          if (!SetWindowPos(window, after, 0, 0, 0, 0, 0x13))
+            throw new InvalidOperationException("Could not lower assistant window");
+        }
       }
       Thread.Sleep(250);
     }
