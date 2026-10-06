@@ -1,4 +1,18 @@
 const RELEASE_NOTES = {
+  '1.7.2': {
+    'zh-TW': [
+      '整理視窗空白處新增右鍵選單：重新整理、排序方式（名稱／大小／項目類型／修改日期）、新增資料夾或文字文件；鎖定時也可使用。',
+      '重新整理會移除已刪除或移走的項目；位置暫時無法連線的項目以灰色標示，可拖曳或從右鍵選單移除。',
+      '整理視窗統一為自由排列，移除設定中的檔案排列；原有圖示位置保留，長檔名最多顯示兩行。',
+      '科技球與系統匣選單的名稱旁顯示目前版本。'
+    ],
+    en: [
+      'Right-click empty organizer space for Refresh, Sort by (name, size, type, date modified) and New folder or text document; available on locked boards too.',
+      'Refresh removes deleted or moved entries; entries whose location is temporarily unavailable are dimmed and can be dragged or removed from the menu.',
+      'Organizers always use free placement; the arrangement setting is removed, existing icon positions are kept and long names show up to two lines.',
+      'The tech-ball and tray menus show the current version next to the name.'
+    ]
+  },
   '1.7.1': {
     'zh-TW': [
       '按下 Windows「顯示桌面」（Win+D 或工作列右下角）時，置底模式的小助手與桌面整理視窗會保留在桌面上；回到其他視窗後恢復置底。',
