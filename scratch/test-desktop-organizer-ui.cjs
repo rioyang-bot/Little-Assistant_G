@@ -136,14 +136,14 @@ app.whenReady().then(async () => {
       for(const [id,value] of [['header-color-mode','custom'],['header-color','#234567'],['header-text-color','#80eeaa'],['text-color','#ffc878']]){
         const node=document.getElementById(id);node.value=value;node.dispatchEvent(new Event(id==='header-color-mode'?'change':'input',{bubbles:true}));
       }
-      document.getElementById('arrangement').value='grid';document.getElementById('arrangement').dispatchEvent(new Event('change',{bubbles:true}));
+      document.getElementById('pattern').value='dots';document.getElementById('pattern').dispatchEvent(new Event('change',{bubbles:true}));
     })()`);
     for(let i=0;i<100 && service.settingsWindows.get(board.id)?.preview?.textColor!=='#ffc878';i++)await delay(20);
     await delay(50);
     assert.deepEqual(await win.webContents.executeJavaScript(`({background:getComputedStyle(document.getElementById('header')).backgroundColor,title:getComputedStyle(document.getElementById('title')).color,files:[...document.querySelectorAll('.item span')].map(node=>getComputedStyle(node).color),sameNode:window.previewNode===document.querySelector('.item')})`),{background:'rgb(35, 69, 103)',title:'rgb(128, 238, 170)',files:Array(3).fill('rgb(255, 200, 120)'),sameNode:true});
     assert.equal(board.headerTextColor,'#f7f7fb');assert.equal(board.textColor,'#f7f7fb');
     await closeSettings(settings);
-    assert.equal(board.arrangement,'free','cancelling settings also discards unsaved arrangement');
+    assert.equal(board.pattern,'grid','cancelling settings also discards an unsaved pattern');
     assert.equal(await win.webContents.executeJavaScript(`getComputedStyle(document.getElementById('title')).color`),'rgb(247, 247, 251)');
     assert.equal(await win.webContents.executeJavaScript(`getComputedStyle(document.getElementById('header')).backgroundColor`),originalHeader);
     settings=await openSettings();

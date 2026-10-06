@@ -6,33 +6,14 @@ const { WindowsFileDrag } = require('./windows-file-drag.cjs');
 const { WindowLayerController } = require('./window-layer-controller.cjs');
 const { DesktopIconVisibility } = require('./desktop-icon-visibility.cjs');
 const { WindowsContextMenu } = require('./windows-context-menu.cjs');
+const { refreshMenuIcon } = require('./menu-icons.cjs');
 
 const limit = (value, min, max, fallback) => Number.isFinite(value) ? Math.round(Math.max(min, Math.min(max, value))) : fallback;
-const arrangements = ['free', 'grid', 'row', 'column'];
-const gridCell = position => ({ column:limit((position.x - 8) / 88, 0, 454, 0), row:limit((position.y - 12) / 104, 0, 384, 0) });
-const cellKey = cell => `${cell.column}:${cell.row}`;
-function gridPosition(position, occupied) {
-  const target = gridCell(position);
-  for (let radius = 0; radius <= occupied.size + 1; radius++) {
-    let closest;
-    for (let row = Math.max(0, target.row - radius); row <= Math.min(384, target.row + radius); row++) {
-      for (let column = Math.max(0, target.column - radius); column <= Math.min(454, target.column + radius); column++) {
-        if (Math.max(Math.abs(row - target.row), Math.abs(column - target.column)) !== radius || occupied.has(`${column}:${row}`)) continue;
-        const distance = ((column - target.column) * 88) ** 2 + ((row - target.row) * 104) ** 2;
-        if (!closest || distance < closest.distance) closest = { column, row, distance };
-      }
-    }
-    if (closest) return { x:8 + closest.column * 88, y:12 + closest.row * 104 };
-  }
-  throw new Error('找不到可用的圖示位置。');
-}
 function normalizeBoard(input = {}) {
   return {
     id: typeof input.id === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(input.id) ? input.id : randomUUID(),
     title: String(input.title || '桌面整理').slice(0, 60),
     locked: input.locked === true,
-    // Retain positions when reopening settings from the retired automatic modes.
-    arrangement: ['row','column'].includes(input.arrangement) ? 'grid' : arrangements.includes(input.arrangement) ? input.arrangement : 'free',
     opacity: limit(input.opacity, 0, 100, 45),
     color: /^#[0-9a-f]{6}$/i.test(input.color || '') ? input.color : '#171c2a',
     textColor: /^#[0-9a-f]{6}$/i.test(input.textColor || '') ? input.textColor : '#f7f7fb',
@@ -183,10 +164,96 @@ class DesktopOrganizer {
 
   removeFromBoard(board, id) {
     const item = board.items.find(item => item.id === id);
-    if (item) this.restoreItem(item);
+    if (item) this.restoreExistingItem(item);
     const remove = () => { board.items = board.items.filter(item => item.id !== id); this.layoutBoard(board); this.save(); return board; };
     if (item && this.iconVisibility) return this.releaseDesktopIcon(item).then(remove);
     return remove();
+  }
+
+  gridColumns(board) {
+    const bounds = this.windows.get(board.id)?.getBounds?.() || board.bounds;
+    const width = this.viewports.get(board.id)?.width || bounds.width;
+    return Math.max(1, Math.floor((width - 16) / 88));
+  }
+
+  // Like the desktop's "Sort by": order once, then lay items out in reading
+  // order. Folders come first and missing entries last, as in Explorer.
+  sortBoard(board, key) {
+    const stats = new Map(board.items.map(item => { try { return [item, fs.statSync(item.path)]; } catch { return [item, null]; } }));
+    const collator = new Intl.Collator('zh-Hant', { numeric: true, sensitivity: 'base' });
+    const label = item => path.basename(item.path).replace(/\.(lnk|url)$/i, '');
+    const byName = (a, b) => collator.compare(label(a), label(b));
+    const compare = {
+      name: byName,
+      size: (a, b) => (stats.get(a)?.size ?? 0) - (stats.get(b)?.size ?? 0) || byName(a, b),
+      type: (a, b) => collator.compare(path.extname(a.path).toLowerCase(), path.extname(b.path).toLowerCase()) || byName(a, b),
+      date: (a, b) => (stats.get(b)?.mtimeMs ?? 0) - (stats.get(a)?.mtimeMs ?? 0) || byName(a, b)
+    }[key];
+    if (!compare) throw new Error('不支援的排序方式。');
+    const rank = item => !stats.get(item) ? 2 : stats.get(item).isDirectory() ? 0 : 1;
+    board.items = [...board.items].sort((a, b) => rank(a) - rank(b) || compare(a, b));
+    const columns = this.gridColumns(board);
+    board.items.forEach((item, index) => { item.position = { x: 8 + (index % columns) * 88, y: 12 + Math.floor(index / columns) * 104 }; });
+    this.layoutBoard(board); this.save(); this.notifyItems(board);
+  }
+
+  // "New" from the organizer creates the item on the desktop, like the
+  // desktop menu, and collects it into this board (its desktop icon is hidden).
+  async createNewItem(board, kind, position) {
+    if (!['folder', 'text'].includes(kind)) throw new Error('不支援的新增項目。');
+    const desktop = this.electron.app.getPath('desktop');
+    const base = kind === 'folder' ? '新增資料夾' : '新增文字文件', extension = kind === 'folder' ? '' : '.txt';
+    let target = '';
+    for (let n = 1; n < 1000 && (!target || fs.existsSync(target)); n++) target = path.join(desktop, n === 1 ? base + extension : `${base} (${n})${extension}`);
+    if (fs.existsSync(target)) throw new Error('無法建立新項目，請先整理桌面上的同名項目。');
+    if (kind === 'folder') fs.mkdirSync(target); else fs.writeFileSync(target, '', { flag: 'wx' });
+    this.addToBoard(board, [target], position);
+    const item = board.items.find(entry => entry.path.toLowerCase() === target.toLowerCase());
+    if (!item) {
+      fs.rmSync(target, { recursive: true, force: true });
+      throw new Error('一個整理視窗最多 300 個項目。');
+    }
+    if (this.iconVisibility) await this.syncDesktopIcons();
+    return item.id;
+  }
+
+  async runBackgroundAction(board, action, position) {
+    if (action === 'refresh') return { action, ...(await this.refreshBoard(board)) };
+    // Locking only fixes the window and its settings; these stay available.
+    const [type, value] = String(action).split(':');
+    if (type === 'sort') this.sortBoard(board, value);
+    else if (type === 'new') return { action, newId: await this.createNewItem(board, value, position), ...this.boardResult(board) };
+    else throw new Error('不支援的操作。');
+    return { action, ...this.boardResult(board) };
+  }
+
+  backgroundMenuTemplate(board, choose) {
+    const item = (label, action) => ({ label, click: () => choose(action) });
+    const { nativeImage, nativeTheme } = this.electron;
+    return [
+      { label: '重新整理', icon: refreshMenuIcon(nativeImage, nativeTheme?.shouldUseDarkColors !== false), click: () => choose('refresh') },
+      { type: 'separator' },
+      { label: '排序方式', submenu: [
+        item('名稱', 'sort:name'), item('大小', 'sort:size'), item('項目類型', 'sort:type'), item('修改日期', 'sort:date')
+      ] },
+      { type: 'separator' },
+      { label: '新增', submenu: [item('資料夾', 'new:folder'), item('文字文件', 'new:text')] }
+    ];
+  }
+
+  // A file that is gone while its folder is still reachable was deleted or
+  // moved, so its entry is removed. Entries on an unavailable drive or share
+  // stay (shown as missing) until the location returns or the user removes them.
+  async refreshBoard(board) {
+    const gone = board.items.filter(item => !fs.existsSync(item.path) && fs.existsSync(path.dirname(item.path))
+      && !(item.originalPath && fs.existsSync(item.originalPath)));
+    let removed = 0;
+    for (const item of gone) {
+      try { await this.removeFromBoard(board, item.id); removed++; } catch { /* Kept and still shown as missing. */ }
+    }
+    if (!removed && this.layoutBoard(board)) this.save();
+    if (this.iconVisibility) await this.syncDesktopIcons();
+    return { ...this.boardResult(board), removed };
   }
 
   notifyItems(board) { this.windows.get(board.id)?.webContents.send?.('organizer-items-updated', board.items); }
@@ -254,46 +321,22 @@ class DesktopOrganizer {
     return { ...board, migrationErrors: [...board.items.map(item => this.migrationWarnings.get(item)).filter(Boolean), ...this.iconErrors] };
   }
 
-  releaseDesktopIcon(item) {
-    if (!this.iconVisibility) return;
-    return this.syncDesktopIcons(this.desktopPaths(item)).then(errors => {
-      if (errors.length) throw new Error(errors.join(' '));
-    });
+  async releaseDesktopIcon(item) {
+    if (!this.iconVisibility || this.permissionOperation) return;
+    // A failure of the icon service blocks removal. Errors about other
+    // protected shortcuts and setup hints must not; only this entry's own
+    // error means its desktop icon could not be shown again.
+    try { this.iconErrors = await this.iconVisibility.sync(this.desktopPaths(item)); }
+    catch (error) { this.iconErrors = [error.message || '無法隱藏桌面圖示。']; this.notifyIconStatus(); throw error; }
+    this.notifyIconStatus();
+    const own = this.iconErrors.filter(error => error.startsWith(path.basename(item.path) + '：'));
+    if (own.length) throw new Error(own.join(' '));
   }
 
+  // Free placement: existing positions stay; new items take the first vacant
+  // slot in reading order.
   layoutBoard(board) {
-    const bounds = this.windows.get(board.id)?.getBounds?.() || board.bounds;
-    const viewport = this.viewports.get(board.id);
-    const width = viewport?.width || bounds.width;
-    const columns = Math.max(1, Math.floor((width - 16) / 88));
-    if (board.arrangement === 'grid') {
-      const occupied = new Set(); let changed = false, slot = 0;
-      // Existing placements get priority. Fill new items into vacant cells
-      // without compacting gaps or reordering when the viewport changes.
-      for (const item of [...board.items.filter(item => item.position), ...board.items.filter(item => !item.position)]) {
-        let desired = item.position;
-        if (!desired) {
-          do { desired = { x:8 + (slot % columns) * 88, y:12 + Math.floor(slot / columns) * 104 }; slot++; }
-          while (occupied.has(cellKey(gridCell(desired))));
-        }
-        const position = gridPosition(desired, occupied);
-        occupied.add(cellKey(gridCell(position)));
-        if (item.position?.x !== position.x || item.position?.y !== position.y) { item.position = position; changed = true; }
-      }
-      return changed;
-    }
-    if (board.arrangement === 'row' || board.arrangement === 'column') {
-      const height = viewport?.height || Math.max(1, bounds.height - 52);
-      const rows = Math.max(1, Math.floor((height - 24) / 104));
-      let changed = false;
-      board.items.forEach((item, index) => {
-        const position = board.arrangement === 'column'
-          ? { x: 8 + Math.floor(index / rows) * 88, y: 12 + (index % rows) * 104 }
-          : { x: 8 + (index % columns) * 88, y: 12 + Math.floor(index / columns) * 104 };
-        if (item.position?.x !== position.x || item.position?.y !== position.y) { item.position = position; changed = true; }
-      });
-      return changed;
-    }
+    const columns = this.gridColumns(board);
     let changed = false;
     for (const item of board.items) {
       if (item.position) continue;
@@ -306,6 +349,12 @@ class DesktopOrganizer {
       item.position = candidate; changed = true;
     }
     return changed;
+  }
+
+  // An entry whose file no longer exists anywhere has nothing to move back;
+  // removing it only clears the stale inventory entry.
+  restoreExistingItem(item) {
+    if (!item.originalPath || fs.existsSync(item.path) || fs.existsSync(item.originalPath)) this.restoreItem(item);
   }
 
   restoreItem(item) {
@@ -524,6 +573,10 @@ class DesktopOrganizer {
       if (this.iconVisibility) return this.syncDesktopIcons().then(() => this.boardResult(board));
       return this.boardResult(board);
     });
+    ipcMain.handle('organizer-refresh', event => {
+      if (this.permissionOperation) throw new Error('桌面圖示權限正在設定中，請稍後再重新整理。');
+      return this.refreshBoard(ownBoard(event));
+    });
     ipcMain.handle('organizer-position', (event, input = {}) => {
       const board = ownBoard(event);
       const item = board.items.find(item => item.id === input.id);
@@ -531,21 +584,11 @@ class DesktopOrganizer {
       const ids = Array.isArray(input.ids) ? [...new Set(input.ids)] : [item.id];
       const moving = ids.map(id => board.items.find(candidate => candidate.id === id));
       if (!ids.length || ids.length > 300 || !ids.includes(item.id) || moving.some(candidate => !candidate)) throw new Error('無效的圖示選取。');
-      if (!['free','grid'].includes(board.arrangement)) return board;
       this.layoutBoard(board);
-      const desired = { x:limit(input.x, 0, 40000, 0), y:limit(input.y, 0, 40000, 0) };
-      const target = board.arrangement === 'grid' ? gridPosition(desired, new Set()) : desired;
-      const minX = board.arrangement === 'grid' ? 8 : 0, minY = board.arrangement === 'grid' ? 12 : 0;
-      const maxX = board.arrangement === 'grid' ? 39960 : 40000, maxY = board.arrangement === 'grid' ? 39948 : 40000;
-      const dx = limit(target.x-item.position.x,minX-Math.min(...moving.map(entry=>entry.position.x)),maxX-Math.max(...moving.map(entry=>entry.position.x)),0);
-      const dy = limit(target.y-item.position.y,minY-Math.min(...moving.map(entry=>entry.position.y)),maxY-Math.max(...moving.map(entry=>entry.position.y)),0);
+      const target = { x:limit(input.x, 0, 40000, 0), y:limit(input.y, 0, 40000, 0) };
+      const dx = limit(target.x-item.position.x,-Math.min(...moving.map(entry=>entry.position.x)),40000-Math.max(...moving.map(entry=>entry.position.x)),0);
+      const dy = limit(target.y-item.position.y,-Math.min(...moving.map(entry=>entry.position.y)),40000-Math.max(...moving.map(entry=>entry.position.y)),0);
       const positions = moving.map(entry=>({x:entry.position.x+dx,y:entry.position.y+dy}));
-      if (board.arrangement === 'grid') {
-        const targets = new Set(positions.map(position=>cellKey(gridCell(position))));
-        const vacant = moving.map(entry=>entry.position).filter(position=>!targets.has(cellKey(gridCell(position))));
-        const displaced = board.items.filter(entry=>!moving.includes(entry) && targets.has(cellKey(gridCell(entry.position))));
-        displaced.forEach((entry,index)=>{entry.position={...vacant[index]};});
-      }
       moving.forEach((entry,index)=>{entry.position=positions[index];});
       this.save(); return board;
     });
@@ -619,7 +662,6 @@ class DesktopOrganizer {
       if (typeof input.headerColor === 'string' && /^#[0-9a-f]{6}$/i.test(input.headerColor)) board.headerColor = input.headerColor;
       if (typeof input.headerTextColor === 'string' && /^#[0-9a-f]{6}$/i.test(input.headerTextColor)) board.headerTextColor = input.headerTextColor;
       if (['none', 'dots', 'grid', 'diagonal'].includes(input.pattern)) board.pattern = input.pattern;
-      if (arrangements.includes(input.arrangement)) board.arrangement = input.arrangement;
       if (input.clearImage === true) board.image = '';
       if (fromSettings && typeof input.image === 'string') board.image = normalizeBoard({ image: input.image }).image;
       const win = this.windows.get(board.id);
@@ -677,6 +719,19 @@ class DesktopOrganizer {
       this.save();
       return { board, skipped, errors };
     };
+    this.addToBoard = add;
+    ipcMain.handle('organizer-background-menu', async (event, point = {}) => {
+      if (this.permissionOperation) throw new Error('桌面圖示權限正在設定中，請稍後再試。');
+      const board = ownBoard(event), win = this.windows.get(board.id), { Menu } = this.electron;
+      if (!Menu) return { action: null };
+      let chosen = null;
+      const menu = Menu.buildFromTemplate(this.backgroundMenuTemplate(board, action => { chosen = action; }));
+      await this.withDialog(board, () => new Promise(resolve => menu.popup({ window: win, x: Math.round(limit(point.x, 0, 4000, 20)), y: Math.round(limit(point.y, 0, 4000, 40)), callback: resolve })));
+      // Windows can report the menu closed before the chosen item's click.
+      if (!chosen) await new Promise(resolve => setTimeout(resolve, 50));
+      if (!chosen) return { action: null };
+      return this.runBackgroundAction(board, chosen, { x: limit(point.itemX, 0, 20000, 8), y: limit(point.itemY, 0, 20000, 12) });
+    });
     ipcMain.handle('organizer-add', (event, paths, position, token) => {
       if (this.permissionOperation) throw new Error('桌面圖示權限正在設定中，請稍後再加入檔案。');
       const result = add(ownBoard(event), paths, position, token);
@@ -711,7 +766,9 @@ class DesktopOrganizer {
     ipcMain.handle('organizer-context-menu', async (event, id, point = {}) => {
       if (this.permissionOperation) throw new Error('桌面圖示權限正在設定中，請稍後再試。');
       const board = ownBoard(event), item = board.items.find(item => item.id === id);
-      if (!item || !fs.existsSync(item.path)) throw new Error('找不到檔案或資料夾，可能已移動或刪除。');
+      if (!item) throw new Error('找不到檔案或資料夾，可能已移動或刪除。');
+      // Windows has no context menu for a missing file; offer removal instead.
+      if (!fs.existsSync(item.path)) return { fallback:true, missing:true };
       if (!this.contextMenu) return { fallback:true };
       const win = this.windows.get(board.id), bounds = win.getBounds();
       const position = { x:bounds.x + limit(point.x, 0, bounds.width, 20), y:bounds.y + limit(point.y, 0, bounds.height, 40) };
@@ -785,6 +842,7 @@ class DesktopOrganizer {
     ipcMain.handle('organizer-icon', async (event, id) => {
       const item = ownBoard(event).items.find(candidate => candidate.id === id);
       if (!item) return '';
+      if (!fs.existsSync(item.path)) return { missing: true };
       try { return await this.getIcon(item); } catch { return ''; }
     });
     ipcMain.handle('organizer-hide', event => { const board = ownBoard(event); this.closeSettings(board); this.windows.get(board.id).hide(); });
@@ -800,7 +858,7 @@ class DesktopOrganizer {
       if (this.permissionOperation) throw new Error('桌面圖示權限正在設定中，請稍後再刪除整理視窗。');
       if (fromSettings) settingsBoard(event);
       for (const item of [...board.items]) {
-        this.restoreItem(item);
+        this.restoreExistingItem(item);
         await this.releaseDesktopIcon(item);
         board.items = board.items.filter(candidate => candidate !== item);
         this.save();

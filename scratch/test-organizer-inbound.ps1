@@ -1,6 +1,5 @@
-param([ValidateSet('free','grid','row','column')][string]$Arrangement = 'free', [switch]$Batch)
+param([switch]$Batch)
 $ErrorActionPreference = 'Stop'
-$env:METECH_INBOUND_ARRANGEMENT = $Arrangement
 $env:METECH_INBOUND_BATCH = if($Batch.IsPresent){'1'}else{'0'}
 $inboundTestRoot = Join-Path ([IO.Path]::GetTempPath()) ('organizer-inbound-test-' + [guid]::NewGuid())
 [void][IO.Directory]::CreateDirectory($inboundTestRoot)
@@ -102,10 +101,6 @@ public static class OrganizerInboundTest {
           Check(effect==(int)DragDropEffects.Link,"Source must receive Link, not Move or Copy.");
           var items=(IList)state["items"]; Check(items.Count==files.Count,"Incoming file missing.");
           var item=(Dictionary<string,object>)items[0]; Check(Convert.ToString(item["path"])==file,"Original path changed.");
-          if(Environment.GetEnvironmentVariable("METECH_INBOUND_ARRANGEMENT")=="row" || Environment.GetEnvironmentVariable("METECH_INBOUND_ARRANGEMENT")=="column") {
-            var position=(Dictionary<string,object>)item["position"];
-            Check(Convert.ToInt32(position["x"])==8 && Convert.ToInt32(position["y"])==12,"Incoming file did not follow automatic arrangement.");
-          }
           Check(File.ReadAllText(file)=="native incoming drag contents","File bytes changed.");
           Check((File.GetAttributes(file)&(FileAttributes.Hidden|FileAttributes.System))==(FileAttributes.Hidden|FileAttributes.System),"Collected desktop icon was not hidden.");
           for(int index=0;index<files.Count;index++) {

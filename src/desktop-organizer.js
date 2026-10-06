@@ -9,6 +9,8 @@ let selectedIds = new Set();
 let selectionAnchor;
 let renderVersion = 0;
 let activeDrag = null;
+// Items whose file is missing cannot use the Windows file drag.
+let missingIds = new Set();
 let lastDragged = 0;
 let nativeDragPending = false;
 let organizerDrag = null;
@@ -16,15 +18,15 @@ let placementTask = Promise.resolve();
 let keyboardTask = Promise.resolve();
 let layoutFrame = 0;
 let layoutSignature = '';
+// Reports the visible area so new and sorted items fit the window width.
+// Existing positions are never changed by this.
 function scheduleAutomaticLayout() {
   if (layoutFrame) return;
   layoutFrame = requestAnimationFrame(async () => {
     layoutFrame = 0;
-    if (!board || board.arrangement === 'free' || nativeDragPending) return;
-    // Reserve horizontal scrollbar space even when absent; the stable vertical
-    // gutter also keeps scrollbar changes from feeding back into arrangement.
+    if (!board || nativeDragPending) return;
     const viewport = { width: $('items').clientWidth, height: Math.max(1, $('items').offsetHeight - 16) };
-    const signature = `${board.arrangement}:${viewport.width}:${viewport.height}`;
+    const signature = `${viewport.width}:${viewport.height}`;
     if (signature === layoutSignature) return;
     layoutSignature = signature;
     const version = renderVersion;
@@ -68,7 +70,6 @@ function clearDrag() {
 }
 function clearDropPreview() {
   $('drop-preview')?.remove();
-  document.querySelectorAll('.drop-swap-target').forEach(node => node.classList.remove('drop-swap-target'));
   $('board').classList.remove('drag-over');
 }
 function updateSelection() {
@@ -96,15 +97,9 @@ function dropPosition(event) {
 function showDropPreview(event) {
   const area = $('items').getBoundingClientRect();
   if (event.clientX < area.left || event.clientX >= area.right || event.clientY < area.top || event.clientY >= area.bottom) { clearDropPreview(); return; }
-  const desired = dropPosition(event);
-  const position = board.arrangement === 'grid'
-    ? { x:8 + Math.round(Math.min(454, Math.max(0, (desired.x - 8) / 88))) * 88, y:12 + Math.round(Math.min(384, Math.max(0, (desired.y - 12) / 104))) * 104 }
-    : desired;
+  const position = dropPosition(event);
   const source = organizerDrag?.boardId === board.id ? board.items.find(item => item.path.toLowerCase() === organizerDrag.path.toLowerCase()) : null;
   const draggedPaths=organizerDrag?.paths || (organizerDrag ? [organizerDrag.path] : []);
-  const target = board.arrangement === 'grid' && source ? board.items.find(item => !draggedPaths.some(path=>path.toLowerCase()===item.path.toLowerCase()) && item.position.x === position.x && item.position.y === position.y) : null;
-  document.querySelectorAll('.drop-swap-target').forEach(node => node.classList.toggle('drop-swap-target', node.dataset.itemId === target?.id));
-  if (target) document.querySelector(`[data-item-id="${target.id}"]`)?.classList.add('drop-swap-target');
   let preview = $('drop-preview');
   if (!preview) {
     preview = document.createElement('div'); preview.id = 'drop-preview'; preview.setAttribute('aria-hidden','true');
@@ -113,7 +108,7 @@ function showDropPreview(event) {
     preview.append(document.createElement('span')); $('item-surface').append(preview);
   }
   preview.style.left = `${position.x}px`; preview.style.top = `${position.y}px`;
-  preview.querySelector('span').textContent = draggedPaths.length>1 ? `${draggedPaths.length} 個項目` : target ? '交換位置' : '放置位置';
+  preview.querySelector('span').textContent = draggedPaths.length>1 ? `${draggedPaths.length} 個項目` : '放置位置';
   $('board').classList.add('drag-over');
 }
 function enableItemDrag(button, item) {
@@ -131,15 +126,23 @@ function enableItemDrag(button, item) {
     if (!drag || drag.button !== button) return;
     const dx = event.clientX - drag.clientX, dy = event.clientY - drag.clientY;
     if (!drag.moved && Math.hypot(dx, dy) < 6) return;
+    const allIds=[item.id,...selectedIds].filter((id,index,all)=>all.indexOf(id)===index);
+    if (allIds.every(id=>missingIds.has(id))) {
+      // Nothing to hand to Windows: move the entry within this window only.
+      drag.moved = true; button.classList.add('dragging');
+      const x = Math.max(0, drag.x + dx + $('items').scrollLeft - drag.scrollLeft), y = Math.max(0, drag.y + dy + $('items').scrollTop - drag.scrollTop);
+      item.position = { x, y }; button.style.left = `${x}px`; button.style.top = `${y}px`; updateSurface();
+      return;
+    }
     clearDrag(); lastDragged = Date.now(); nativeDragPending = true;
-    const ids=[item.id,...selectedIds].filter((id,index,all)=>all.indexOf(id)===index);
+    const ids=allIds.filter(id=>!missingIds.has(id));
     const draggedButtons=[...document.querySelectorAll('.item')].filter(node=>ids.includes(node.dataset.itemId));
     draggedButtons.forEach(node=>node.classList.add('dragging'));
     // Start OLE while the pointer is still inside the window and the button is
     // held. The same drag supports both internal placement and external moves.
     run(async () => {
       try {
-        await api.invoke('organizer-drag-out', ids.length===1 ? item.id : ids);
+        await api.invoke('organizer-drag-out', ids.length===1 ? ids[0] : ids);
         // The drop's placement IPC can finish after the native OLE operation.
         // Read the board after that update rather than rendering an old reply.
         await placementTask;
@@ -195,7 +198,6 @@ function render(data) {
   const version = ++renderVersion;
   layoutSignature = '';
   $('board').classList.toggle('locked', board.locked);
-  $('board').classList.toggle('auto-arrange', board.arrangement !== 'free');
   applyAppearance();
   $('lock').textContent = board.locked ? '🔒' : '🔓';
   $('lock').title = board.locked ? '解鎖' : '鎖定';
@@ -205,6 +207,7 @@ function render(data) {
   $('lock').setAttribute('aria-pressed', String(board.locked));
   $('empty').hidden = board.items.length > 0;
   $('items').replaceChildren();
+  missingIds = new Set();
   const surface = document.createElement('div'); surface.id = 'item-surface'; $('items').append(surface);
   for (const item of board.items) {
     const button = document.createElement('button');
@@ -234,9 +237,7 @@ function render(data) {
       const arrows = { ArrowLeft: [-8, 0], ArrowRight: [8, 0], ArrowUp: [0, -8], ArrowDown: [0, 8] };
       if (!arrows[event.key]) return;
       event.preventDefault();
-      if (!['free','grid'].includes(board.arrangement)) return;
-      const steps = board.arrangement === 'grid' ? { ArrowLeft:[-88,0], ArrowRight:[88,0], ArrowUp:[0,-104], ArrowDown:[0,104] } : arrows;
-      const [dx,dy]=steps[event.key],ids=selectedIds.has(item.id)?[...selectedIds]:[item.id];
+      const [dx,dy]=arrows[event.key],ids=selectedIds.has(item.id)?[...selectedIds]:[item.id];
       // Rapid key presses must use the preceding move's returned coordinates.
       keyboardTask=keyboardTask.then(()=>run(async()=>{
         const current=board.items.find(entry=>entry.id===item.id);
@@ -252,7 +253,9 @@ function render(data) {
       run(async () => {
         const result = await api.invoke('organizer-context-menu', item.id, point);
         if (result.fallback) {
-          $('remove').textContent = item.originalPath ? '移回原位置' : '從整理視窗移除';
+          $('open').hidden = $('reveal').hidden = result.missing === true;
+          $('remove').textContent = item.originalPath && !result.missing ? '移回原位置' : '從整理視窗移除';
+          if (result.missing) status('找不到原始檔案，可能已移動或刪除；可從選單移除此項目。');
           $('item-menu').hidden = false;
           $('item-menu').style.left = `${Math.max(0, Math.min(point.x, innerWidth - 180))}px`;
           $('item-menu').style.top = `${Math.max(0, Math.min(point.y, innerHeight - 110))}px`;
@@ -266,6 +269,13 @@ function render(data) {
     surface.append(button);
     api.invoke('organizer-icon', item.id).then(icon => {
       if (!icon || version !== renderVersion) return;
+      if (icon.missing) {
+        missingIds.add(item.id);
+        button.classList.add('missing');
+        button.title = `找不到原始檔案，可能已移動或刪除：${item.path}`;
+        fallback.textContent = '⚠';
+        return;
+      }
       const img = document.createElement('img'); img.src = icon; img.alt = ''; img.draggable = false;
       fallback.replaceWith(img);
       updateSurface();
@@ -307,6 +317,13 @@ async function added(result) {
   render(result.board);
   status(result.errors?.length ? result.errors.join(' ') : result.skipped ? `${result.skipped} 個項目無法加入，請確認檔案存在，且每個視窗最多 300 個項目。` : '');
 }
+// Refresh (F5 and the background menu): removes deleted entries and
+// re-checks every item's file and icon.
+const refresh = () => run(async () => {
+  const result = await api.invoke('organizer-refresh');
+  render(result);
+  status(result.removed ? `已移除 ${result.removed} 個已刪除或移走的項目。` : '');
+});
 $('hide').onclick = () => run(() => api.invoke('organizer-hide'));
 $('lock').onclick = () => run(async () => render(await api.invoke('organizer-update', { locked: !board.locked })));
 $('edit').onclick = () => { if (!board.locked) run(() => api.invoke('organizer-settings-open')); };
@@ -315,6 +332,7 @@ $('open').onclick = () => openItem(selectedItem);
 $('reveal').onclick = () => openItem(selectedItem, true);
 $('remove').onclick = () => run(async () => { render(await api.invoke('organizer-remove', selectedItem)); status(''); });
 document.addEventListener('keydown', event => {
+  if (event.key === 'F5' && !event.target.closest?.('input,textarea,select')) { event.preventDefault(); refresh(); return; }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase()==='a' && !event.target.closest?.('input,textarea,select')) {
     event.preventDefault();selectedIds=new Set(board.items.map(item=>item.id));updateSelection();return;
   }
@@ -323,6 +341,23 @@ document.addEventListener('keydown', event => {
   const drag = clearDrag();
   if (drag) { drag.item.position = { x: drag.x, y: drag.y }; drag.button.style.left = `${drag.x}px`; drag.button.style.top = `${drag.y}px`; updateSurface(); }
   if(!nativeDragPending){selectedIds.clear();updateSelection();clearDropPreview();}
+});
+// Right-click on empty space: refresh, view, sort and new, like the desktop.
+for (const area of [$('items'), $('empty')]) area.addEventListener('contextmenu', event => {
+  if (event.target.closest('.item,input')) return;
+  event.preventDefault();
+  $('item-menu').hidden = true;
+  const rect = $('items').getBoundingClientRect();
+  // New items appear centred under the pointer.
+  const point = { x: event.clientX, y: event.clientY,
+    itemX: Math.max(0, event.clientX - rect.left + $('items').scrollLeft - 41), itemY: Math.max(0, event.clientY - rect.top + $('items').scrollTop - 30) };
+  run(async () => {
+    const result = await api.invoke('organizer-background-menu', point);
+    if (!result?.action) return;
+    render(result);
+    status(result.removed ? `已移除 ${result.removed} 個已刪除或移走的項目。` : '');
+    if (result.newId) beginRename(result.newId);
+  });
 });
 $('items').addEventListener('pointerdown',event=>{
   if(event.target.closest('.item') || event.button!==0 || nativeDragPending)return;

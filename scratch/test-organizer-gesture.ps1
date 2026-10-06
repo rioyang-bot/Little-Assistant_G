@@ -1,8 +1,6 @@
-param([ValidateSet('free','grid','row','column')][string]$Arrangement = 'free', [switch]$Batch)
+param([switch]$Batch)
 $ErrorActionPreference = 'Stop'
-$env:METECH_GESTURE_ARRANGEMENT = $Arrangement
 $env:METECH_GESTURE_BATCH = if($Batch.IsPresent) {'1'} else {'0'}
-if($Batch.IsPresent -and $Arrangement -ne 'free'){throw 'Batch gesture uses free placement.'}
 $gestureTestRoot = Join-Path ([IO.Path]::GetTempPath()) ('organizer-gesture-test-' + [guid]::NewGuid())
 [void][IO.Directory]::CreateDirectory($gestureTestRoot)
 $env:METECH_GESTURE_ROOT = $gestureTestRoot
@@ -138,31 +136,14 @@ public static class OrganizerGestureTest {
           else if (stage == 2) { SetCursorPos(sourcePoint.X + 20, sourcePoint.Y + 10); stage++; }
           else if (stage == 3) {
             if(Convert.ToString(state["phase"])!="dragging")return;
-            bool aligned = Convert.ToString(state["arrangement"]) == "grid";
-            Point inside = new Point((int)((aligned ? 49 : 220) * sourceScale), (int)((aligned ? 58 : 155) * sourceScale)); ClientToScreen(sourceWindow, ref inside); SetCursorPos(inside.X, inside.Y); stage++;
+            Point inside = new Point((int)(220 * sourceScale), (int)(155 * sourceScale)); ClientToScreen(sourceWindow, ref inside); SetCursorPos(inside.X, inside.Y); stage++;
           } else if (stage == 4) {
-            if (Convert.ToString(state["arrangement"]) == "grid") {
-              var preview = Read(Path.Combine(root,"preview.json")); if(preview == null) {
-                Point jiggle=new Point((int)(49*sourceScale),(int)((58+(ticks%2))*sourceScale));ClientToScreen(sourceWindow,ref jiggle);SetCursorPos(jiggle.X,jiggle.Y);return;
-              }
-              Check(Convert.ToInt32(preview["x"]) == 8 && Convert.ToInt32(preview["y"]) == 12 && Convert.ToBoolean(preview["visible"]), "Grid drop preview must mark the first slot.");
-              Check(Convert.ToString(preview["text"]) == "\u4ea4\u63db\u4f4d\u7f6e", "Occupied drop preview must explain the exchange: " + Convert.ToString(preview["text"]));
-            }
             mouse_event(4,0,0,0,UIntPtr.Zero); stage++;
           }
-          else if (stage == 5 && items.Count == (batch || Convert.ToString(state["arrangement"]) == "grid" ? 3 : 1)) {
+          else if (stage == 5 && items.Count == (batch ? 3 : 1)) {
             var item = (Dictionary<string, object>)items[batch?0:items.Count-1]; var position = (Dictionary<string, object>)item["position"];
             if (Convert.ToString(state["phase"]) != "ended-None") return;
-            if (Convert.ToString(state["arrangement"]) == "free" || Convert.ToString(state["arrangement"]) == "grid") {
-              if(Convert.ToString(state["arrangement"]) == "grid") {
-                if(Convert.ToDouble(position["x"]) != 8 || Convert.ToDouble(position["y"]) != 12) return;
-                var firstPosition = (Dictionary<string,object>)((Dictionary<string,object>)items[0])["position"];
-                var secondPosition = (Dictionary<string,object>)((Dictionary<string,object>)items[1])["position"];
-                Check(Convert.ToDouble(firstPosition["x"]) == 184 && Convert.ToDouble(firstPosition["y"]) == 12,"Occupied folder did not exchange positions.");
-                Check(Convert.ToDouble(secondPosition["x"]) == 96 && Convert.ToDouble(secondPosition["y"]) == 12,"Unrelated folder was displaced.");
-              } else if (Convert.ToDouble(position["x"]) < 100) return;
-            }
-            else Check(Convert.ToDouble(position["x"]) == 8 && Convert.ToDouble(position["y"]) == 12, "Internal drop displaced an automatically arranged item.");
+            if (Convert.ToDouble(position["x"]) < 100) return;
             Check(File.Exists(Convert.ToString(item["path"])) || Directory.Exists(Convert.ToString(item["path"])), "Internal placement moved or deleted the file.");
             var source = Read(Path.Combine(root, "source.json"));
             Check(Convert.ToString(item["path"]) == Path.Combine(root, Convert.ToString(source["fileName"])), "Adding or repositioning changed the original path.");
@@ -182,8 +163,8 @@ public static class OrganizerGestureTest {
             if(!File.Exists(nativeLog) || ReadText(nativeLog).Split(new string[]{"Starting OLE"},StringSplitOptions.None).Length<3)return;
             Point drop = target.PointToScreen(new Point(130, 95)); SetCursorPos(drop.X, drop.Y); stage++;
           } else if (stage == 8) { mouse_event(4,0,0,0,UIntPtr.Zero); stage++; }
-          else if (stage == 9 && items.Count == (Convert.ToString(state["arrangement"]) == "grid" ? 2 : 0)) {
-            string contents = Convert.ToString(state["arrangement"]) == "grid" ? Path.Combine(destination,"contents.txt") : destination;
+          else if (stage == 9 && items.Count == 0) {
+            string contents = destination;
             Check(File.Exists(contents) && File.ReadAllText(contents) == "real Electron gesture contents", "Desktop contents were not moved correctly.");
             foreach(string targetPath in destinations) {
               string member=Directory.Exists(targetPath)?Path.Combine(targetPath,"contents.txt"):targetPath;

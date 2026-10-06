@@ -10,7 +10,7 @@ let phase = 'loading';
 const metadata = path.join(root, 'state.json');
 function snapshot() {
   if (!win || win.isDestroyed()) return;
-  const data = { phase, arrangement:board.arrangement, handle: win.getNativeWindowHandle().readBigUInt64LE().toString(), items: board.items, bounds: win.getBounds() };
+  const data = { phase, handle: win.getNativeWindowHandle().readBigUInt64LE().toString(), items: board.items, bounds: win.getBounds() };
   fs.writeFileSync(metadata + '.tmp', JSON.stringify(data)); fs.renameSync(metadata + '.tmp', metadata);
 }
 app.whenReady().then(async () => {
@@ -32,34 +32,20 @@ app.whenReady().then(async () => {
   win.setAlwaysOnTop(true, 'screen-saver');
   win.setBounds({ x: 160, y: 180, width: 420, height: 300 });
   await new Promise(resolve => win.webContents.once('did-finish-load', resolve));
-  const arrangement = process.env.METECH_GESTURE_ARRANGEMENT || 'free';
   const batch = process.env.METECH_GESTURE_BATCH==='1';
-  const name = 'organizer-gesture-' + path.basename(root).slice(-36) + (arrangement === 'grid' ? '' : '.txt');
+  const name = 'organizer-gesture-' + path.basename(root).slice(-36) + '.txt';
   const source = path.join(root, name);
-  if (arrangement === 'grid') fs.mkdirSync(source);
-  fs.writeFileSync(arrangement === 'grid' ? path.join(source,'contents.txt') : source, 'real Electron gesture contents');
-  const folders = arrangement === 'grid' ? [path.join(root,'first-folder'),path.join(root,'second-folder')] : [];
-  folders.forEach(folder => fs.mkdirSync(folder));
+  fs.writeFileSync(source, 'real Electron gesture contents');
   const members=[source];
   if(batch) {
     const other=path.join(root,'other-parent');fs.mkdirSync(other);
     members.push(path.join(other,name.replace('.txt','-second.txt')),path.join(root,name.replace('.txt','-folder')));
     fs.writeFileSync(members[1],'real Electron gesture contents');fs.mkdirSync(members[2]);fs.writeFileSync(path.join(members[2],'contents.txt'),'real Electron gesture contents');
   }
-  await win.webContents.executeJavaScript(`window.electronAPI.invoke('organizer-add', ${JSON.stringify([...folders,...members])})`);
-  await win.webContents.executeJavaScript(`window.electronAPI.invoke('organizer-update', { arrangement:${JSON.stringify(arrangement)} })`);
+  await win.webContents.executeJavaScript(`window.electronAPI.invoke('organizer-add', ${JSON.stringify(members)})`);
   const loaded = new Promise(resolve => win.webContents.once('did-finish-load', resolve)); win.reload(); await loaded;
   win.webContents.on('console-message', (_event, _level, message) => { if (message.startsWith('gesture:')) fs.appendFileSync(path.join(root, 'events.txt'), message + '\n'); });
   await win.webContents.executeJavaScript(`for (const type of ['dragenter', 'dragover', 'drop']) document.addEventListener(type, event => console.log('gesture:' + JSON.stringify({ type, x:event.clientX,y:event.clientY,files:event.dataTransfer.files.length,effect:event.dataTransfer.dropEffect })))`);
-  if (arrangement === 'grid') {
-    await win.webContents.executeJavaScript(`document.addEventListener('dragover', () => requestAnimationFrame(() => {
-      const preview=document.getElementById('drop-preview');
-      if(preview) console.log('gesture-preview:' + JSON.stringify({x:preview.offsetLeft,y:preview.offsetTop,text:preview.textContent,visible:getComputedStyle(preview).display!=='none',target:document.querySelector('.drop-swap-target')?.dataset.itemId}));
-    }))`);
-    win.webContents.on('console-message', (_event,_level,message) => {
-      if(message.startsWith('gesture-preview:')) fs.writeFileSync(path.join(root,'preview.json'),message.slice('gesture-preview:'.length));
-    });
-  }
   await win.webContents.executeJavaScript(`new Promise(resolve => { const timer = setInterval(() => { if (document.querySelectorAll('.item img').length === document.querySelectorAll('.item').length) { clearInterval(timer); resolve(); } }, 20); })`);
   const signature = await win.webContents.executeJavaScript(`new Promise(resolve => {
     let mutations = 0, resizeErrors = 0;

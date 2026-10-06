@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, screen, ipcMain, nativeImage, dialog, shell, clipboard, Notification } = require('electron');
+const { app, BrowserWindow, Tray, Menu, screen, ipcMain, nativeImage, dialog, shell, clipboard, Notification, nativeTheme } = require('electron');
 const path = require('path');
 const { EmailService } = require('./email-service.cjs');
 const { DesktopOrganizer } = require('./desktop-organizer.cjs');
@@ -1558,7 +1558,8 @@ function updateTrayMenu() {
 
   trayContextMenu = Menu.buildFromTemplate([
     {
-      label: t.title,
+      // Show the installed version next to the name, e.g. "METech小助手  Ver.1.7.2".
+      label: `${t.title}  ${formatDisplayVersion(app.getVersion())}`,
       enabled: false
     },
     { type: 'separator' },
@@ -1885,7 +1886,7 @@ if (!gotTheLock) {
       currentLanguage = emailService.config.language;
     }
 
-    desktopOrganizer = new DesktopOrganizer({ app, BrowserWindow, screen, ipcMain, dialog, shell, nativeImage, clipboard }, app.getPath('userData'), updateTrayMenu);
+    desktopOrganizer = new DesktopOrganizer({ app, BrowserWindow, screen, ipcMain, dialog, shell, nativeImage, clipboard, Menu, nativeTheme }, app.getPath('userData'), updateTrayMenu);
     desktopOrganizer.register();
     desktopOrganizer.restore();
     createPetWindow();

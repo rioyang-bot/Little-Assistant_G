@@ -12,7 +12,7 @@ async function run(task) {
 }
 function draft() {
   return {
-    title: $('name').value, arrangement: $('arrangement').value,
+    title: $('name').value,
     opacity: 100 - Number($('opacity').value), color: $('color').value, textColor: $('text-color').value,
     headerColorMode: $('header-color-mode').value, headerColor: $('header-color').value,
     headerTextColor: $('header-text-color').value, pattern: $('pattern').value, image
@@ -26,7 +26,7 @@ function preview() {
   previewTask = previewTask.then(() => run(() => api.invoke('organizer-settings-preview', input)));
 }
 for (const id of ['name', 'opacity', 'color', 'text-color', 'header-color', 'header-text-color']) $(id).oninput = preview;
-for (const id of ['arrangement', 'header-color-mode', 'pattern']) $(id).onchange = preview;
+for (const id of ['header-color-mode', 'pattern']) $(id).onchange = preview;
 $('background').onclick = () => run(async () => {
   const result = await api.invoke('organizer-background');
   if (typeof result.image === 'string') { image = result.image; preview(); }
@@ -46,7 +46,7 @@ document.addEventListener('keydown', event => { if (event.key === 'Escape') $('c
 run(async () => {
   const board = await api.invoke('organizer-get');
   $('settings-title').textContent = `「${board.title}」設定`;
-  $('name').value = board.title; $('arrangement').value = board.arrangement;
+  $('name').value = board.title;
   $('opacity').value = 100 - board.opacity; $('opacity-value').textContent = `${100 - board.opacity}%`;
   $('color').value = board.color; $('text-color').value = board.textColor;
   $('header-color-mode').value = board.headerColorMode; $('header-color').value = board.headerColor;

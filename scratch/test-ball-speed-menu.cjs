@@ -7,6 +7,7 @@ const { app, BrowserWindow, Menu, ipcMain } = require('electron');
 const { locales } = require('../electron/locales.cjs');
 const layout = require('../electron/layout-utils.cjs');
 const { normalizeWindowLayerMode } = require('../electron/window-layer-controller.cjs');
+const { formatDisplayVersion } = require('../electron/version-utils.cjs');
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'assistant-settings-ui-'));
 app.setPath('userData', root);
 const appRoot = process.env.ASSISTANT_TEST_APP_ROOT || path.join(__dirname, '..');
@@ -25,7 +26,7 @@ let main, settings;
 app.whenReady().then(async () => {
   main = new BrowserWindow({ show:false, webPreferences:{preload:path.join(appRoot,'electron/preload.cjs'),backgroundThrottling:false} });
   settings = new BrowserWindow({ width:1040,height:1000,show:false,webPreferences:{preload:path.join(appRoot,'electron/preload.cjs'),backgroundThrottling:false} });
-  const state = vm.createContext({ fs,path,console,process,__dirname:path.join(appRoot,'electron'),Menu,ipcMain,app,...layout,normalizeWindowLayerMode,
+  const state = vm.createContext({ fs,path,console,process,__dirname:path.join(appRoot,'electron'),Menu,ipcMain,app,...layout,normalizeWindowLayerMode,formatDisplayVersion,
     screen:{getPrimaryDisplay:()=>({id:1,workArea:{x:0,y:0,width:1200,height:900}}),getAllDisplays:()=>[{id:1,workArea:{x:0,y:0,width:1200,height:900}},{id:2,workArea:{x:1200,y:0,width:1200,height:900}}],getDisplayNearestPoint:()=>({id:1,workArea:{x:0,y:0,width:1200,height:900}})},
     normalizeBrowserAssignments:v=>v||{},normalizeLaptopShortcut:v=>v,readBroker:()=>null,
     isFocusModeActive:()=>false,positionSettingsWindowOnAssistantDisplay() {},
@@ -60,6 +61,8 @@ app.whenReady().then(async () => {
   const removed = ['alwaysOnBottom','alwaysOnTop','bottomUntilNotification','windowMenu','assistantSize','stickyNotesSize','bubbleFontSize','globeSpeed','languageMenu','exploreTrivia'];
   for (const key of removed) assert.ok(!vm.runInContext('trayContextMenu',state).items.some(item=>item.label===locales['zh-TW'].tray[key]),'Removed old menu entry: '+key);
   assert.ok(vm.runInContext('trayContextMenu',state).items.some(item=>item.label===locales['zh-TW'].tray.toggleQuotes));
+  assert.equal(vm.runInContext('trayContextMenu',state).items[0].label, `${locales['zh-TW'].tray.title}  ${formatDisplayVersion(app.getVersion())}`, 'menu title shows the version');
+  assert.match(vm.runInContext('trayContextMenu',state).items[0].label, /^METech小助手  Ver\.\d+\.\d+\.\d+$/);
   const errors=[];
   settings.webContents.on('console-message',event=>{if(event.level==='error')errors.push(event.message);});
   await settings.loadFile(path.join(appRoot,'dist/email-settings.html'));

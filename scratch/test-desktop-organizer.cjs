@@ -73,8 +73,7 @@ test('organizer validates stored appearance, geometry and paths', () => {
   assert.equal(board.pattern, 'none');
   assert.equal(board.image, '');
   assert.equal(board.items.length, 1);
-  assert.equal(board.arrangement, 'free');
-  assert.equal(normalizeBoard({ arrangement: 'invalid' }).arrangement, 'free');
+  assert.equal('arrangement' in board, false, 'organizers always use free placement');
 });
 
 test('showing a retained organizer restores minimization and recovers off-screen bounds', () => {
@@ -97,7 +96,7 @@ test('showing a retained organizer restores minimization and recovers off-screen
   assert.deepEqual(calls,['show','raise'],'showing an existing window must also reveal a hidden, correctly positioned window');
 });
 
-test('automatic arrangements wrap, fill removed gaps, resize and retain original paths across restart', async t => {
+test('free placement keeps hand-placed positions, fills vacant slots, keeps gaps and survives restart', async t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'organizer-arrange-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const files = Array.from({ length: 7 }, (_, i) => path.join(dir, `item${i}.txt`));
@@ -112,82 +111,49 @@ test('automatic arrangements wrap, fill removed gaps, resize and retain original
   const sender = {}, event = { sender };
   service.windows.set(board.id, { webContents: sender, setMovable() {}, setTitle() {} });
   handlers['organizer-add'](event, files.slice(0, 6));
+  assert.deepEqual(board.items.map(item => item.position), [{ x: 8, y: 12 }, { x: 96, y: 12 }, { x: 184, y: 12 }, { x: 8, y: 116 }, { x: 96, y: 116 }, { x: 184, y: 116 }], 'new items fill slots in reading order');
   handlers['organizer-position'](event, { id: board.items[0].id, x: 170, y: 180 });
+  const placed = board.items.map(item => ({ ...item.position }));
   handlers['organizer-layout'](event, { width: 280, height: 240 });
-  assert.deepEqual(board.items[0].position, { x: 170, y: 180 }, 'free arrangement keeps hand-placed positions');
-  handlers['organizer-update'](event, { arrangement: 'row' });
-  assert.deepEqual(board.items.slice(0, 4).map(item => item.position), [{ x: 8, y: 12 }, { x: 96, y: 12 }, { x: 184, y: 12 }, { x: 8, y: 116 }]);
-  handlers['organizer-position'](event, { id: board.items[0].id, x: 900, y: 700 });
-  assert.deepEqual(board.items[0].position, { x: 8, y: 12 }, 'internal drops keep the selected automatic arrangement');
-  handlers['organizer-update'](event, { arrangement: 'column' });
-  assert.deepEqual(board.items.slice(0, 4).map(item => item.position), [{ x: 8, y: 12 }, { x: 8, y: 116 }, { x: 96, y: 12 }, { x: 96, y: 116 }]);
+  assert.deepEqual(board.items.map(item => item.position), placed, 'resizing never repacks hand-placed icons');
+  handlers['organizer-update'](event, { arrangement: 'grid' });
+  assert.deepEqual(board.items.map(item => item.position), placed, 'the retired arrangement setting is ignored');
+  assert.equal('arrangement' in board, false);
   handlers['organizer-remove'](event, board.items[1].id);
-  assert.equal(board.items[1].path, files[2]); assert.deepEqual(board.items[1].position, { x: 8, y: 116 });
-  handlers['organizer-add'](event, [files[6]], { x: 900, y: 700 });
-  assert.deepEqual(board.items.at(-1).position, { x: 184, y: 116 }, 'automatic addition ignores free-drop coordinates');
-  handlers['organizer-layout'](event, { width: 280, height: 136 });
-  assert.deepEqual(board.items[1].position, { x: 96, y: 12 }, 'shorter viewport wraps into the next column');
-  await handlers['organizer-drag-out'](event, board.items[0].id);
-  assert.deepEqual(board.items[0].position, { x: 8, y: 12 }, 'drag-out fills the vacated slot');
+  assert.deepEqual(board.items.map(item => item.position), [placed[0], ...placed.slice(2)], 'removal keeps the gap');
+  handlers['organizer-add'](event, [files[6]]);
+  assert.deepEqual(board.items.at(-1).position, { x: 8, y: 12 }, 'a new item takes the first vacant slot');
   const restored = new DesktopOrganizer({}, dir).boards[0];
-  assert.equal(restored.arrangement, 'grid'); assert.deepEqual(JSON.parse(JSON.stringify(restored.items)), board.items);
+  assert.deepEqual(JSON.parse(JSON.stringify(restored.items)), JSON.parse(JSON.stringify(board.items)));
   assert.throws(() => handlers['organizer-layout']({ sender: {} }, { width: 280, height: 240 }), /無法存取/);
   assert.throws(() => handlers['organizer-layout'](event, { width: NaN, height: 240 }), /無效/);
-  handlers['organizer-update'](event, { arrangement: 'invalid' }); assert.equal(board.arrangement, 'column');
-  handlers['organizer-update'](event, { arrangement: 'free' });
-  handlers['organizer-position'](event, { id: board.items[0].id, x: 137, y: 211 });
-  assert.deepEqual(board.items[0].position, { x: 137, y: 211 });
   for (const file of files) assert.equal(fs.readFileSync(file, 'utf8'), 'original contents');
   assert.equal(fs.existsSync(service.filesRoot), false);
 });
 
-test('grid alignment retains manual placement, resolves occupied cells and preserves gaps across resize and restart', t => {
-  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'organizer-grid-'));
-  t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
-  const files=Array.from({length:4},(_,index)=>path.join(dir,`item${index}.txt`));files.forEach(file=>fs.writeFileSync(file,'original'));
-  const handlers={};const service=new DesktopOrganizer({ipcMain:{handle:(name,fn)=>handlers[name]=fn},organizerDrag:{}},dir);
-  service.register();const board=normalizeBoard({items:files.slice(0,3).map(file=>({path:file,position:{x:137,y:211}}))});service.boards.push(board);
-  const sender={},event={sender};service.windows.set(board.id,{webContents:sender,setMovable(){},setTitle(){}});
-  handlers['organizer-update'](event,{arrangement:'grid'});
-  assert.equal(board.arrangement,'grid');assert.deepEqual(board.items[0].position,{x:96,y:220});
-  assert.equal(new Set(board.items.map(item=>JSON.stringify(item.position))).size,3,'enabling grid resolves overlapping free placements');
-  const others=board.items.slice(1).map(item=>({...item.position}));
-  handlers['organizer-position'](event,{id:board.items[0].id,x:353,y:318});
-  assert.deepEqual(board.items[0].position,{x:360,y:324});
-  assert.deepEqual(board.items.slice(1).map(item=>item.position),others,'moving one item must retain other placements');
-  handlers['organizer-position'](event,{id:board.items[0].id,...board.items[1].position});
-  assert.deepEqual(board.items[0].position,others[0],'dropping on an occupied cell must reach the requested slot');
-  assert.deepEqual(board.items[1].position,{x:360,y:324},'the occupied item exchanges slots with the dragged item');
-  assert.deepEqual(board.items[2].position,others[1],'unrelated icons retain their placements');
-  const placements=board.items.map(item=>({...item.position}));
-  handlers['organizer-layout'](event,{width:180,height:100});
-  assert.deepEqual(board.items.map(item=>item.position),placements,'resizing must not repack hand-placed icons');
-  handlers['organizer-remove'](event,board.items[1].id);
-  assert.deepEqual(board.items[1].position,placements[2],'removal must retain the gap');
-  handlers['organizer-add'](event,[files[3]],{x:353,y:318});
-  for(const item of board.items){assert.equal((item.position.x-8)%88,0);assert.equal((item.position.y-12)%104,0);}
-  const restored=new DesktopOrganizer({},dir).boards[0];
-  assert.equal(restored.arrangement,'grid');assert.deepEqual(JSON.parse(JSON.stringify(restored.items)),JSON.parse(JSON.stringify(board.items)));
-  for(const file of files)assert.equal(fs.readFileSync(file,'utf8'),'original');
+test('boards saved with the retired grid arrangement keep their positions as free placement', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'organizer-grid-migration-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = path.join(dir, 'item.txt'); fs.writeFileSync(file, 'original');
+  const board = normalizeBoard({ arrangement: 'grid', items: [{ path: file, position: { x: 96, y: 220 } }] });
+  assert.equal('arrangement' in board, false);
+  assert.deepEqual(board.items[0].position, { x: 96, y: 220 });
 });
 
-test('batch selection translates groups, exchanges occupied grid slots and persists every original path', t => {
+test('batch selection translates groups, clamps at the edge without changing their shape and persists', t => {
   const dir=fs.mkdtempSync(path.join(os.tmpdir(),'organizer-batch-position-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
   const files=Array.from({length:6},(_,i)=>path.join(dir,`item-${i}.txt`));files.forEach(file=>fs.writeFileSync(file,'original'));
   const handlers={},service=new DesktopOrganizer({ipcMain:{handle:(name,fn)=>handlers[name]=fn},organizerDrag:{}},dir);service.register();
-  const board=normalizeBoard({arrangement:'grid',items:files.map((file,index)=>({path:file,position:{x:8+(index%3)*88,y:12+Math.floor(index/3)*104}}))});service.boards.push(board);
+  const board=normalizeBoard({items:files.map((file,index)=>({path:file,position:{x:8+(index%3)*88,y:12+Math.floor(index/3)*104}}))});service.boards.push(board);
   const sender={};service.windows.set(board.id,{webContents:sender});const event={sender};
-  const moving=board.items.slice(3),ids=moving.map(item=>item.id);
-  handlers['organizer-position'](event,{id:ids[0],ids,x:8,y:12});
-  assert.deepEqual(moving.map(item=>item.position),[{x:8,y:12},{x:96,y:12},{x:184,y:12}]);
-  assert.deepEqual(board.items.slice(0,3).map(item=>item.position),[{x:8,y:116},{x:96,y:116},{x:184,y:116}]);
-  assert.equal(new Set(board.items.map(item=>JSON.stringify(item.position))).size,6);
+  const moving=board.items.slice(3),ids=moving.map(item=>item.id),others=board.items.slice(0,3).map(item=>({...item.position}));
+  handlers['organizer-position'](event,{id:ids[0],ids,x:37,y:45});
+  assert.deepEqual(moving.map(item=>item.position),[{x:37,y:45},{x:125,y:45},{x:213,y:45}]);
+  assert.deepEqual(board.items.slice(0,3).map(item=>item.position),others,'unselected items stay where they are');
   handlers['organizer-position'](event,{id:ids[2],ids,x:0,y:0});
-  assert.deepEqual(moving.map(item=>item.position),[{x:8,y:12},{x:96,y:12},{x:184,y:12}],'boundary clamping retains the whole group shape');
+  assert.deepEqual(moving.map(item=>item.position),[{x:0,y:0},{x:88,y:0},{x:176,y:0}],'edge clamping retains the whole group shape');
   assert.throws(()=>handlers['organizer-position'](event,{id:ids[0],ids:[...ids,'unknown'],x:8,y:12}),/無效/);
   assert.deepEqual(new DesktopOrganizer({},dir).boards[0].items.map(item=>item.position),board.items.map(item=>item.position));
-  board.arrangement='free';handlers['organizer-position'](event,{id:ids[0],ids,x:37,y:45});
-  assert.deepEqual(moving.map(item=>item.position),[{x:37,y:45},{x:125,y:45},{x:213,y:45}]);
   for(const file of files)assert.equal(fs.readFileSync(file,'utf8'),'original');
 });
 
@@ -400,8 +366,8 @@ test('cross-board drops transfer ownership without changing files, including que
   }, dir);
   t.after(() => { for (const session of service.dragSessions.values()) clearTimeout(session.timer); });
   service.register();
-  const source = normalizeBoard({ arrangement: 'row', items: [{ path: file }] });
-  const target = normalizeBoard({ arrangement: 'free' });
+  const source = normalizeBoard({ items: [{ path: file }] });
+  const target = normalizeBoard();
   service.boards.push(source, target);
   const sourceSender = { send: (channel, value) => messages.push([channel, value]) }, targetSender = { send() {} };
   service.windows.set(source.id, { webContents: sourceSender }); service.windows.set(target.id, { webContents: targetSender });

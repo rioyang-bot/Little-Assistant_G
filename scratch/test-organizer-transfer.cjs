@@ -42,9 +42,8 @@ app.whenReady().then(async () => {
       const loaded = new Promise(resolve => win.webContents.once('did-finish-load',resolve)); win.reload(); await loaded;
     }
     const itemIds=a.items.map(item=>item.id);
-    for (const [from,to,arrangement] of [[a,b,'free'],[b,a,batch?'grid':'row'],[a,b,batch?'grid':'column']]) {
+    for (const [from,to] of [[a,b],[b,a],[a,b]]) {
       const source=service.windows.get(from.id), target=service.windows.get(to.id);
-      await target.webContents.executeJavaScript(`window.electronAPI.invoke('organizer-update',{arrangement:${JSON.stringify(arrangement)}})`);
       const loaded=new Promise(resolve=>target.webContents.once('did-finish-load',resolve)); target.reload(); await loaded;
       for (const win of [source,target]) await win.webContents.executeJavaScript(`window.transferEvents=[]; window.electronAPI.on('organizer-drag-state',(_event,state)=>window.transferEvents.push({state})); for(const type of ['dragenter','drop'])document.addEventListener(type,event=>window.transferEvents.push({type,files:[...event.dataTransfer.files].map(file=>({name:file.name,path:window.electronAPI.getDroppedFilePath(file)}))}));`);
       await waitFor(()=>source.webContents.executeJavaScript(`document.querySelectorAll('.item').length === ${files.length}`),'Source icon missing');
@@ -65,11 +64,7 @@ app.whenReady().then(async () => {
       assert.equal(fs.readFileSync(file,'utf8'),'original transfer bytes');
       if(batch) {
         assert.equal(fs.readFileSync(files[1],'utf8'),'second original');assert.equal(fs.readFileSync(path.join(files[2],'child.txt'),'utf8'),'folder original');
-        if(arrangement==='grid') {
-          for(const item of to.items){assert.equal((item.position.x-8)%88,0);assert.equal((item.position.y-12)%104,0);}
-          assert.equal(new Set(to.items.map(item=>JSON.stringify(item.position))).size,files.length);
-        }
-      } else if(arrangement!=='free')assert.deepEqual(to.items[0].position,{x:8,y:12});
+      }
     }
     const restored=new DesktopOrganizer({organizerDesktopIcons:false,organizerDrag:{}},root);
     assert.equal(restored.boards[0].items.length,0); assert.equal(restored.boards[1].items.length,files.length);

@@ -15,8 +15,6 @@ app.whenReady().then(async () => {
   win.setBounds({ x: 160, y: 180, width: 420, height: 300 });
   await new Promise(resolve => win.webContents.once('did-finish-load', resolve));
   await win.webContents.executeJavaScript(`window.electronAPI.invoke('organizer-get')`);
-  const arrangement = process.env.METECH_INBOUND_ARRANGEMENT || 'free';
-  await win.webContents.executeJavaScript(`window.electronAPI.invoke('organizer-update', { arrangement:${JSON.stringify(arrangement)} })`);
   const timer = setInterval(async () => {
     try {
       const ui = await win.webContents.executeJavaScript(`({ width: innerWidth, count: document.querySelectorAll('.item').length, icons: document.querySelectorAll('.item img').length, status: document.getElementById('status').textContent })`);
