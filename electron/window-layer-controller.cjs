@@ -1,3 +1,4 @@
+const fs = require('fs');
 const { spawn } = require('child_process');
 
 const MODES = ['bottom', 'top', 'bottom-notify'];
@@ -9,7 +10,7 @@ function normalizeWindowLayerMode(value, legacyIsAlwaysOnTop) {
 // Electron has no Windows always-on-bottom API. Keep the native window below
 // ordinary application windows without activating it or changing its bounds.
 // Embed the helper so this also works when this module lives inside app.asar.
-function bottomHelperScript(handle, ownerPid, desktopOrganizer) {
+function bottomHelperScript(handle, ownerPid, desktopOrganizer, lower = true) {
   return `
 $ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @'
@@ -25,6 +26,7 @@ public static class AssistantWindowLayer {
   [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
   [DllImport("user32.dll")] static extern bool IsWindowEnabled(IntPtr h);
   [DllImport("user32.dll")] static extern bool IsIconic(IntPtr h);
+  [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr h, int index);
   [DllImport("user32.dll")] static extern IntPtr GetWindow(IntPtr h, uint command);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder name, int count);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr GetProp(IntPtr h, string name);
@@ -85,7 +87,10 @@ public static class AssistantWindowLayer {
     }
     return false;
   }
-  public static void Run(long handle, int ownerPid, bool desktopOrganizer) {
+  // A failed reorder (for example when the reference window just closed) is
+  // retried on the next tick; the helper must keep running, or its window
+  // would be left wherever it was clicked.
+  public static void Run(long handle, int ownerPid, bool desktopOrganizer, bool lower) {
     IntPtr window = new IntPtr(handle);
     Process owner = Process.GetProcessById(ownerPid);
     Task<string> input = Task.Factory.StartNew(() => Console.ReadLine());
@@ -94,22 +99,20 @@ public static class AssistantWindowLayer {
     while (!input.IsCompleted && !owner.HasExited) {
       uint actualPid;
       if (GetWindowThreadProcessId(window, out actualPid) == 0 || actualPid != ownerPid) break;
-      if (desktopOrganizer && !marked) {
-        if (!SetProp(window, OrganizerProperty, new IntPtr(1)))
-          throw new InvalidOperationException("Could not mark organizer window");
-        marked = true;
-      }
+      if (desktopOrganizer && !marked) marked = SetProp(window, OrganizerProperty, new IntPtr(1));
       // Windows keeps modal dialogs above their disabled owner. Reordering the
       // owner during that time repeatedly drags the whole modal group down.
       if (IsWindowVisible(window) && IsWindowEnabled(window) && !IsIconic(window)) {
+        // Layer-managed windows are never topmost; clear a stray flag
+        // (HWND_NOTOPMOST; SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE).
+        if ((GetWindowLong(window, -20) & 0x8) != 0) SetWindowPos(window, new IntPtr(-2), 0, 0, 0, 0, 0x13);
         if (CoveredByDesktop(window)) {
           // Show desktop: stay visible on the desktop. The desktop is then the
           // foreground window and HWND_TOP is ignored for background callers;
           // TOPMOST followed by NOTOPMOST lands at the top of the normal band.
           // Restored applications return above it and lowering resumes.
-          if (!SetWindowPos(window, new IntPtr(-1), 0, 0, 0, 0, 0x13) || !SetWindowPos(window, new IntPtr(-2), 0, 0, 0, 0, 0x13))
-            throw new InvalidOperationException("Could not raise assistant window above the desktop");
-        } else if (NeedsLowering(window)) {
+          if (SetWindowPos(window, new IntPtr(-1), 0, 0, 0, 0, 0x13)) SetWindowPos(window, new IntPtr(-2), 0, 0, 0, 0, 0x13);
+        } else if (lower && NeedsLowering(window)) {
           // Settle directly above the desktop rather than at HWND_BOTTOM: while
           // Show desktop is active the desktop is not at the bottom, and
           // HWND_BOTTOM would drop this window underneath it.
@@ -117,8 +120,8 @@ public static class AssistantWindowLayer {
           IntPtr above = desktop == IntPtr.Zero ? IntPtr.Zero : GetWindow(desktop, 3);
           IntPtr after = above != IntPtr.Zero && above != window ? above : new IntPtr(1); // else HWND_BOTTOM
           // SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE.
-          if (!SetWindowPos(window, after, 0, 0, 0, 0, 0x13))
-            throw new InvalidOperationException("Could not lower assistant window");
+          if (!SetWindowPos(window, after, 0, 0, 0, 0, 0x13) && after != new IntPtr(1))
+            SetWindowPos(window, new IntPtr(1), 0, 0, 0, 0, 0x13);
         }
       }
       Thread.Sleep(250);
@@ -126,14 +129,28 @@ public static class AssistantWindowLayer {
   }
 }
 '@
-[AssistantWindowLayer]::Run(${handle}, ${ownerPid}, $${desktopOrganizer ? 'true' : 'false'})
+[AssistantWindowLayer]::Run(${handle}, ${ownerPid}, $${desktopOrganizer ? 'true' : 'false'}, $${lower ? 'true' : 'false'})
 `;
 }
+
+// Keep recent helper failures for diagnosis; the packaged app has no console.
+function appendLayerLog(file, label, message) {
+  console.error(message);
+  try {
+    if (fs.existsSync(file) && fs.statSync(file).size > 256 * 1024) fs.renameSync(file, file + '.old');
+    fs.appendFileSync(file, `${new Date().toISOString()} [${label}] ${String(message).slice(0, 2000)}\n`);
+  } catch { /* Logging must never affect the window. */ }
+}
+
+// 'normal' (used by unlocked desktop organizers) keeps ordinary window
+// stacking but still stays visible during Windows Show desktop.
+const controllerMode = mode => mode === 'normal' ? 'normal' : normalizeWindowLayerMode(mode);
+const RESTART_LIMIT = 5, RESTART_WINDOW_MS = 60000;
 
 class WindowLayerController {
   constructor(window, mode, options = {}) {
     this.window = window;
-    this.mode = normalizeWindowLayerMode(mode);
+    this.mode = controllerMode(mode);
     this.notificationActive = false;
     this.menuActive = false;
     this.modalDepth = 0;
@@ -143,7 +160,10 @@ class WindowLayerController {
     this.platform = options.platform || process.platform;
     this.spawn = options.spawn || spawn;
     this.logError = options.logError || (message => console.error(message));
-    this.onShow = () => this.apply();
+    this.restartDelayMs = options.restartDelayMs ?? 1000;
+    this.restarts = [];
+    this.restartTimer = null;
+    this.onShow = () => { this.restarts = []; this.apply(); };
     this.onClosed = () => this.dispose();
     window.on('show', this.onShow);
     window.on('restore', this.onShow);
@@ -156,7 +176,11 @@ class WindowLayerController {
   }
 
   setMode(mode) {
-    this.mode = normalizeWindowLayerMode(mode);
+    const next = controllerMode(mode);
+    if (next === this.mode) return;
+    this.mode = next;
+    // The helper's behaviour depends on the mode; start a fresh one.
+    this.stopHelper();
     this.apply();
   }
 
@@ -209,7 +233,7 @@ class WindowLayerController {
     if (this.helper || this.disposed) return;
     const buffer = this.window.getNativeWindowHandle();
     const handle = buffer.length >= 8 ? buffer.readBigUInt64LE().toString() : String(buffer.readUInt32LE());
-    const script = bottomHelperScript(handle, process.pid, this.desktopOrganizer);
+    const script = bottomHelperScript(handle, process.pid, this.desktopOrganizer, this.mode !== 'normal');
     let child;
     try {
       child = this.spawn('powershell.exe', [
@@ -236,8 +260,28 @@ class WindowLayerController {
       if (!this.disposed && !this.window.isDestroyed() && !this.modalDepth && this.wantsTop()) {
         this.window.setAlwaysOnTop(true, 'screen-saver');
       }
-      if (!expected && code !== 0) this.logError(`Window layer helper exited (${code}): ${errors}`);
+      if (!expected) {
+        this.logError(`Window layer helper exited (${code}): ${errors}`);
+        this.scheduleRestart();
+      }
     });
+  }
+
+  // An unexpected exit would leave the window wherever it was last clicked.
+  // Restart it, but give up after repeated failures within a minute.
+  scheduleRestart() {
+    if (this.disposed || this.restartTimer) return;
+    const now = Date.now();
+    this.restarts = this.restarts.filter(time => now - time < RESTART_WINDOW_MS);
+    if (this.restarts.length >= RESTART_LIMIT) {
+      this.logError('Window layer helper keeps exiting; restart paused until the window is shown again.');
+      return;
+    }
+    this.restarts.push(now);
+    this.restartTimer = setTimeout(() => {
+      this.restartTimer = null;
+      if (!this.disposed && !this.window.isDestroyed()) this.apply();
+    }, this.restartDelayMs);
   }
 
   stopHelper() {
@@ -251,6 +295,7 @@ class WindowLayerController {
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
+    clearTimeout(this.restartTimer); this.restartTimer = null;
     this.stopHelper();
     this.window.removeListener('show', this.onShow);
     this.window.removeListener('restore', this.onShow);
@@ -258,4 +303,4 @@ class WindowLayerController {
   }
 }
 
-module.exports = { WindowLayerController, normalizeWindowLayerMode };
+module.exports = { WindowLayerController, normalizeWindowLayerMode, appendLayerLog };

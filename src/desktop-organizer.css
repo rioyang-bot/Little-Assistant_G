@@ -16,10 +16,17 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 #board[data-pattern="grid"]::before { background-image: linear-gradient(white 1px, transparent 1px), linear-gradient(90deg, white 1px, transparent 1px); background-size: 20px 20px; }
 #board[data-pattern="diagonal"]::before { background-image: repeating-linear-gradient(135deg, white 0 1px, transparent 1px 10px); }
 header { display: flex; flex-shrink: 0; align-items: center; gap: 6px; min-height: 34px; padding: 2px 8px; border-bottom: 1px solid #ffffff15; border-radius: 9px 9px 0 0; background: var(--header-background, #00000022); -webkit-app-region: drag; }
-header button { -webkit-app-region: no-drag; padding: 2px 6px; }
 .grip { color: #ffffff75; }
 #title { flex: 1; color: var(--header-text-color, #f7f7fb); font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .locked header { -webkit-app-region: no-drag; }
+/* Title bar: never, on mouse hover, or always. Its space is kept so icons never shift. */
+header > * { transition: opacity .15s; }
+#board[data-header="never"] header > *, #board[data-header="hover"]:not(:hover) header > * { opacity: 0; pointer-events: none; }
+#board[data-header="never"] header, #board[data-header="hover"]:not(:hover) header { background: transparent; border-bottom-color: transparent; }
+#settings .header-mode-row { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 5px; padding: 0; border: 0; }
+#settings .header-mode-row legend { width: 100%; padding: 0; margin-bottom: 6px; }
+#settings .header-mode-row label { gap: 4px; margin-bottom: 0; white-space: nowrap; }
+#settings .header-mode-row input { flex: 0 0 auto; margin: 0; }
 #items { flex: 1; overflow: auto; min-height: 0; position: relative; scrollbar-gutter: stable; }
 #item-surface { position: relative; min-width: 100%; min-height: 100%; }
 .item { width: 82px; min-height: 72px; position: absolute; display: flex; align-items: center; flex-direction: column; gap: 6px; padding: 7px 3px; touch-action: none; user-select: none; cursor: grab; }

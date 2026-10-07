@@ -62,7 +62,7 @@ test('menu actions sort (folders first, natural order, missing last), refresh an
   await handlers['organizer-background-menu'](event, {});
   assert.deepEqual(order().slice(2, 5), ['file2.md', 'file3.txt', 'file10.txt'], '.md before .txt, then by name');
 
-  assert.deepEqual(menus.at(-1).map(entry => entry.label).filter(Boolean), ['重新整理', '排序方式', '新增'], 'no view/arrangement submenu');
+  assert.equal(menus.at(-1).some(entry => entry.label === '檢視'), false, 'no view/arrangement submenu');
 
   next = ['重新整理'];
   const refreshed = await handlers['organizer-background-menu'](event, {});
@@ -91,8 +91,8 @@ test('a locked board can still refresh, sort and create items', async t => {
   await handlers['organizer-background-menu'](event, {});
   assert.deepEqual(board.items.map(item => path.basename(item.path)), ['a.txt', 'b.txt']);
   const template = menus.at(-1);
-  for (const entry of template.filter(entry => entry.label)) assert.notEqual(entry.enabled, false, entry.label);
-  assert.equal(template.some(entry => /鎖定/.test(entry.label || '')), false, 'no lock labels or unlock item');
+  for (const label of ['重新整理', '排序方式', '新增', '整理視窗設定…', '解鎖整理視窗', '隱藏整理視窗']) assert.notEqual(template.find(entry => entry.label === label).enabled, false, label);
+  assert.equal(template.some(entry => /（已鎖定）/.test(entry.label || '')), false, 'no lock labels');
   assert.equal(template.find(entry => entry.label === '重新整理').accelerator, undefined, 'no F5 text; the menu shows the ↻ icon');
   next = ['新增', '資料夾'];
   const created = await handlers['organizer-background-menu'](event, {});
@@ -110,4 +110,72 @@ test('the refresh menu icon is a 32 px ↻ drawn for a 16 px menu', () => {
   assert.ok(alpha(16, 26) > 200, 'ring at the bottom');
   assert.ok(alpha(6, 16) > 200, 'ring on the left');
   assert.ok(alpha(24, 9) < 60, 'gap at the upper right');
+});
+
+test('title bar display mode defaults to always, accepts never/hover/always and is saved', async t => {
+  const { handlers, board, event } = fixture(t);
+  assert.equal(normalizeBoard().headerMode, 'always');
+  assert.equal(normalizeBoard({ headerMode: 'sometimes' }).headerMode, 'always');
+  for (const mode of ['never', 'hover', 'always']) {
+    handlers['organizer-update'](event, { headerMode: mode });
+    assert.equal(board.headerMode, mode);
+  }
+  handlers['organizer-update'](event, { headerMode: 'bogus' });
+  assert.equal(board.headerMode, 'always', 'invalid values are ignored');
+});
+
+test('the background menu keeps title-bar actions reachable: settings, lock/unlock and hide', async t => {
+  let next = null;
+  const { service, handlers, board, event, menus } = fixture(t, template => { if (next) click(template, ...next); });
+  const modes = [], opened = [];
+  let hidden = false;
+  service.layers.set(board.id, { setMode: mode => modes.push(mode), withModal: task => task() });
+  service.windows.get(board.id).hide = () => { hidden = true; };
+  service.openSettings = async target => { opened.push(target.id); };
+
+  next = null;
+  await handlers['organizer-background-menu'](event, {});
+  const labels = menus.at(-1).map(entry => entry.label).filter(Boolean);
+  assert.deepEqual(labels, ['重新整理', '排序方式', '新增', '整理視窗設定…', '鎖定整理視窗', '隱藏整理視窗']);
+
+  next = ['整理視窗設定…'];
+  await handlers['organizer-background-menu'](event, {});
+  assert.deepEqual(opened, [board.id]);
+
+  next = ['鎖定整理視窗'];
+  await handlers['organizer-background-menu'](event, {});
+  assert.equal(board.locked, true);
+  assert.deepEqual(modes, ['bottom'], 'locking keeps the window at the bottom');
+  next = null;
+  await handlers['organizer-background-menu'](event, {});
+  assert.notEqual(menus.at(-1).find(entry => entry.label === '整理視窗設定…').enabled, false, 'settings are available while locked');
+  assert.ok(menus.at(-1).some(entry => entry.label === '解鎖整理視窗'));
+
+  next = ['解鎖整理視窗'];
+  await handlers['organizer-background-menu'](event, {});
+  assert.equal(board.locked, false);
+  assert.deepEqual(modes, ['bottom', 'normal']);
+
+  next = ['隱藏整理視窗'];
+  await handlers['organizer-background-menu'](event, {});
+  assert.equal(hidden, true);
+});
+
+test('menu icons render at 32 px and the organizer list badges show both states', () => {
+  const { PNG } = require('pngjs');
+  const { iconPng } = require('../electron/menu-icons.cjs');
+  const read = name => PNG.sync.read(iconPng(name, [255, 255, 255]));
+  const alpha = (image, x, y) => image.data[(y * 32 + x) * 4 + 3];
+  const names = ['refresh', 'locked', 'unlocked', 'visible', 'hidden', 'board:visible:unlocked', 'board:visible:locked', 'board:hidden:unlocked', 'board:hidden:locked'];
+  const images = Object.fromEntries(names.map(name => [name, read(name)]));
+  for (const name of names) assert.deepEqual([images[name].width, images[name].height], [32, 32], name);
+  assert.throws(() => iconPng('unknown'), /Unknown menu icon/);
+  // Padlock badge in the lower right appears only for locked boards.
+  assert.ok(alpha(images['board:visible:locked'], 20, 27) > 200, 'locked badge (solid part of the padlock body)');
+  assert.ok(alpha(images['board:visible:unlocked'], 20, 27) < 40, 'no badge when unlocked');
+  // The open padlock leaves a gap above the left side of the body.
+  assert.ok(alpha(images.locked, 10, 14) > 200 && alpha(images.unlocked, 10, 13) < 40, 'open and closed shackles differ');
+  // Visible eyes have a pupil; hidden eyes do not.
+  assert.ok(alpha(images.visible, 16, 16) > 200 && alpha(images.hidden, 18, 14) < 40);
+  assert.notDeepEqual(images['board:visible:unlocked'].data, images['board:hidden:unlocked'].data);
 });

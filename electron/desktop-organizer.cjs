@@ -3,12 +3,52 @@ const path = require('path');
 const { randomUUID } = require('crypto');
 const { isWithin, moveFile, extractShortcutIcon, extractShellIcon, expandWindowsPath } = require('./organizer-files.cjs');
 const { WindowsFileDrag } = require('./windows-file-drag.cjs');
-const { WindowLayerController } = require('./window-layer-controller.cjs');
+const { WindowLayerController, appendLayerLog } = require('./window-layer-controller.cjs');
 const { DesktopIconVisibility } = require('./desktop-icon-visibility.cjs');
 const { WindowsContextMenu } = require('./windows-context-menu.cjs');
-const { refreshMenuIcon } = require('./menu-icons.cjs');
+const { menuIcon } = require('./menu-icons.cjs');
 
 const limit = (value, min, max, fallback) => Number.isFinite(value) ? Math.round(Math.max(min, Math.min(max, value))) : fallback;
+const headerModes = ['never', 'hover', 'always'];
+const MAX_LAYOUTS = 8;
+const normalizeBounds = (input, fallback = {}) => ({
+  x: limit(input?.x, -100000, 100000, fallback.x ?? 40),
+  y: limit(input?.y, -100000, 100000, fallback.y ?? 40),
+  width: limit(input?.width, 220, 1400, fallback.width ?? 360),
+  height: limit(input?.height, 160, 1200, fallback.height ?? 300)
+});
+const isObject = value => !!value && typeof value === 'object' && !Array.isArray(value);
+function normalizePositions(input) {
+  return Object.fromEntries(Object.entries(input).filter(([id, position]) =>
+    /^[a-zA-Z0-9-]{1,80}$/.test(id) && isObject(position) && Number.isFinite(position.x) && Number.isFinite(position.y)
+  ).slice(0, 300).map(([id, position]) => [id, { x: limit(position.x, 0, 40000, 0), y: limit(position.y, 0, 40000, 0) }]));
+}
+// Window bounds and icon positions remembered per display configuration, so
+// switching between the laptop screen and an external monitor restores each
+// arrangement.
+function normalizeLayouts(input) {
+  if (!isObject(input)) return {};
+  const entries = Object.entries(input).filter(([key, layout]) => typeof key === 'string' && key.length > 0 && key.length <= 600 && isObject(layout));
+  return Object.fromEntries(entries.slice(-MAX_LAYOUTS).map(([key, layout]) => [key, {
+    ...normalizeBounds(layout), ...(isObject(layout.items) ? { items: normalizePositions(layout.items) } : {}), ...(layout.auto === true ? { auto: true } : {})
+  }]));
+}
+const MAX_SNAPSHOTS = 20;
+const idPattern = /^[a-zA-Z0-9-]{1,80}$/;
+function normalizeSnapshot(input) {
+  if (!isObject(input) || !idPattern.test(input.id || '') || !Number.isFinite(input.createdAt)) return null;
+  return {
+    id: input.id,
+    name: String(input.name || '').slice(0, 80) || '快照',
+    createdAt: input.createdAt,
+    boards: (Array.isArray(input.boards) ? input.boards : []).filter(board => isObject(board) && idPattern.test(board.id || '')).slice(0, 30).map(board => ({
+      id: board.id,
+      visible: board.visible !== false,
+      bounds: normalizeBounds(board.bounds),
+      items: normalizePositions(isObject(board.items) ? board.items : {})
+    }))
+  };
+}
 function normalizeBoard(input = {}) {
   return {
     id: typeof input.id === 'string' && /^[a-zA-Z0-9-]{1,80}$/.test(input.id) ? input.id : randomUUID(),
@@ -18,16 +58,14 @@ function normalizeBoard(input = {}) {
     color: /^#[0-9a-f]{6}$/i.test(input.color || '') ? input.color : '#171c2a',
     textColor: /^#[0-9a-f]{6}$/i.test(input.textColor || '') ? input.textColor : '#f7f7fb',
     headerColorMode: input.headerColorMode === 'custom' ? 'custom' : 'follow',
+    // Title bar visibility, like Fences: never, on mouse hover, or always.
+    headerMode: headerModes.includes(input.headerMode) ? input.headerMode : 'always',
     headerColor: /^#[0-9a-f]{6}$/i.test(input.headerColor || '') ? input.headerColor : '#171c2a',
     headerTextColor: /^#[0-9a-f]{6}$/i.test(input.headerTextColor || '') ? input.headerTextColor : '#f7f7fb',
     pattern: ['none', 'dots', 'grid', 'diagonal'].includes(input.pattern) ? input.pattern : 'none',
     image: typeof input.image === 'string' && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(input.image) && input.image.length < 6000000 ? input.image : '',
-    bounds: {
-      x: limit(input.bounds?.x, -100000, 100000, 40),
-      y: limit(input.bounds?.y, -100000, 100000, 40),
-      width: limit(input.bounds?.width, 220, 1400, 360),
-      height: limit(input.bounds?.height, 160, 1200, 300)
-    },
+    bounds: normalizeBounds(input.bounds),
+    layouts: normalizeLayouts(input.layouts),
     items: (Array.isArray(input.items) ? input.items : []).filter(item =>
       item && typeof item.path === 'string' && item.path.length <= 32768 && path.isAbsolute(item.path) && !item.path.includes('\0')
     ).slice(0, 300).map(item => ({
@@ -43,6 +81,7 @@ class DesktopOrganizer {
   constructor(electron, userDir, onChange = () => {}) {
     this.electron = electron;
     this.file = path.join(userDir, 'desktop-organizer.json');
+    this.snapshotFile = path.join(userDir, 'desktop-organizer-snapshots.json');
     this.filesRoot = path.join(userDir, 'desktop-organizer-files');
     this.icons = new Map();
     this.windows = new Map();
@@ -76,6 +115,9 @@ class DesktopOrganizer {
       const data = JSON.parse(fs.readFileSync(this.file, 'utf8'));
       this.boards = (Array.isArray(data.boards) ? data.boards : []).filter(board => board && typeof board === 'object').slice(0, 30).map(normalizeBoard);
       this.boards = this.boards.filter((board, index, all) => all.findIndex(other => other.id === board.id) === index);
+      // Started on other displays than last time: use their icon arrangement.
+      const key = this.displayKey();
+      for (const board of this.boards) this.restoreItemPositions(board, this.layoutFor(board, key)?.items);
     } catch (error) {
       if (error.code !== 'ENOENT') console.warn('桌面整理設定無法讀取，使用預設值。');
     }
@@ -84,6 +126,8 @@ class DesktopOrganizer {
 
   save() {
     clearTimeout(this.saveTimer); this.saveTimer = null;
+    // While displays change, positions still belong to the previous layout.
+    if (!this.displayChanging) for (const board of this.boards) this.captureItemPositions(board);
     fs.mkdirSync(path.dirname(this.file), { recursive: true });
     const temporary = this.file + '.tmp';
     fs.writeFileSync(temporary, JSON.stringify({ boards: this.boards }, null, 2), 'utf8');
@@ -122,8 +166,9 @@ class DesktopOrganizer {
     if (entry.window && !entry.window.isDestroyed()) entry.window.close();
   }
 
+  // Settings open whether or not the board is locked; locking only fixes the
+  // window's position and keeps it below other windows.
   async openSettings(board) {
-    if (board.locked) throw new Error('整理視窗已鎖定，請先解鎖。');
     const existing = this.settingsWindows.get(board.id);
     if (existing) {
       await existing.ready;
@@ -135,7 +180,7 @@ class DesktopOrganizer {
     let ready, failed;
     entry.ready = new Promise((resolve, reject) => { ready = resolve; failed = reject; });
     entry.lifecycle = this.withDialog(board, async () => {
-      if (entry.cancelled || board.locked || this.quitting) { ready(false); return; }
+      if (entry.cancelled || this.quitting) { ready(false); return; }
       const win = new this.electron.BrowserWindow({
         width: 380, height: 480, minWidth: 320, minHeight: 420,
         parent: this.windows.get(board.id), modal: true, show: false, skipTaskbar: true,
@@ -148,7 +193,7 @@ class DesktopOrganizer {
       win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
       win.webContents.on('will-navigate', event => event.preventDefault());
       const closed = new Promise(resolve => win.once('closed', resolve));
-      win.once('ready-to-show', () => { if (!win.isDestroyed() && !board.locked) win.show(); });
+      win.once('ready-to-show', () => { if (!win.isDestroyed()) win.show(); });
       const built = path.join(__dirname, '../dist/desktop-organizer-settings.html');
       try {
         await win.loadFile(fs.existsSync(built) ? built : path.join(__dirname, '../desktop-organizer-settings.html'));
@@ -168,6 +213,24 @@ class DesktopOrganizer {
     const remove = () => { board.items = board.items.filter(item => item.id !== id); this.layoutBoard(board); this.save(); return board; };
     if (item && this.iconVisibility) return this.releaseDesktopIcon(item).then(remove);
     return remove();
+  }
+
+  // Locked organizers stay below other windows; unlocked ones stack like
+  // ordinary windows so clicking brings them forward for editing. Both stay
+  // visible during Windows Show desktop.
+  setLocked(board, locked) {
+    board.locked = locked;
+    this.windows.get(board.id)?.setMovable?.(!locked);
+    this.layers.get(board.id)?.setMode(this.layerMode(board));
+    this.save(); this.onChange(); this.notifyView(board);
+  }
+
+  layerMode(board) {
+    return board.locked ? 'bottom' : 'normal';
+  }
+
+  logLayerError(board, message) {
+    appendLayerLog(path.join(path.dirname(this.file), 'window-layer.log'), board.title, message);
   }
 
   gridColumns(board) {
@@ -221,6 +284,9 @@ class DesktopOrganizer {
     if (action === 'refresh') return { action, ...(await this.refreshBoard(board)) };
     // Locking only fixes the window and its settings; these stay available.
     const [type, value] = String(action).split(':');
+    if (action === 'settings') { await this.openSettings(board); return { action, ...this.boardResult(board) }; }
+    if (action === 'lock' || action === 'unlock') { this.setLocked(board, action === 'lock'); return { action, ...this.boardResult(board) }; }
+    if (action === 'hide') { this.closeSettings(board); this.windows.get(board.id)?.hide(); return { action, ...this.boardResult(board) }; }
     if (type === 'sort') this.sortBoard(board, value);
     else if (type === 'new') return { action, newId: await this.createNewItem(board, value, position), ...this.boardResult(board) };
     else throw new Error('不支援的操作。');
@@ -230,14 +296,21 @@ class DesktopOrganizer {
   backgroundMenuTemplate(board, choose) {
     const item = (label, action) => ({ label, click: () => choose(action) });
     const { nativeImage, nativeTheme } = this.electron;
+    const icon = name => menuIcon(nativeImage, name, nativeTheme?.shouldUseDarkColors !== false);
     return [
-      { label: '重新整理', icon: refreshMenuIcon(nativeImage, nativeTheme?.shouldUseDarkColors !== false), click: () => choose('refresh') },
+      { label: '重新整理', icon: icon('refresh'), click: () => choose('refresh') },
       { type: 'separator' },
       { label: '排序方式', submenu: [
         item('名稱', 'sort:name'), item('大小', 'sort:size'), item('項目類型', 'sort:type'), item('修改日期', 'sort:date')
       ] },
       { type: 'separator' },
-      { label: '新增', submenu: [item('資料夾', 'new:folder'), item('文字文件', 'new:text')] }
+      { label: '新增', submenu: [item('資料夾', 'new:folder'), item('文字文件', 'new:text')] },
+      // Title-bar actions stay reachable when the title bar is hidden.
+      { type: 'separator' },
+      { label: '整理視窗設定…', click: () => choose('settings') },
+      // Icons show the current state: closed padlock while locked, open while unlocked.
+      board.locked ? { ...item('解鎖整理視窗', 'unlock'), icon: icon('locked') } : { ...item('鎖定整理視窗', 'lock'), icon: icon('unlocked') },
+      { ...item('隱藏整理視窗', 'hide'), icon: icon('hidden') }
     ];
   }
 
@@ -431,6 +504,95 @@ class DesktopOrganizer {
     return job;
   }
 
+  // Identifies the connected displays: arrangement, resolution and scaling.
+  displayKey() {
+    const displays = this.electron.screen?.getAllDisplays?.() || [];
+    return displays.map(display => `${display.id}:${display.bounds.x},${display.bounds.y},${display.bounds.width}x${display.bounds.height}@${display.scaleFactor}`).sort().join('|');
+  }
+
+  itemPositions(board) {
+    return Object.fromEntries(board.items.filter(item => item.position).map(item => [item.id, { x: item.position.x, y: item.position.y }]));
+  }
+
+  // A layout holds window bounds and icon positions for one display
+  // configuration. "auto" marks a layout copied from other displays that the
+  // user has not arranged yet; a better match is preferred over it.
+  storeLayout(board, bounds = board.bounds, auto = false) {
+    const key = this.displayKey();
+    if (!key) return;
+    const layouts = { ...(board.layouts || {}) };
+    delete layouts[key];
+    layouts[key] = { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height, items: this.itemPositions(board), ...(auto ? { auto: true } : {}) };
+    board.layouts = Object.fromEntries(Object.entries(layouts).slice(-MAX_LAYOUTS));
+  }
+
+  // The user arranged this window on the current displays.
+  rememberLayout(board, bounds = board.bounds) {
+    this.storeLayout(board, bounds, false);
+  }
+
+  captureItemPositions(board) {
+    const key = this.displayKey();
+    if (!key) return;
+    const entry = board.layouts?.[key];
+    if (!entry) { this.storeLayout(board, board.bounds, true); return; }
+    const items = this.itemPositions(board);
+    if (JSON.stringify(items) === JSON.stringify(entry.items || {})) return;
+    entry.items = items;
+    delete entry.auto;   // icons were arranged on these displays
+  }
+
+  // The layout for the current displays. Without one arranged by the user,
+  // use the layout arranged on displays that share the most screens with
+  // these, so "PC screen only" returns to the laptop part of "Extend".
+  layoutFor(board, key = this.displayKey()) {
+    const own = board.layouts?.[key];
+    if (own && !own.auto) return own;
+    const current = key.split('|');
+    let best = null, bestScore = 0;
+    for (const [other, layout] of Object.entries(board.layouts || {})) {
+      if (other === key || layout.auto) continue;
+      const score = other.split('|').filter(display => current.includes(display)).length;
+      if (score > 0 && score >= bestScore) { best = layout; bestScore = score; }   // later entries are more recent
+    }
+    return best || own || null;
+  }
+
+  // Puts icons back where they were on these displays. Items added while on
+  // other displays get a free slot.
+  restoreItemPositions(board, saved) {
+    if (!saved) return false;
+    let changed = false;
+    for (const item of board.items) {
+      const position = saved[item.id];
+      if (!position) { if (item.position) { item.position = undefined; changed = true; } continue; }
+      if (item.position?.x !== position.x || item.position?.y !== position.y) { item.position = { x: position.x, y: position.y }; changed = true; }
+    }
+    if (changed) this.layoutBoard(board);
+    return changed;
+  }
+
+  // Only moves made by the user are remembered. Windows also moves windows
+  // while displays change; those positions must not replace the layout.
+  rememberWindow(board, win) {
+    if (win.isDestroyed() || this.displayChanging) return;
+    board.bounds = win.getBounds();
+    this.rememberLayout(board);
+    this.scheduleSave();
+  }
+
+  savedBounds(board) {
+    return this.layoutFor(board) || board.bounds;
+  }
+
+  // Moving a window onto a display with another scale factor can apply the
+  // old scale to its size; a second call corrects it once it is there.
+  applyBounds(win, target) {
+    win.setBounds(target);
+    const actual = win.getBounds();
+    if (Object.keys(target).some(key => actual[key] !== target[key])) win.setBounds(target);
+  }
+
   fitBounds(bounds) {
     const { screen } = this.electron;
     const area = screen.getDisplayMatching(bounds).workArea;
@@ -463,7 +625,7 @@ class DesktopOrganizer {
       return existing;
     }
     const { BrowserWindow } = this.electron;
-    const creationBounds = this.fitBounds(board.bounds);
+    const creationBounds = this.fitBounds(this.savedBounds(board));
     const win = new BrowserWindow({
       ...creationBounds, minWidth: 220, minHeight: 160,
       transparent: true, frame: false, resizable: false, thickFrame: false, hasShadow: false, backgroundColor: '#00000000', movable: !board.locked,
@@ -472,8 +634,13 @@ class DesktopOrganizer {
     });
     const initialNativeBounds = win.getBounds();
     this.windows.set(board.id, win);
-    this.layers.set(board.id, new WindowLayerController(win, 'bottom', { desktopOrganizer: true }));
+    this.layers.set(board.id, new WindowLayerController(win, this.layerMode(board), { desktopOrganizer: true, logError: message => this.logLayerError(board, message) }));
     win.setMenu(null);
+    win.on('show', () => this.onChange());
+    win.on('hide', () => this.onChange());
+    // Windows minimizes windows on a monitor that is switched off, such as
+    // "Second screen only". Organizers have no taskbar button; bring them back.
+    win.on('minimize', () => setTimeout(() => this.unminimize(board, win), 300));
     win.on('page-title-updated', event => event.preventDefault());
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     win.webContents.on('will-navigate', event => event.preventDefault());
@@ -485,15 +652,13 @@ class DesktopOrganizer {
       const liveBounds = win.getBounds();
       const changedBeforeLoad = Object.keys(initialNativeBounds).some(key => liveBounds[key] !== initialNativeBounds[key]);
       win.setBounds(changedBeforeLoad ? this.fitBounds(liveBounds) : creationBounds, false);
-      board.bounds = win.getBounds(); this.scheduleSave();
+      board.bounds = win.getBounds();
+      if (!board.layouts?.[this.displayKey()] || board.layouts[this.displayKey()].auto) this.storeLayout(board, board.bounds, true);
+      this.scheduleSave();
       win.showInactive();
     });
     win.loadFile(fs.existsSync(built) ? built : path.join(__dirname, '../desktop-organizer.html')).catch(() => console.warn('桌面整理視窗載入失敗。'));
-    const remember = () => {
-      if (win.isDestroyed()) return;
-      board.bounds = win.getBounds();
-      this.scheduleSave();
-    };
+    const remember = () => this.rememberWindow(board, win);
     win.on('moved', remember);
     win.on('resized', remember);
     win.on('close', event => { if (!this.quitting) { event.preventDefault(); this.closeSettings(board); win.hide(); } });
@@ -531,6 +696,7 @@ class DesktopOrganizer {
     const width = Math.min(board.bounds.width, area.width);
     const height = Math.min(board.bounds.height, area.height);
     board.bounds = { width, height, x: Math.round(area.x + (area.width - width) / 2), y: Math.round(area.y + (area.height - height) / 2) };
+    this.rememberLayout(board);
     this.save();
     const win = this.show(board);
     await new Promise((resolve, reject) => {
@@ -556,7 +722,6 @@ class DesktopOrganizer {
     const settingsBoard = event => {
       const board = ownBoard(event, true);
       if (this.settingsWindows.get(board.id)?.window?.webContents !== event.sender) throw new Error('無法存取此設定視窗。');
-      if (board.locked) throw new Error('整理視窗已鎖定，請先解鎖。');
       return board;
     };
     ipcMain.handle('organizer-settings-open', event => this.openSettings(ownBoard(event)));
@@ -564,7 +729,7 @@ class DesktopOrganizer {
     ipcMain.handle('organizer-settings-preview', (event, input = {}) => {
       const board = settingsBoard(event), entry = this.settingsWindows.get(board.id);
       const normalized = normalizeBoard({ ...board, ...input });
-      entry.preview = Object.fromEntries(['title', 'opacity', 'color', 'textColor', 'headerColorMode', 'headerColor', 'headerTextColor', 'pattern', 'image'].map(key => [key, normalized[key]]));
+      entry.preview = Object.fromEntries(['title', 'opacity', 'color', 'textColor', 'headerColorMode', 'headerColor', 'headerTextColor', 'headerMode', 'pattern', 'image'].map(key => [key, normalized[key]]));
       this.notifyView(board); return true;
     });
     ipcMain.handle('organizer-get', event => {
@@ -654,11 +819,12 @@ class DesktopOrganizer {
       const fromSettings = this.settingsWindows.get(board.id)?.window?.webContents === event.sender;
       if (fromSettings) settingsBoard(event);
       if (typeof input.title === 'string') board.title = input.title.trim().slice(0, 60) || '桌面整理';
-      if (typeof input.locked === 'boolean') board.locked = input.locked;
+      if (typeof input.locked === 'boolean') { board.locked = input.locked; this.layers.get(board.id)?.setMode(this.layerMode(board)); }
       if (Number.isFinite(input.opacity)) board.opacity = limit(input.opacity, 0, 100, 45);
       if (typeof input.color === 'string' && /^#[0-9a-f]{6}$/i.test(input.color)) board.color = input.color;
       if (typeof input.textColor === 'string' && /^#[0-9a-f]{6}$/i.test(input.textColor)) board.textColor = input.textColor;
       if (['follow', 'custom'].includes(input.headerColorMode)) board.headerColorMode = input.headerColorMode;
+      if (headerModes.includes(input.headerMode)) board.headerMode = input.headerMode;
       if (typeof input.headerColor === 'string' && /^#[0-9a-f]{6}$/i.test(input.headerColor)) board.headerColor = input.headerColor;
       if (typeof input.headerTextColor === 'string' && /^#[0-9a-f]{6}$/i.test(input.headerTextColor)) board.headerTextColor = input.headerTextColor;
       if (['none', 'dots', 'grid', 'diagonal'].includes(input.pattern)) board.pattern = input.pattern;
@@ -671,7 +837,6 @@ class DesktopOrganizer {
       win.setTitle(board.title);
       this.layoutBoard(board);
       this.save(); this.onChange();
-      if (board.locked) this.closeSettings(board);
       this.notifyView(board);
       return board;
     });
@@ -828,6 +993,7 @@ class DesktopOrganizer {
         win.setBounds(next);
         // Programmatic sizing of a frameless window may omit 'resized'.
         board.bounds = win.getBounds();
+        this.rememberLayout(board);
         this.scheduleSave();
       }
     });
@@ -845,7 +1011,6 @@ class DesktopOrganizer {
       if (!fs.existsSync(item.path)) return { missing: true };
       try { return await this.getIcon(item); } catch { return ''; }
     });
-    ipcMain.handle('organizer-hide', event => { const board = ownBoard(event); this.closeSettings(board); this.windows.get(board.id).hide(); });
     ipcMain.handle('organizer-delete', async event => {
       if (this.permissionOperation) throw new Error('桌面圖示權限正在設定中，請稍後再刪除整理視窗。');
       const board = ownBoard(event, true);
@@ -869,9 +1034,136 @@ class DesktopOrganizer {
   }
 
   restore() { for (const board of this.boards) this.show(board); }
-  reposition() { for (const win of this.windows.values()) if (!win.isDestroyed()) win.setBounds(this.fitBounds(win.getBounds())); }
+
+  // Snapshots, like Fences: the user saves the arrangement of every organizer
+  // (window bounds, icon positions, shown or hidden) and restores it later.
+  snapshots() {
+    try {
+      const data = JSON.parse(fs.readFileSync(this.snapshotFile, 'utf8'));
+      return (Array.isArray(data.snapshots) ? data.snapshots : []).map(normalizeSnapshot).filter(Boolean).slice(-MAX_SNAPSHOTS);
+    } catch { return []; }
+  }
+
+  writeSnapshots(snapshots) {
+    fs.mkdirSync(path.dirname(this.snapshotFile), { recursive: true });
+    const temporary = this.snapshotFile + '.tmp';
+    fs.writeFileSync(temporary, JSON.stringify({ snapshots }, null, 2), 'utf8');
+    fs.renameSync(temporary, this.snapshotFile);
+  }
+
+  // Names the current screens as Windows' projection modes do.
+  displayModeName() {
+    const displays = this.electron.screen?.getAllDisplays?.() || [];
+    if (displays.length > 1) return `延伸 ${displays.length} 個螢幕`;
+    if (displays[0]?.internal === true) return '僅電腦螢幕';
+    if (displays[0]?.internal === false) return '僅第二個螢幕';
+    return '1 個螢幕';
+  }
+
+  createSnapshot(now = new Date()) {
+    const pad = value => String(value).padStart(2, '0');
+    const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    const snapshot = {
+      id: randomUUID(), name: `${stamp}（${this.displayModeName()}）`, createdAt: now.getTime(),
+      boards: this.boards.map(board => {
+        const win = this.windows.get(board.id);
+        const live = win && !win.isDestroyed();
+        const bounds = live && !win.isMinimized?.() ? win.getBounds() : board.bounds;
+        return { id: board.id, visible: live ? win.isVisible() || !!win.isMinimized?.() : true, bounds, items: this.itemPositions(board) };
+      })
+    };
+    this.writeSnapshots([...this.snapshots(), snapshot].slice(-MAX_SNAPSHOTS));
+    this.onChange();
+    return snapshot;
+  }
+
+  deleteSnapshot(id) {
+    const snapshots = this.snapshots();
+    const remaining = snapshots.filter(snapshot => snapshot.id !== id);
+    if (remaining.length === snapshots.length) return false;
+    this.writeSnapshots(remaining);
+    this.onChange();
+    return true;
+  }
+
+  // Organizers deleted since the snapshot are skipped and ones created later
+  // are left as they are. Icons added later get a free slot. The result also
+  // becomes the layout for the current displays.
+  restoreSnapshot(id) {
+    const snapshot = this.snapshots().find(candidate => candidate.id === id);
+    if (!snapshot) throw new Error('找不到這個快照。');
+    if (this.activeDrag) throw new Error('請先完成檔案拖曳，再還原快照。');
+    for (const saved of snapshot.boards) {
+      const board = this.boards.find(candidate => candidate.id === saved.id);
+      if (!board) continue;
+      if (this.restoreItemPositions(board, saved.items)) this.notifyItems(board);
+      const target = this.fitBounds(saved.bounds);
+      board.bounds = target;
+      this.rememberLayout(board, target);
+      let win = this.windows.get(board.id);
+      if (saved.visible) {
+        if (!win || win.isDestroyed()) win = this.show(board);
+        else { if (win.isMinimized?.()) win.showInactive(); this.applyBounds(win, target); if (!win.isVisible()) win.showInactive(); }
+      } else if (win && !win.isDestroyed()) {
+        this.closeSettings(board);
+        this.applyBounds(win, target);
+        win.hide();
+      }
+    }
+    this.save();
+    this.onChange();
+    return true;
+  }
+  // Called as soon as displays start changing. Until the layout is restored,
+  // window moves come from Windows and are not saved.
+  displayChanged() {
+    this.displayChanging = true;
+    clearTimeout(this.displaySettleTimer);
+    this.displaySettleTimer = null;
+  }
+
+  // Restores each organizer from the layout saved for the current displays,
+  // or fits its last layout onto them. The current window bounds are not
+  // used: Windows may already have moved and rescaled the windows. A second
+  // pass corrects windows that Windows moves again after the first one.
+  reposition() {
+    this.restoreLayouts();
+    clearTimeout(this.displaySettleTimer);
+    this.displaySettleTimer = setTimeout(() => {
+      this.displaySettleTimer = null;
+      this.restoreLayouts();
+      this.displayChanging = false;
+    }, 2000);
+  }
+
+  // Shows a minimized organizer without activating it, at its saved layout.
+  unminimize(board, win) {
+    if (this.quitting || win.isDestroyed() || !win.isMinimized()) return;
+    win.showInactive();
+    this.applyBounds(win, this.fitBounds(this.savedBounds(board)));
+    win.webContents?.invalidate?.();
+  }
+
+  restoreLayouts() {
+    if (this.quitting) return;
+    const key = this.displayKey();
+    for (const board of this.boards) {
+      const win = this.windows.get(board.id);
+      if (!win || win.isDestroyed()) continue;
+      if (win.isMinimized?.()) win.showInactive();
+      const layout = this.layoutFor(board, key);
+      if (this.restoreItemPositions(board, layout?.items)) this.notifyItems(board);
+      const target = this.fitBounds(layout || board.bounds);
+      this.applyBounds(win, target);
+      board.bounds = target;
+      if (key && layout !== board.layouts?.[key]) this.storeLayout(board, target, true);
+      if (win.isVisible?.()) win.webContents?.invalidate?.();
+    }
+    this.scheduleSave();
+  }
   dispose() {
     this.quitting = true;
+    clearTimeout(this.displaySettleTimer);
     for (const board of this.boards) this.closeSettings(board);
     this.contextMenu?.dispose?.();
     for (const close of this.contextWatchers) close();

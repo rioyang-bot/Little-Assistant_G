@@ -51,7 +51,7 @@ app.whenReady().then(async () => {
     const earlyBounds=siblingWindow.getBounds();
     assert.ok(Math.abs(earlyBounds.x-250)<=1 && Math.abs(earlyBounds.y-40)<=1,'initial painting must not overwrite a position set before load');
     const siblingSnapshot=JSON.stringify(sibling);
-    const snapshot=JSON.parse(JSON.stringify(board)); delete snapshot.bounds;
+    const snapshot=JSON.parse(JSON.stringify(board)); delete snapshot.bounds; delete snapshot.layouts;
     service.activeDrag={};
     await assert.rejects(service.recover(board),/拖曳/);
     assert.equal(win.isDestroyed(),false,'recovery must not destroy an active drag source');
@@ -70,7 +70,8 @@ app.whenReady().then(async () => {
     assert.equal(await recovered.webContents.executeJavaScript("getComputedStyle(document.getElementById('board')).visibility"),'visible');
     const expectedBounds=service.fitBounds(board.bounds);
     for(const key of ['x','y','width','height']) assert.ok(Math.abs(recovered.getBounds()[key]-expectedBounds[key])<=1,JSON.stringify({key,actual:recovered.getBounds(),expected:expectedBounds,stored:board.bounds}));
-    const after=JSON.parse(JSON.stringify(board)); delete after.bounds;
+    for(const key of ['x','y','width','height']) assert.ok(Math.abs(board.layouts[service.displayKey()][key]-board.bounds[key])<=1,'the recovered position becomes the layout for these displays');
+    const after=JSON.parse(JSON.stringify(board)); delete after.bounds; delete after.layouts;
     assert.deepEqual(after,snapshot,'recovery preserves ids, original paths, placements and appearance');
     assert.equal(fs.readFileSync(originalFile,'utf8'),'recovery fixture');
     assert.equal(service.windows.get(sibling.id),siblingWindow); assert.equal(JSON.stringify(sibling),siblingSnapshot);
@@ -82,7 +83,8 @@ app.whenReady().then(async () => {
     assert.ok(recoveredGreen>recoveredImage.width*recoveredImage.height/2,'recreated transparent window actually renders');
     await delay(250);
     const persisted=new DesktopOrganizer({organizerDesktopIcons:false,organizerDrag:{}},dir).boards.find(candidate=>candidate.id===board.id);
-    const persistedSnapshot=JSON.parse(JSON.stringify(persisted)); delete persistedSnapshot.bounds;
+    const persistedSnapshot=JSON.parse(JSON.stringify(persisted)); delete persistedSnapshot.bounds; delete persistedSnapshot.layouts;
+    assert.deepEqual(persisted.layouts,board.layouts,'display layouts survive restart');
     assert.deepEqual(persistedSnapshot,snapshot,'recovery survives restart');
     board.locked=false;
     await service.openSettings(board);

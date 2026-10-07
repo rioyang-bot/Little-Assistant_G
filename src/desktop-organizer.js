@@ -92,7 +92,8 @@ function selectItem(item,event) {
 }
 function dropPosition(event) {
   const area = $('items').getBoundingClientRect();
-  return { x: Math.max(0, event.clientX - area.left + $('items').scrollLeft - 41), y: Math.max(0, event.clientY - area.top + $('items').scrollTop - 16) };
+  // Whole pixels: the title bar height can be fractional on scaled displays.
+  return { x: Math.max(0, Math.round(event.clientX - area.left + $('items').scrollLeft - 41)), y: Math.max(0, Math.round(event.clientY - area.top + $('items').scrollTop - 16)) };
 }
 function showDropPreview(event) {
   const area = $('items').getBoundingClientRect();
@@ -189,6 +190,7 @@ function applyAppearance() {
   $('board').style.setProperty('--header-text-color', data.headerTextColor);
   $('board').style.setProperty('--header-background', data.headerColorMode === 'custom' ? data.headerColor : '#00000022');
   $('board').style.setProperty('--background-image', data.image ? `url("${data.image}")` : 'none');
+  $('board').dataset.header = data.headerMode || 'always';
 }
 
 function render(data) {
@@ -199,12 +201,6 @@ function render(data) {
   layoutSignature = '';
   $('board').classList.toggle('locked', board.locked);
   applyAppearance();
-  $('lock').textContent = board.locked ? '🔒' : '🔓';
-  $('lock').title = board.locked ? '解鎖' : '鎖定';
-  $('lock').setAttribute('aria-label', $('lock').title);
-  $('edit').hidden = board.locked;
-  $('edit').disabled = board.locked;
-  $('lock').setAttribute('aria-pressed', String(board.locked));
   $('empty').hidden = board.items.length > 0;
   $('items').replaceChildren();
   missingIds = new Set();
@@ -324,9 +320,7 @@ const refresh = () => run(async () => {
   render(result);
   status(result.removed ? `已移除 ${result.removed} 個已刪除或移走的項目。` : '');
 });
-$('hide').onclick = () => run(() => api.invoke('organizer-hide'));
-$('lock').onclick = () => run(async () => render(await api.invoke('organizer-update', { locked: !board.locked })));
-$('edit').onclick = () => { if (!board.locked) run(() => api.invoke('organizer-settings-open')); };
+// Settings, lock and hide live in the background (right-click) menu.
 document.addEventListener('click', () => { $('item-menu').hidden = true; });
 $('open').onclick = () => openItem(selectedItem);
 $('reveal').onclick = () => openItem(selectedItem, true);

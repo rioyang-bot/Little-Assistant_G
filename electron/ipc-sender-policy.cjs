@@ -35,7 +35,7 @@ allow([SETTINGS], [
 ]);
 allow(SELF_AUTHENTICATED, [
   'organizer-get', 'organizer-refresh', 'organizer-background-menu', 'organizer-update', 'organizer-add', 'organizer-position', 'organizer-layout', 'organizer-drag-out',
-  'organizer-remove', 'organizer-open', 'organizer-icon', 'organizer-hide', 'organizer-delete', 'organizer-resize',
+  'organizer-remove', 'organizer-open', 'organizer-icon', 'organizer-delete', 'organizer-resize',
   'organizer-background', 'organizer-context-menu', 'organizer-rename', 'organizer-settings-open',
   'organizer-settings-close', 'organizer-settings-preview'
 ]);

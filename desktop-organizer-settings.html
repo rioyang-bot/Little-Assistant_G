@@ -19,6 +19,11 @@
       <select id="header-color-mode" aria-label="標題列底色"><option value="follow">跟隨背景</option><option value="custom">自訂底色</option></select>
       <input id="header-color" type="color" value="#171c2a" aria-label="自訂標題列底色" hidden />
     </label>
+    <fieldset class="header-mode-row"><legend>顯示標題列</legend>
+      <label><input type="radio" name="header-mode" value="never" />從不</label>
+      <label><input type="radio" name="header-mode" value="hover" />滑鼠停留時</label>
+      <label><input type="radio" name="header-mode" value="always" />總是</label>
+    </fieldset>
     <div class="color-row">
       <label>標題列文字顏色 <input id="header-text-color" type="color" value="#f7f7fb" /></label>
     </div>

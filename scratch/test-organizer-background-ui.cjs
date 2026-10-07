@@ -50,11 +50,13 @@ app.whenReady().then(async () => {
     assert.deepEqual(refreshItem.icon.getSize(), { width: 16, height: 16 });
     assert.equal(await js(`!!document.getElementById('refresh')`), false, 'no title-bar refresh button');
 
-    assert.deepEqual(lastReal.items.map(entry => entry.label).filter(Boolean), ['重新整理', '排序方式', '新增'], 'no view submenu');
+    assert.deepEqual(lastReal.items.map(entry => entry.label).filter(Boolean), ['重新整理', '排序方式', '新增', '整理視窗設定…', '鎖定整理視窗', '隱藏整理視窗'], 'no view submenu; title-bar actions included');
+    const iconOf = label => lastReal.items.find(entry => entry.label === label)?.icon;
+    for (const label of ['鎖定整理視窗', '隱藏整理視窗']) assert.ok(iconOf(label) && !iconOf(label).isEmpty(), label + ' shows its icon');
     // Locking fixes the window only: the background menu stays fully usable.
     await js(`window.electronAPI.invoke('organizer-update', { locked: true })`);
     const relocked = new Promise(resolve => win.webContents.once('did-finish-load', resolve)); win.reload(); await relocked;
-    assert.equal(await js(`document.getElementById('edit').hidden`), true);
+    assert.equal(await js(`document.getElementById('board').classList.contains('locked')`), true);
 
     next = ['新增', '資料夾'];
     await rightClickEmpty();
@@ -65,7 +67,12 @@ app.whenReady().then(async () => {
     await until(() => fs.existsSync(path.join(desktop, '專案資料')), 'renamed on disk');
     assert.ok((await names()).includes('專案資料'));
     assert.equal(board.locked, true, 'created and renamed while locked');
-    assert.ok(lastReal.items.every(entry => entry.enabled !== false), 'nothing is greyed out while locked');
+    // Everything stays available while locked, including settings.
+    assert.deepEqual(lastReal.items.filter(entry => entry.label && entry.enabled === false).map(entry => entry.label), [], 'nothing is greyed out while locked');
+    const lockedIcon = lastReal.items.find(entry => entry.label === '解鎖整理視窗').icon;
+    assert.ok(lockedIcon && !lockedIcon.isEmpty(), 'the closed padlock shows the locked state');
+    assert.notEqual(lockedIcon.toDataURL(), iconOf('鎖定整理視窗')?.toDataURL(), 'locked and unlocked padlocks differ');
+    assert.ok(lastReal.items.some(entry => entry.label === '解鎖整理視窗'));
     console.log('Organizer background menu: valid native template with the refresh icon, usable while locked, sort re-render, new folder with rename passed.');
     code = 0;
   } catch (error) {

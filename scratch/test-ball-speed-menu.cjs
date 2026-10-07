@@ -3,7 +3,8 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const vm = require('node:vm');
-const { app, BrowserWindow, Menu, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, nativeImage, nativeTheme } = require('electron');
+const { menuIcon } = require('../electron/menu-icons.cjs');
 const { locales } = require('../electron/locales.cjs');
 const layout = require('../electron/layout-utils.cjs');
 const { normalizeWindowLayerMode } = require('../electron/window-layer-controller.cjs');
@@ -26,7 +27,7 @@ let main, settings;
 app.whenReady().then(async () => {
   main = new BrowserWindow({ show:false, webPreferences:{preload:path.join(appRoot,'electron/preload.cjs'),backgroundThrottling:false} });
   settings = new BrowserWindow({ width:1040,height:1000,show:false,webPreferences:{preload:path.join(appRoot,'electron/preload.cjs'),backgroundThrottling:false} });
-  const state = vm.createContext({ fs,path,console,process,__dirname:path.join(appRoot,'electron'),Menu,ipcMain,app,...layout,normalizeWindowLayerMode,formatDisplayVersion,
+  const state = vm.createContext({ fs,path,console,process,__dirname:path.join(appRoot,'electron'),Menu,ipcMain,app,...layout,normalizeWindowLayerMode,formatDisplayVersion,menuIcon,nativeImage,nativeTheme,
     screen:{getPrimaryDisplay:()=>({id:1,workArea:{x:0,y:0,width:1200,height:900}}),getAllDisplays:()=>[{id:1,workArea:{x:0,y:0,width:1200,height:900}},{id:2,workArea:{x:1200,y:0,width:1200,height:900}}],getDisplayNearestPoint:()=>({id:1,workArea:{x:0,y:0,width:1200,height:900}})},
     normalizeBrowserAssignments:v=>v||{},normalizeLaptopShortcut:v=>v,readBroker:()=>null,
     isFocusModeActive:()=>false,positionSettingsWindowOnAssistantDisplay() {},
@@ -63,6 +64,39 @@ app.whenReady().then(async () => {
   assert.ok(vm.runInContext('trayContextMenu',state).items.some(item=>item.label===locales['zh-TW'].tray.toggleQuotes));
   assert.equal(vm.runInContext('trayContextMenu',state).items[0].label, `${locales['zh-TW'].tray.title}  ${formatDisplayVersion(app.getVersion())}`, 'menu title shows the version');
   assert.match(vm.runInContext('trayContextMenu',state).items[0].label, /^METech小助手  Ver\.\d+\.\d+\.\d+$/);
+  // Organizer list: eye (shown) or slashed eye (hidden), padlock badge when locked.
+  state.organizerFixture = {
+    boards: [{ id: 'b1', title: '瀏覽器', locked: true }, { id: 'b2', title: '未整理', locked: false }],
+    windows: new Map([['b1', { isDestroyed: () => false, isVisible: () => true }], ['b2', { isDestroyed: () => false, isVisible: () => false }]]),
+    create() {}, restore() {}, show() {}, recover() {},
+    snapshots: () => [{ id: 's1', name: '2026-10-07 09:00（延伸 2 個螢幕）' }, { id: 's2', name: '2026-10-07 17:05（僅電腦螢幕）' }]
+  };
+  vm.runInContext('desktopOrganizer = organizerFixture; updateTrayMenu();', state);
+  const organizerItems = vm.runInContext('trayContextMenu', state).items.find(item => item.label === '桌面整理工具').submenu.items;
+  // "Show organizer windows" holds Show all and each organizer with its state icon.
+  assert.equal(organizerItems.some(item => item.label === '顯示所有整理視窗' || item.label === '瀏覽器'), false, 'no loose show entries');
+  const showItems = organizerItems.find(item => item.label === '顯示整理視窗').submenu.items;
+  assert.deepEqual(showItems.map(item => item.label || item.type), ['全部顯示', 'separator', '瀏覽器', '未整理']);
+  // Rarely needed repairs live under Troubleshooting.
+  assert.equal(organizerItems.some(item => ['桌面圖示權限', '復原整理視窗'].includes(item.label)), false, 'repairs are not on the main list');
+  const troubleshooting = organizerItems.find(item => item.label === '疑難排解');
+  assert.deepEqual(troubleshooting.submenu.items.map(item => item.label), ['桌面圖示權限', '復原整理視窗']);
+  assert.deepEqual(troubleshooting.submenu.items[1].submenu.items.map(item => item.label), ['瀏覽器', '未整理']);
+  assert.equal(organizerItems.at(-1), troubleshooting, 'at the bottom');
+  // Snapshots: take one, restore or delete (newest first).
+  assert.deepEqual(organizerItems.map(item => item.label || item.type), ['新增整理視窗', '顯示整理視窗', '快照', 'separator', '疑難排解'], 'top level of the organizer menu');
+  const snapshotItems = organizerItems.find(item => item.label === '快照').submenu.items;
+  assert.deepEqual(snapshotItems.map(item => item.label || item.type), ['建立快照', 'separator', '還原快照', '刪除快照']);
+  assert.ok(snapshotItems[0].enabled);
+  for (const label of ['還原快照', '刪除快照']) assert.deepEqual(snapshotItems.find(item => item.label === label).submenu.items.map(item => item.label), ['2026-10-07 17:05（僅電腦螢幕）', '2026-10-07 09:00（延伸 2 個螢幕）'], label);
+  const dark = nativeTheme.shouldUseDarkColors;
+  for (const [title, name] of [['瀏覽器', 'board:visible:locked'], ['未整理', 'board:hidden:unlocked']]) {
+    const entry = showItems.find(item => item.label === title);
+    assert.ok(entry.icon && !entry.icon.isEmpty(), title + ' shows a state icon');
+    assert.deepEqual(entry.icon.getSize(), { width: 16, height: 16 });
+    assert.equal(entry.icon.toDataURL(), menuIcon(nativeImage, name, dark).toDataURL(), title + ' icon matches ' + name);
+  }
+  vm.runInContext('desktopOrganizer = null; updateTrayMenu();', state);
   const errors=[];
   settings.webContents.on('console-message',event=>{if(event.level==='error')errors.push(event.message);});
   await settings.loadFile(path.join(appRoot,'dist/email-settings.html'));

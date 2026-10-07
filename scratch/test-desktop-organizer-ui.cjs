@@ -98,17 +98,23 @@ app.whenReady().then(async () => {
     const loaded = new Promise(resolve => win.webContents.once('did-finish-load', resolve));
     win.reload(); await loaded;
     for(let attempt=0;attempt<100 && await win.webContents.executeJavaScript(`document.querySelectorAll('.item').length`) !== 3;attempt++)await delay(20);
-    assert.deepEqual(await win.webContents.executeJavaScript(`({ title:document.getElementById('title').textContent,count:document.querySelectorAll('.item').length,locked:document.getElementById('board').classList.contains('locked'),editHidden:document.getElementById('edit').hidden,editDisabled:document.getElementById('edit').disabled,lockName:document.getElementById('lock').title,inlineSettings:!!document.getElementById('settings') })`), {title:'常用文件',count:3,locked:true,editHidden:true,editDisabled:true,lockName:'解鎖',inlineSettings:false});
-    await assert.rejects(win.webContents.executeJavaScript(`window.electronAPI.invoke('organizer-settings-open')`),/已鎖定/);
-    await win.webContents.executeJavaScript(`document.getElementById('edit').click()`);
-    assert.equal(service.settingsWindows.size,0,'locked settings button cannot open a dialog');
+    assert.deepEqual(await win.webContents.executeJavaScript(`({ title:document.getElementById('title').textContent,count:document.querySelectorAll('.item').length,locked:document.getElementById('board').classList.contains('locked'),headerButtons:document.querySelectorAll('#header button').length,inlineSettings:!!document.getElementById('settings') })`), {title:'常用文件',count:3,locked:true,headerButtons:0,inlineSettings:false});
+    // Settings open on a locked board too; locking only fixes the window.
+    await win.webContents.executeJavaScript(`window.electronAPI.invoke('organizer-settings-open')`);
+    for(let i=0;i<100 && !service.settingsWindows.get(board.id)?.window;i++)await delay(20);
+    assert.ok(service.settingsWindows.get(board.id)?.window,'a locked board can open settings');
+    service.closeSettings(board);
+    for(let i=0;i<100 && service.settingsWindows.has(board.id);i++)await delay(20);
+    assert.equal(service.settingsWindows.size,0);
     assert.equal(service.layers.get(board.id).mode,'bottom');
-    await win.webContents.executeJavaScript(`document.getElementById('lock').click()`);
+    // Lock, unlock, settings and hide live in the background menu (same main-process actions).
+    await service.runBackgroundAction(board,'unlock');
     for(let i=0;i<100 && board.locked;i++)await delay(20);
     assert.equal(board.locked,false);
-    assert.equal(await win.webContents.executeJavaScript(`document.getElementById('lock').title`),'鎖定');
+    for(let i=0;i<100 && await win.webContents.executeJavaScript(`document.getElementById('board').classList.contains('locked')`);i++)await delay(20);
+    assert.equal(service.layers.get(board.id).mode,'normal','an unlocked board stacks like an ordinary window');
     async function openSettings() {
-      await win.webContents.executeJavaScript(`document.getElementById('edit').click()`);
+      await service.runBackgroundAction(board,'settings');
       for(let i=0;i<100 && !service.settingsWindows.get(board.id);i++)await delay(20);
       const entry=service.settingsWindows.get(board.id);
       assert.ok(entry);await entry.ready;
@@ -176,15 +182,22 @@ app.whenReady().then(async () => {
     assert.equal(board.image,'','selecting a picture previews it without saving');
     await closeSettings(settings);
     assert.equal(board.image,'');
-    // Locking dismisses any pending settings and restores the saved appearance.
+    // Locking keeps open settings available.
     settings=await openSettings();
     await win.webContents.executeJavaScript(`window.electronAPI.invoke('organizer-update',{locked:true})`);
-    for(let i=0;i<100 && service.settingsWindows.has(board.id);i++)await delay(20);
-    assert.equal(settings.isDestroyed(),true);assert.equal(service.settingsWindows.size,0);
-    assert.equal(await win.webContents.executeJavaScript(`document.getElementById('edit').hidden && document.getElementById('edit').disabled`),true);
+    await delay(300);
+    assert.equal(settings.isDestroyed(),false,'locking does not close settings');assert.equal(service.settingsWindows.has(board.id),true);
+    await closeSettings(settings);
+    for(let i=0;i<100 && !(await win.webContents.executeJavaScript(`document.getElementById('board').classList.contains('locked')`));i++)await delay(20);
+    assert.equal(await win.webContents.executeJavaScript(`document.getElementById('board').classList.contains('locked')`),true);
     const lockLoaded=new Promise(resolve=>win.webContents.once('did-finish-load',resolve));win.reload();await lockLoaded;
     for(let i=0;i<100 && !(await win.webContents.executeJavaScript(`document.getElementById('board').classList.contains('locked')`));i++)await delay(20);
-    assert.equal(await win.webContents.executeJavaScript(`document.getElementById('edit').hidden`),true,'locked settings stay hidden after reload');
+    assert.equal(await win.webContents.executeJavaScript(`document.getElementById('board').classList.contains('locked')`),true,'the lock survives a reload');
+    await service.runBackgroundAction(board,'settings');
+    for(let i=0;i<100 && !service.settingsWindows.get(board.id)?.window;i++)await delay(20);
+    assert.ok(service.settingsWindows.get(board.id)?.window,'the background menu opens settings while locked');
+    service.closeSettings(board);
+    for(let i=0;i<100 && service.settingsWindows.has(board.id);i++)await delay(20);
     await win.webContents.executeJavaScript(`window.electronAPI.invoke('organizer-update',{locked:false})`);
     // Window order has a separate native regression test. Focus this isolated
     // input fixture so synthetic mouse events can acquire pointer capture.
@@ -234,7 +247,8 @@ app.whenReady().then(async () => {
     assert.equal(win.isMovable(), true);
     await win.webContents.executeJavaScript(`window.electronAPI.invoke('organizer-resize', { width: 480, height: 350 })`);
     assert.equal(win.getBounds().width, 480);
-    await win.webContents.executeJavaScript(`window.electronAPI.invoke('organizer-hide')`);
+    await assert.rejects(win.webContents.executeJavaScript(`window.electronAPI.invoke('organizer-hide')`), /Unauthorized IPC channel/, 'the retired hide channel is closed');
+    await service.runBackgroundAction(board, 'hide');
     assert.equal(win.isVisible(), false);
     service.show(board); assert.equal(win.isVisible(), true);
     await win.webContents.executeJavaScript(`window.electronAPI.invoke('organizer-remove', ${JSON.stringify(result.id)})`);

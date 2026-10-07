@@ -8,11 +8,12 @@ const { TriviaService } = require('./trivia-service.cjs');
 const { KnowledgeCardsService } = require('./knowledge-cards-service.cjs');
 const { StickyNotesService } = require('./sticky-notes-service.cjs');
 const { AlarmService } = require('./alarm-service.cjs');
-const { WindowLayerController, normalizeWindowLayerMode } = require('./window-layer-controller.cjs');
+const { WindowLayerController, normalizeWindowLayerMode, appendLayerLog } = require('./window-layer-controller.cjs');
 const { parseNaturalLanguageTask } = require('./natural-language-task.cjs');
 const { UpdateService } = require('./update-service.cjs');
 const { startRelaunchWatchdog } = require('./update-relaunch-watchdog.cjs');
 const { verifyDownloadedUpdate } = require('./update-signature.cjs');
+const { menuIcon } = require('./menu-icons.cjs');
 const { autoUpdater } = require('electron-updater');
 const { locales } = require('./locales.cjs');
 const { isNewerVersion, formatDisplayVersion, getReleaseNotes } = require('./version-utils.cjs');
@@ -103,6 +104,8 @@ let laptopBrowserAssignments = {};
 let displayPositions = {};
 let displayLayoutChangePending = false;
 let displayLayoutTimer = null;
+let lastDisplayChangeAt = 0;
+let assistantMinimizedByUser = false;
 let assistantDisplayTarget = 'primary';
 let resetPositionCorrectionTimer = null;
 let focusModeUntil = 0;
@@ -614,7 +617,9 @@ function createPetWindow() {
   const indexPath = fs.existsSync(distPath) ? distPath : path.join(__dirname, '../index.html');
   mainWindow.loadFile(indexPath);
 
-  windowLayerController = new WindowLayerController(mainWindow, windowLayerMode);
+  windowLayerController = new WindowLayerController(mainWindow, windowLayerMode, {
+    logError: message => appendLayerLog(path.join(app.getPath('userData'), 'window-layer.log'), 'assistant', message)
+  });
   mainWindow.webContents.on('did-start-loading', () => {
     isNotificationActive = false;
     windowLayerController?.resetNotifications();
@@ -1209,8 +1214,19 @@ function createPetWindow() {
 
   // Handle minimize
   ipcMain.on('minimize-app', () => {
+    assistantMinimizedByUser = true;
     mainWindow.minimize();
   });
+  mainWindow.on('restore', () => { assistantMinimizedByUser = false; });
+  // Windows minimizes the assistant when its monitor is switched off, such as
+  // "Second screen only". Without a taskbar button, bring it back; a minimize
+  // chosen by the user is kept.
+  mainWindow.on('minimize', () => setTimeout(() => {
+    if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.isMinimized() || assistantMinimizedByUser) return;
+    if (Date.now() - lastDisplayChangeAt > 5000) return;
+    mainWindow.showInactive();
+    resetPosition();
+  }, 300));
 
   mainWindow.on('closed', () => {
     windowLayerController?.dispose();
@@ -1549,12 +1565,43 @@ async function configureDesktopIconPermissions(mode) {
   } finally { updateTrayMenu(); }
 }
 
+function takeOrganizerSnapshot() {
+  try { desktopOrganizer?.createSnapshot(); }
+  catch (error) {
+    dialog.showMessageBox({ type: 'error', message: currentLanguage === 'en' ? 'Unable to take a snapshot.' : '無法建立快照。', detail: error.message });
+  }
+}
+
+async function restoreOrganizerSnapshot(snapshot) {
+  const en = currentLanguage === 'en';
+  const { response } = await dialog.showMessageBox({
+    type: 'question', buttons: en ? ['Cancel', 'Restore'] : ['取消', '還原'], defaultId: 1, cancelId: 0,
+    message: en ? `Restore snapshot "${snapshot.name}"?` : `還原快照「${snapshot.name}」？`,
+    detail: en ? 'Organizer windows and icons return to the snapshot arrangement. Files are not moved.' : '整理視窗與圖示會回到快照的排列；檔案本身不會移動。'
+  });
+  if (response !== 1) return;
+  try { desktopOrganizer?.restoreSnapshot(snapshot.id); }
+  catch (error) {
+    dialog.showMessageBox({ type: 'error', message: en ? 'Unable to restore the snapshot.' : '無法還原快照。', detail: error.message });
+  }
+}
+
+async function deleteOrganizerSnapshot(snapshot) {
+  const en = currentLanguage === 'en';
+  const { response } = await dialog.showMessageBox({
+    type: 'question', buttons: en ? ['Cancel', 'Delete'] : ['取消', '刪除'], defaultId: 0, cancelId: 0,
+    message: en ? `Delete snapshot "${snapshot.name}"?` : `刪除快照「${snapshot.name}」？`
+  });
+  if (response === 1) desktopOrganizer?.deleteSnapshot(snapshot.id);
+}
+
 function updateTrayMenu() {
   notifyAssistantSettings();
   if (!tray) return;
 
   const t = getLocale().tray;
   const mock = getLocale().mockEmails;
+  const organizerSnapshots = desktopOrganizer?.snapshots?.() || [];
 
   trayContextMenu = Menu.buildFromTemplate([
     {
@@ -1577,32 +1624,69 @@ function updateTrayMenu() {
       label: currentLanguage === 'en' ? 'Desktop organizer' : '桌面整理工具',
       submenu: [
         { label: currentLanguage === 'en' ? 'New organizer window' : '新增整理視窗', click: () => desktopOrganizer?.create() },
-        { label: currentLanguage === 'en' ? 'Show all organizer windows' : '顯示所有整理視窗', enabled: !!desktopOrganizer?.boards.length, click: () => desktopOrganizer?.restore() },
         {
-          label: currentLanguage === 'en' ? 'Desktop icon permissions' : '桌面圖示權限',
+          label: currentLanguage === 'en' ? 'Show organizer windows' : '顯示整理視窗',
+          enabled: !!desktopOrganizer?.boards.length,
           submenu: [
-            { label: currentLanguage === 'en' ? 'Authorize collected shortcuts once' : '一次授權已收納的捷徑', click: () => configureDesktopIconPermissions('Grant') },
-            { label: currentLanguage === 'en' ? 'Restore shortcut permissions' : '還原捷徑原本權限', click: () => configureDesktopIconPermissions('Restore') },
+            { label: currentLanguage === 'en' ? 'Show all' : '全部顯示', click: () => desktopOrganizer?.restore() },
             { type: 'separator' },
-            { label: currentLanguage === 'en' ? 'Install or repair background helper' : '安裝／修復背景輔助程序', click: () => configureDesktopIconPermissions('Install') },
-            { label: currentLanguage === 'en' ? 'Use background helper' : '使用背景輔助程序', type: 'checkbox', enabled: !!readBroker(app.getPath('userData')), checked: readBroker(app.getPath('userData'))?.enabled === true, click: item => configureDesktopIconPermissions(item.checked ? 'Enable' : 'Disable') },
-            { label: currentLanguage === 'en' ? 'Remove background helper' : '移除背景輔助程序', enabled: !!readBroker(app.getPath('userData')), click: () => configureDesktopIconPermissions('Remove') }
+            // Each organizer shows its state: eye (shown) or slashed eye (hidden), padlock badge when locked.
+            ...(desktopOrganizer?.boards || []).map(board => {
+              const win = desktopOrganizer.windows.get(board.id);
+              const visible = !!win && !win.isDestroyed() && win.isVisible();
+              const icon = menuIcon(nativeImage, `board:${visible ? 'visible' : 'hidden'}:${board.locked ? 'locked' : 'unlocked'}`, nativeTheme.shouldUseDarkColors);
+              return { label: board.title, icon, click: () => desktopOrganizer.show(board) };
+            })
           ]
         },
         {
-          label: currentLanguage === 'en' ? 'Recover organizer window' : '復原整理視窗',
-          enabled: !!desktopOrganizer?.boards.length,
-          submenu: (desktopOrganizer?.boards || []).map(board => ({
-            label: board.title,
-            click: async () => {
-              try { await desktopOrganizer.recover(board); }
-              catch {
-                dialog.showMessageBox({ type: 'error', message: currentLanguage === 'en' ? 'Unable to recover this organizer window. Finish any file drag and try again.' : '無法復原整理視窗，請先完成檔案拖曳，再試一次。' });
-              }
+          label: currentLanguage === 'en' ? 'Snapshots' : '快照',
+          submenu: [
+            { label: currentLanguage === 'en' ? 'Take snapshot' : '建立快照', enabled: !!desktopOrganizer?.boards.length, click: () => takeOrganizerSnapshot() },
+            { type: 'separator' },
+            {
+              label: currentLanguage === 'en' ? 'Restore snapshot' : '還原快照',
+              enabled: organizerSnapshots.length > 0,
+              submenu: organizerSnapshots.slice().reverse().map(snapshot => ({ label: snapshot.name, click: () => restoreOrganizerSnapshot(snapshot) }))
+            },
+            {
+              label: currentLanguage === 'en' ? 'Delete snapshot' : '刪除快照',
+              enabled: organizerSnapshots.length > 0,
+              submenu: organizerSnapshots.slice().reverse().map(snapshot => ({ label: snapshot.name, click: () => deleteOrganizerSnapshot(snapshot) }))
             }
-          }))
+          ]
         },
-        ...(desktopOrganizer?.boards || []).map(board => ({ label: board.title, click: () => desktopOrganizer.show(board) }))
+        { type: 'separator' },
+        // Rarely needed repairs: shortcut permissions and recreating a blank window.
+        {
+          label: currentLanguage === 'en' ? 'Troubleshooting' : '疑難排解',
+          submenu: [
+            {
+              label: currentLanguage === 'en' ? 'Desktop icon permissions' : '桌面圖示權限',
+              submenu: [
+                { label: currentLanguage === 'en' ? 'Authorize collected shortcuts once' : '一次授權已收納的捷徑', click: () => configureDesktopIconPermissions('Grant') },
+                { label: currentLanguage === 'en' ? 'Restore shortcut permissions' : '還原捷徑原本權限', click: () => configureDesktopIconPermissions('Restore') },
+                { type: 'separator' },
+                { label: currentLanguage === 'en' ? 'Install or repair background helper' : '安裝／修復背景輔助程序', click: () => configureDesktopIconPermissions('Install') },
+                { label: currentLanguage === 'en' ? 'Use background helper' : '使用背景輔助程序', type: 'checkbox', enabled: !!readBroker(app.getPath('userData')), checked: readBroker(app.getPath('userData'))?.enabled === true, click: item => configureDesktopIconPermissions(item.checked ? 'Enable' : 'Disable') },
+                { label: currentLanguage === 'en' ? 'Remove background helper' : '移除背景輔助程序', enabled: !!readBroker(app.getPath('userData')), click: () => configureDesktopIconPermissions('Remove') }
+              ]
+            },
+            {
+              label: currentLanguage === 'en' ? 'Recover organizer window' : '復原整理視窗',
+              enabled: !!desktopOrganizer?.boards.length,
+              submenu: (desktopOrganizer?.boards || []).map(board => ({
+                label: board.title,
+                click: async () => {
+                  try { await desktopOrganizer.recover(board); }
+                  catch {
+                    dialog.showMessageBox({ type: 'error', message: currentLanguage === 'en' ? 'Unable to recover this organizer window. Finish any file drag and try again.' : '無法復原整理視窗，請先完成檔案拖曳，再試一次。' });
+                  }
+                }
+              }))
+            }
+          ]
+        }
       ]
     },
     {
@@ -1899,10 +1983,13 @@ if (!gotTheLock) {
     // settles, keeping the assistant above the taskbar at the bottom right.
     const restoreDisplayLayout = () => {
       displayLayoutChangePending = true;
+      lastDisplayChangeAt = Date.now();
+      desktopOrganizer?.displayChanged();
       clearTimeout(displayLayoutTimer);
       clearTimeout(resetPositionCorrectionTimer);
       displayLayoutTimer = setTimeout(() => {
         displayLayoutTimer = null;
+        if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isMinimized() && !assistantMinimizedByUser) mainWindow.showInactive();
         resetPosition();
         desktopOrganizer?.reposition();
         displayLayoutChangePending = false;

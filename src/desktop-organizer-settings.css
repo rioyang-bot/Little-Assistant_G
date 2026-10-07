@@ -4,6 +4,8 @@
 .settings-window #settings label { margin-bottom: 12px; }
 .settings-window #settings .color-row { margin-bottom: 12px; }
 .settings-window #settings .color-row label { margin-bottom: 0; }
+.settings-window #settings .header-mode-row { margin-bottom: 12px; }
+.settings-window #settings .header-mode-row label { margin-bottom: 0; }
 .settings-window .settings-actions { display: flex; gap: 8px; margin-top: 18px; margin-bottom: 8px; }
 .settings-window #save { background: #396e9d; }
 .settings-window #cancel { background: #ffffff15; }

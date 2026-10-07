@@ -15,7 +15,8 @@ function draft() {
     title: $('name').value,
     opacity: 100 - Number($('opacity').value), color: $('color').value, textColor: $('text-color').value,
     headerColorMode: $('header-color-mode').value, headerColor: $('header-color').value,
-    headerTextColor: $('header-text-color').value, pattern: $('pattern').value, image
+    headerTextColor: $('header-text-color').value, pattern: $('pattern').value, image,
+    headerMode: document.querySelector('input[name="header-mode"]:checked')?.value || 'always'
   };
 }
 function preview() {
@@ -27,6 +28,7 @@ function preview() {
 }
 for (const id of ['name', 'opacity', 'color', 'text-color', 'header-color', 'header-text-color']) $(id).oninput = preview;
 for (const id of ['header-color-mode', 'pattern']) $(id).onchange = preview;
+for (const radio of document.querySelectorAll('input[name="header-mode"]')) radio.onchange = preview;
 $('background').onclick = () => run(async () => {
   const result = await api.invoke('organizer-background');
   if (typeof result.image === 'string') { image = result.image; preview(); }
@@ -52,5 +54,7 @@ run(async () => {
   $('header-color-mode').value = board.headerColorMode; $('header-color').value = board.headerColor;
   $('header-color').hidden = board.headerColorMode !== 'custom';
   $('header-text-color').value = board.headerTextColor; $('pattern').value = board.pattern;
+  const headerMode = document.querySelector(`input[name="header-mode"][value="${board.headerMode || 'always'}"]`);
+  if (headerMode) headerMode.checked = true;
   image = board.image; ready = true; $('settings').inert = false;
 });
