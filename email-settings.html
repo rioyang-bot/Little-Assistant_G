@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-KOXIOolc7/cFyheJv62gdW5DgRO8psWSsg08XeIvMlo='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; media-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-src 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-udpEoOQp87VECK2hUTz2PrqBsagr6XURoQGzxWgrQzc='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; media-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-src 'none'">
   <title id="window-title">總覽設定 - METech小助手</title>
   <link rel="stylesheet" href="src/email-settings.css">
 </head>
@@ -17,7 +17,7 @@
       <span class="subtitle" id="header-subtitle">集中管理郵箱、日曆、健康、生活資訊與鬧鐘</span>
     </div>
     <div class="header-actions">
-      <span class="version-badge header-version-badge" id="header-version">Ver.1.7.2</span>
+      <span class="version-badge header-version-badge" id="header-version">Ver.1.7.3</span>
       <div class="lang-switcher">
         <button type="button" class="lang-btn active" data-lang="zh-TW" id="btn-lang-zh">繁中</button>
         <button type="button" class="lang-btn" data-lang="en" id="btn-lang-en">EN</button>
@@ -420,7 +420,7 @@
       <span class="master-switch-label" id="label-enable-health">
         🍵 啟用定時喝水與伸展提醒
       </span>
-      <span class="version-badge" id="health-version">Ver.1.7.2</span>
+      <span class="version-badge" id="health-version">Ver.1.7.3</span>
       <div class="switch-wrap">
         <label class="switch" for="health-enabled" aria-label="Toggle health reminder">
           <input type="checkbox" id="health-enabled" checked>
@@ -2849,7 +2849,7 @@
 
         const displayVersion = appVersion && appVersion.displayVersion
           ? appVersion.displayVersion
-          : 'Ver.1.7.2';
+          : 'Ver.1.7.3';
         document.getElementById('header-version').textContent = displayVersion;
         document.getElementById('health-version').textContent = displayVersion;
 

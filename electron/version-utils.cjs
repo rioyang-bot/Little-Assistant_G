@@ -1,4 +1,18 @@
 const RELEASE_NOTES = {
+  '1.7.3': {
+    'zh-TW': [
+      '切換螢幕（延伸、僅第二個螢幕、僅電腦螢幕）時，各模式分別記住整理視窗的位置、大小與圖示排列，切回時自動還原；被 Windows 最小化的整理視窗與小助手會自動恢復顯示。',
+      '新增快照：系統匣「桌面整理工具 → 快照」可建立、還原或刪除所有整理視窗的排列。',
+      '鎖定的整理視窗永遠在其他視窗下層，未鎖定的點選時移到上層；標題列可設定從不、滑鼠停留時或總是顯示。',
+      '標題列按鈕移到右鍵選單並顯示鎖定與隱藏狀態圖示；整理視窗設定不需解鎖即可開啟；系統匣選單改為顯示、快照、疑難排解子選單。'
+    ],
+    en: [
+      'Each screen mode (Extend, Second screen only, PC screen only) remembers organizer bounds and icon positions and restores them after switching; organizers and the assistant minimized by Windows are shown again.',
+      'Snapshots: take, restore or delete the arrangement of all organizers from the tray (Desktop organizer → Snapshots).',
+      'Locked organizers always stay below other windows and unlocked ones come forward when clicked; the title bar can show never, on hover or always.',
+      'Title-bar buttons move to the right-click menu with lock and visibility icons; settings open without unlocking; the tray groups Show, Snapshots and Troubleshooting.'
+    ]
+  },
   '1.7.2': {
     'zh-TW': [
       '整理視窗空白處新增右鍵選單：重新整理、排序方式（名稱／大小／項目類型／修改日期）、新增資料夾或文字文件；鎖定時也可使用。',

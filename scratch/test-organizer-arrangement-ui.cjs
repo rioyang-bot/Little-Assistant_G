@@ -111,13 +111,14 @@ app.whenReady().then(async () => {
         && boxes.every((box,index) => box.left >= 0 && box.right <= innerWidth && (!index || box.left >= boxes[index-1].right));
     })()`);
     assert.equal(headerFits,true,'header controls fit the minimum width');
-    // Drop preview marks the drop position.
+    // Drop preview marks the drop position. Event coordinates are whole
+    // pixels; rounding keeps a fractional title bar height from truncating.
     const sourceItem=board.items.at(-1),targetItem=board.items[2];
     win.webContents.send('organizer-drag-state',{boardId:board.id,path:sourceItem.path,token:'fixture-preview'});
     await win.webContents.executeJavaScript(`(() => {
       const area=document.getElementById('items'); area.scrollLeft=0;area.scrollTop=0;
       const box=area.getBoundingClientRect();
-      document.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,dataTransfer:new DataTransfer(),clientX:box.left+${targetItem.position.x}+41,clientY:box.top+${targetItem.position.y}+16}));
+      document.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,dataTransfer:new DataTransfer(),clientX:Math.round(box.left+${targetItem.position.x}+41),clientY:Math.round(box.top+${targetItem.position.y}+16)}));
     })()`);
     const preview=await win.webContents.executeJavaScript(`(() => {
       const node=document.getElementById('drop-preview'),style=getComputedStyle(node);
