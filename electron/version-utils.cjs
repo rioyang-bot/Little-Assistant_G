@@ -1,4 +1,18 @@
 const RELEASE_NOTES = {
+  '1.7.4': {
+    'zh-TW': [
+      '系統匣「桌面整理工具 → 鎖定／解鎖」新增「全部鎖定」與「全部解鎖」，一次切換所有整理視窗。',
+      '開鎖圖示的鎖環明顯打開，與閉鎖圖示更容易分辨。',
+      '自動更新檢測到新版本時，小助手會顯示「檢測到 Ver.X 版本，即將進行自動更新」（從此版本之後的更新開始顯示）。',
+      '新增安裝說明，包含 SmartScreen、智慧型應用程式控制與管理員確認的處理方式。'
+    ],
+    en: [
+      'Tray: Desktop organizer → Lock / unlock now offers Lock all and Unlock all for every organizer at once.',
+      'The open padlock icon now shows a clearly raised shackle, easier to tell from the closed one.',
+      'When automatic update finds a new version, the assistant announces it before downloading (from updates after this version).',
+      'Added an installation guide covering SmartScreen, Smart App Control and administrator confirmation.'
+    ]
+  },
   '1.7.3': {
     'zh-TW': [
       '切換螢幕（延伸、僅第二個螢幕、僅電腦螢幕）時，各模式分別記住整理視窗的位置、大小與圖示排列，切回時自動還原；被 Windows 最小化的整理視窗與小助手會自動恢復顯示。',
