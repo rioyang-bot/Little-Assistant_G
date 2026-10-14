@@ -40,7 +40,18 @@ app.whenReady().then(async () => {
     const rendered = await win1.webContents.executeJavaScript(`(() => { const button = document.querySelector('.item'); return { left: button.style.left, top: button.style.top }; })()`);
     assert.deepEqual(rendered, { left: '100px', top: '120px' }, 'the icon is drawn at its snapshot position');
     assert.deepEqual(JSON.parse(fs.readFileSync(service.file, 'utf8')).boards[0].items[0].position, { x: 100, y: 120 });
-    console.log('Organizer snapshot UI: windows, visibility and icon positions restored passed.');
+    // Lock all / Unlock all on real windows.
+    assert.equal(service.setAllLocked(true), 2);
+    await delay(200);
+    for (const win of [win1, win2]) {
+      assert.equal(win.isMovable(), false);
+      assert.equal(await win.webContents.executeJavaScript("document.getElementById('board').classList.contains('locked')"), true, 'shown as locked');
+    }
+    assert.equal(service.setAllLocked(false), 2);
+    await delay(200);
+    for (const win of [win1, win2]) assert.equal(win.isMovable(), true);
+    assert.equal(await win1.webContents.executeJavaScript("document.getElementById('board').classList.contains('locked')"), false);
+    console.log('Organizer snapshot UI: windows, visibility and icon positions restored; lock all / unlock all passed.');
     code = 0;
   } catch (error) {
     console.error(error);

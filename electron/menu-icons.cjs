@@ -47,12 +47,13 @@ const triangle = (a, b, c) => (x, y) => {
 // A padlock scaled into the box (x, y, size); `open` lifts the shackle's left leg.
 function lock(x0, y0, size, open) {
   const s = size / 32, p = (x, y) => [x0 + x * s, y0 + y * s];
-  const shackleY = open ? 9 : 13, stroke = 3 * s;
+  // The open shackle is raised well clear of the body so it reads at 16 px.
+  const shackleY = open ? 8 : 13, stroke = 3 * s;
   const [cx, cy] = p(16, shackleY);
   return union(
     ring(cx, cy, 6 * s, stroke, -180, 0),
     segment(...p(22, shackleY), ...p(22, 16), stroke),
-    segment(...p(10, shackleY), ...p(10, open ? shackleY + 1.5 : 16), stroke),
+    segment(...p(10, shackleY), ...p(10, open ? shackleY : 16), stroke),
     box(...p(7, 15), ...p(25, 29), 2.5 * s),
     disc(...p(16, 21), 2 * s, -1),
     box(...p(15.1, 21), ...p(16.9, 25.5), 0, -1)

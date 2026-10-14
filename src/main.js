@@ -1371,6 +1371,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         say(currentLang === 'en' ? 'The update could not finish. Please check for updates to try again.' : '更新未能完成，請點選「檢查更新」再試一次。', 5000);
         return;
       }
+      // A new version found by the automatic check is announced too.
+      if (state.status === 'available' && state.autoInstall) {
+        say(currentLang === 'en'
+          ? `Version ${state.version} detected. Updating automatically soon. ⬇️`
+          : `檢測到 Ver.${state.version} 版本，即將進行自動更新。⬇️`, 6000);
+        return;
+      }
       if (!state.manual) return;
       const messages = currentLang === 'en'
         ? {

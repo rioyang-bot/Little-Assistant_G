@@ -30,7 +30,8 @@ class UpdateService {
     this.autoUpdater.autoRunAppAfterInstall = true;
     this.autoUpdater.on('checking-for-update', () => this.sendStatus('checking', { manual: this.manualCheckPending }));
     this.autoUpdater.on('update-available', info => {
-      this.sendStatus('available', { version: info.version, manual: this.manualCheckPending });
+      // autoInstall: the download installs by itself, so the assistant announces it.
+      this.sendStatus('available', { version: info.version, autoInstall: this.enabled && this.isSupportedBuild(), manual: this.manualCheckPending });
       this.manualCheckPending = false;
     });
     this.autoUpdater.on('update-not-available', info => {

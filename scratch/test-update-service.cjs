@@ -138,3 +138,17 @@ test('download promise failures are handled without an uncaught rejection', asyn
   assert.equal((await fixture.service.check()).success,true);
   await new Promise(resolve=>setImmediate(resolve));fixture.service.stop();
 });
+
+test('a new version found by the automatic check is announced as an automatic update', async () => {
+  const fixture = createService(true);
+  fixture.service.start(true);
+  await fixture.service.check(false);
+  fixture.updater.emit('update-available', { version: '1.7.4' });
+  assert.deepEqual(fixture.sent.at(-1), ['update-status', { status: 'available', version: '1.7.4', autoInstall: true, manual: false }]);
+  // With automatic updates off, a manual check downloads but does not install by itself.
+  fixture.service.setEnabled(false);
+  await fixture.service.check(true);
+  fixture.updater.emit('update-available', { version: '1.7.4' });
+  assert.deepEqual(fixture.sent.at(-1), ['update-status', { status: 'available', version: '1.7.4', autoInstall: false, manual: true }]);
+  fixture.service.stop();
+});

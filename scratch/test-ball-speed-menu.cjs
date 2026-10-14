@@ -68,7 +68,7 @@ app.whenReady().then(async () => {
   state.organizerFixture = {
     boards: [{ id: 'b1', title: '瀏覽器', locked: true }, { id: 'b2', title: '未整理', locked: false }],
     windows: new Map([['b1', { isDestroyed: () => false, isVisible: () => true }], ['b2', { isDestroyed: () => false, isVisible: () => false }]]),
-    create() {}, restore() {}, show() {}, recover() {},
+    create() {}, restore() {}, show() {}, recover() {}, setAllLocked(locked) { this.lockAllCalls.push(locked); }, lockAllCalls: [],
     snapshots: () => [{ id: 's1', name: '2026-10-07 09:00（延伸 2 個螢幕）' }, { id: 's2', name: '2026-10-07 17:05（僅電腦螢幕）' }]
   };
   vm.runInContext('desktopOrganizer = organizerFixture; updateTrayMenu();', state);
@@ -84,7 +84,22 @@ app.whenReady().then(async () => {
   assert.deepEqual(troubleshooting.submenu.items[1].submenu.items.map(item => item.label), ['瀏覽器', '未整理']);
   assert.equal(organizerItems.at(-1), troubleshooting, 'at the bottom');
   // Snapshots: take one, restore or delete (newest first).
-  assert.deepEqual(organizerItems.map(item => item.label || item.type), ['新增整理視窗', '顯示整理視窗', '快照', 'separator', '疑難排解'], 'top level of the organizer menu');
+  assert.deepEqual(organizerItems.map(item => item.label || item.type), ['新增整理視窗', '顯示整理視窗', '鎖定／解鎖', '快照', 'separator', '疑難排解'], 'top level of the organizer menu');
+  // Lock all / Unlock all live under Lock / unlock: enabled while some organizer can change, with padlock icons.
+  const lockItems = organizerItems.find(item => item.label === '鎖定／解鎖').submenu.items;
+  assert.deepEqual(lockItems.map(item => item.label), ['全部鎖定', '全部解鎖']);
+  assert.notEqual(lockItems[0].icon.toDataURL(), lockItems[1].icon.toDataURL(), 'closed and open padlocks differ');
+  for (const [label, locked] of [['全部鎖定', true], ['全部解鎖', false]]) {
+    const entry = lockItems.find(item => item.label === label);
+    assert.ok(entry.enabled, label + ' enabled with mixed states');
+    assert.ok(entry.icon && !entry.icon.isEmpty(), label + ' shows a padlock');
+    entry.click();
+    assert.equal(vm.runInContext('organizerFixture.lockAllCalls', state).at(-1), locked);
+  }
+  vm.runInContext('organizerFixture.boards.forEach(board => { board.locked = true; }); updateTrayMenu();', state);
+  const allLocked = vm.runInContext('trayContextMenu', state).items.find(item => item.label === '桌面整理工具').submenu.items.find(item => item.label === '鎖定／解鎖').submenu.items;
+  assert.equal(allLocked.find(item => item.label === '全部鎖定').enabled, false, 'nothing left to lock');
+  assert.equal(allLocked.find(item => item.label === '全部解鎖').enabled, true);
   const snapshotItems = organizerItems.find(item => item.label === '快照').submenu.items;
   assert.deepEqual(snapshotItems.map(item => item.label || item.type), ['建立快照', 'separator', '還原快照', '刪除快照']);
   assert.ok(snapshotItems[0].enabled);

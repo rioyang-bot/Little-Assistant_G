@@ -42,6 +42,10 @@ app.whenReady().then(async()=>{
     await main.loadFile(path.join(appRoot,'dist/index.html'));
     await settings.loadFile(path.join(appRoot,'dist/email-settings.html'));
     await delay(300);
+    // The automatic check announces a new version before downloading it.
+    updater.emit('update-available',{version:'1.7.0'});
+    await waitFor(()=>main.webContents.executeJavaScript("document.getElementById('speech-text').textContent.includes('檢測到 Ver.1.7.0 版本，即將進行自動更新')"),'assistant announces the new version');
+    await waitFor(()=>settings.webContents.executeJavaScript("document.getElementById('update-status').textContent==='檢測到 Ver.1.7.0 版本，即將進行自動更新。'"),'settings shows the new version');
     updater.emit('update-downloaded',{version:'1.7.0'});
     await waitFor(()=>main.webContents.executeJavaScript("document.getElementById('speech-text').textContent.includes('5 秒後自動安裝')"),'assistant completion prompt');
     await waitFor(()=>settings.webContents.executeJavaScript("document.getElementById('update-status').textContent.includes('5 秒後自動安裝')"),'settings completion prompt');

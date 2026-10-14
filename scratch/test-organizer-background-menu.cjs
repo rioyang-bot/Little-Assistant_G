@@ -179,3 +179,28 @@ test('menu icons render at 32 px and the organizer list badges show both states'
   assert.ok(alpha(images.visible, 16, 16) > 200 && alpha(images.hidden, 18, 14) < 40);
   assert.notDeepEqual(images['board:visible:unlocked'].data, images['board:hidden:unlocked'].data);
 });
+
+test('lock all / unlock all switch every organizer at once', async t => {
+  const { service, board } = fixture(t);
+  const other = normalizeBoard({ locked: true }); service.boards.push(other);
+  const modes = { [board.id]: [], [other.id]: [] }, movable = { [board.id]: [], [other.id]: [] }, views = [];
+  let changes = 0; service.onChange = () => { changes++; };
+  for (const target of [board, other]) {
+    service.layers.set(target.id, { setMode: mode => modes[target.id].push(mode) });
+    service.windows.set(target.id, { webContents: { send: (channel, payload) => views.push([channel, payload.board.id, payload.board.locked]) }, setMovable: value => movable[target.id].push(value), getBounds: () => ({ x: 0, y: 0, width: 300, height: 300 }) });
+  }
+  assert.equal(service.setAllLocked(true), 1, 'only the unlocked organizer changes');
+  assert.deepEqual([board.locked, other.locked], [true, true]);
+  assert.deepEqual(modes, { [board.id]: ['bottom'], [other.id]: [] });
+  assert.deepEqual(movable[board.id], [false]);
+  assert.deepEqual(views, [['organizer-view-updated', board.id, true]], 'the window shows its locked state');
+  assert.equal(changes, 1, 'the tray menu refreshes once');
+  assert.equal(JSON.parse(fs.readFileSync(service.file, 'utf8')).boards.every(saved => saved.locked), true, 'saved');
+
+  assert.equal(service.setAllLocked(true), 0, 'nothing to do');
+  assert.equal(changes, 1);
+  assert.equal(service.setAllLocked(false), 2);
+  assert.deepEqual([board.locked, other.locked], [false, false]);
+  assert.deepEqual(modes, { [board.id]: ['bottom', 'normal'], [other.id]: ['normal'] });
+  assert.deepEqual(movable[other.id], [true]);
+});

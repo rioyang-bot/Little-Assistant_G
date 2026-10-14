@@ -225,6 +225,19 @@ class DesktopOrganizer {
     this.save(); this.onChange(); this.notifyView(board);
   }
 
+  // Locks or unlocks every organizer at once; saves and refreshes the tray once.
+  setAllLocked(locked) {
+    const changed = this.boards.filter(board => board.locked !== locked);
+    for (const board of changed) {
+      board.locked = locked;
+      this.windows.get(board.id)?.setMovable?.(!locked);
+      this.layers.get(board.id)?.setMode(this.layerMode(board));
+      this.notifyView(board);
+    }
+    if (changed.length) { this.save(); this.onChange(); }
+    return changed.length;
+  }
+
   layerMode(board) {
     return board.locked ? 'bottom' : 'normal';
   }

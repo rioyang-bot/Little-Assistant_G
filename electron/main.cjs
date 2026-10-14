@@ -1640,6 +1640,14 @@ function updateTrayMenu() {
           ]
         },
         {
+          label: currentLanguage === 'en' ? 'Lock / unlock' : '鎖定／解鎖',
+          enabled: !!desktopOrganizer?.boards.length,
+          submenu: [
+            { label: currentLanguage === 'en' ? 'Lock all' : '全部鎖定', icon: menuIcon(nativeImage, 'locked', nativeTheme.shouldUseDarkColors), enabled: !!desktopOrganizer?.boards.some(board => !board.locked), click: () => desktopOrganizer?.setAllLocked(true) },
+            { label: currentLanguage === 'en' ? 'Unlock all' : '全部解鎖', icon: menuIcon(nativeImage, 'unlocked', nativeTheme.shouldUseDarkColors), enabled: !!desktopOrganizer?.boards.some(board => board.locked), click: () => desktopOrganizer?.setAllLocked(false) }
+          ]
+        },
+        {
           label: currentLanguage === 'en' ? 'Snapshots' : '快照',
           submenu: [
             { label: currentLanguage === 'en' ? 'Take snapshot' : '建立快照', enabled: !!desktopOrganizer?.boards.length, click: () => takeOrganizerSnapshot() },
