@@ -404,7 +404,25 @@ class DesktopOrganizer {
   }
 
   boardResult(board) {
-    return { ...board, migrationErrors: [...board.items.map(item => this.migrationWarnings.get(item)).filter(Boolean), ...this.iconErrors] };
+    return { ...board, migrationErrors: [...board.items.map(item => this.migrationWarnings.get(item)).filter(Boolean), ...this.iconMessages(board)] };
+  }
+
+  // Item errors ("name：reason") are listed only on the board holding the item
+  // and merged into one line per reason; general messages appear once.
+  iconMessages(board) {
+    const names = new Set(board.items.map(item => path.basename(item.path)));
+    const byReason = new Map(), general = [];
+    for (const message of this.iconErrors) {
+      const split = message.indexOf('：');
+      const name = split > 0 ? message.slice(0, split) : '';
+      if (!names.has(name)) { if (!name || !this.boards.some(other => other.items.some(item => path.basename(item.path) === name))) general.push(message); continue; }
+      // The worker's wording mentions a UAC prompt that ordinary hiding never shows.
+      const reason = /受到權限保護/.test(message) ? '受權限保護，暫時無法從桌面隱藏' : message.slice(split + 1);
+      byReason.set(reason, [...(byReason.get(reason) || []), name.replace(/\.(lnk|url)$/i, '')]);
+    }
+    const merged = [...byReason].map(([reason, list]) => list.length === 1 ? `${list[0]}：${reason}`
+      : `${list.length} 個項目（${list.slice(0, 3).join('、')}${list.length > 3 ? ' 等' : ''}）：${reason}`);
+    return [...merged, ...new Set(general)];
   }
 
   async releaseDesktopIcon(item) {

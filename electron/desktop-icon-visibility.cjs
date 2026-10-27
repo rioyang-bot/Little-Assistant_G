@@ -3,6 +3,8 @@ const path = require('path');
 const { randomUUID } = require('crypto');
 const { getNativeScriptPath } = require('./organizer-files.cjs');
 const { readBroker, isAdminProtectedDirectory, UNPROTECTED_INSTALL_ERROR } = require('./desktop-icon-permissions.cjs');
+const { appendLayerLog } = require('./window-layer-controller.cjs');
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 const ELEVATION_SETUP_HINT = '部分桌面捷徑受權限保護，小助手不會在每次開機要求管理員權限。請從「桌面整理工具 → 桌面圖示權限」安裝背景輔助程序，或一次授權已收納的捷徑；完成後開機不需再確認。';
 
@@ -11,6 +13,13 @@ const ELEVATION_SETUP_HINT = '部分桌面捷徑受權限保護，小助手不�
 class DesktopIconVisibility {
   constructor(userDir, desktopDirectory, options = {}) {
     this.journal = path.join(userDir, 'desktop-icon-visibility.json');
+    this.logFile = path.join(userDir, 'desktop-icons.log');
+    // Right after sign-in or waking from standby the background task can fail
+    // once; it is retried before falling back, and tried again later.
+    this.brokerRetries = options.brokerRetries ?? 2;
+    this.brokerRetryDelayMs = options.brokerRetryDelayMs ?? 3000;
+    this.brokerRecheckMs = options.brokerRecheckMs ?? 5 * 60 * 1000;
+    this.brokerRecheckAt = 0;
     this.desktopDirectory = desktopDirectory;
     this.pending = new Map();
     this.allowElevation = options.allowElevation !== false && !process.argv.includes('--no-icon-elevation');
@@ -93,13 +102,27 @@ class DesktopIconVisibility {
   }
   enqueue(command, input) {
     const result = this.operations.then(async () => {
+      // An earlier background task failure: try the task again after a while.
+      if (this.brokerRecheckAt && Date.now() >= this.brokerRecheckAt && this.broker && !this.disposed) {
+        this.brokerRecheckAt = 0;
+        await this.stopWorker();
+        this.useBroker = true; this.elevationAttempted = false; this.requiresElevation = false;
+      }
       let response, failure;
       try { response = await this.request(command, input); } catch (error) { failure = error; }
+      for (let attempt = 1; attempt <= this.brokerRetries && failure?.brokerFailed && !this.disposed; attempt++) {
+        this.logBroker(`attempt ${attempt} failed: ${failure.message}`);
+        await this.stopWorker().catch(() => {});
+        await delay(this.brokerRetryDelayMs);
+        try { response = await this.request(command, input); failure = null; } catch (error) { failure = error; }
+      }
       if (failure?.brokerFailed && !this.disposed) {
+        this.logBroker(`falling back to ordinary hiding: ${failure.message}`);
         await this.stopWorker();
         this.useBroker = false; this.elevationAttempted = true;
+        this.brokerRecheckAt = Date.now() + this.brokerRecheckMs;
         response = await this.request(command, input); failure = null;
-        response = [...response, '背景圖示程序未啟動，請從「桌面圖示權限」重新安裝背景程序。'];
+        response = [...response, '背景圖示程序暫時無法啟動，受權限保護的捷徑先保留在桌面上；小助手稍後會自動重試。若持續出現，請從「疑難排解 → 桌面圖示權限」選「安裝／修復背景輔助程序」。'];
       }
       const needsElevation = (this.requiresElevation || failure?.requiresElevation) && this.allowElevation && !this.elevationAttempted && !this.disposed;
       // The SYSTEM broker already has full rights, so a UAC worker cannot help;
@@ -149,6 +172,9 @@ class DesktopIconVisibility {
       });
     }
     this.child = null; this.ready = null;
+  }
+  logBroker(message) {
+    try { appendLayerLog(this.logFile, 'broker', message); } catch { /* Logging must not affect icon handling. */ }
   }
   sync(paths) { return this.enqueue('sync', { paths }); }
   reveal(file) { return this.enqueue('reveal', { file }); }

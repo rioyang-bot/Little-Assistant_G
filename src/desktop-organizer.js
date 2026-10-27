@@ -171,7 +171,8 @@ function enableItemDrag(button, item) {
     button.style.left = `${drag.x}px`; button.style.top = `${drag.y}px`; updateSurface();
   };
 }
-const status = message => { $('status').textContent = message || ''; $('status').hidden = !message; };
+// At most two lines; the full text is in the tooltip.
+const status = message => { $('status').textContent = message || ''; $('status').title = message || ''; $('status').hidden = !message; };
 function appearance(color, opacity, pattern) {
   const rgb = [1, 3, 5].map(index => parseInt(color.slice(index, index + 2), 16));
   $('board').style.backgroundColor = `rgba(${rgb.join(',')}, ${opacity / 100})`;

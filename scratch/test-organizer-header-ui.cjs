@@ -74,7 +74,18 @@ app.whenReady().then(async () => {
     await settings.webContents.executeJavaScript(`document.getElementById('save').click()`);
     await until(() => board.headerMode === 'never', 'saved mode');
     assert.equal(new DesktopOrganizer({}, dir).boards[0].headerMode, 'never', 'survives restart');
-    console.log('Organizer title bar: name only, never / hover / always visibility, fixed icon positions, live preview and saving passed.');
+    // A long status (many protected shortcuts) stays within two lines; the full text is the tooltip.
+    const long = Array.from({ length: 12 }, (_, i) => `捷徑${i}.lnk：此桌面項目受到權限保護。`);
+    win.webContents.send('organizer-view-updated', { statusOnly: true, migrationErrors: long });
+    await new Promise(resolve => setTimeout(resolve, 200));
+    const shown = await win.webContents.executeJavaScript("(() => { const node = document.getElementById('status'); const line = parseFloat(getComputedStyle(node).lineHeight) || 13; return { lines: node.clientHeight / line, tooltip: node.title.length, hidden: node.hidden }; })()");
+    assert.equal(shown.hidden, false);
+    assert.ok(shown.lines <= 2.2, 'status clamped to two lines: ' + JSON.stringify(shown));
+    assert.ok(shown.tooltip > 200, 'full text kept in the tooltip');
+    win.webContents.send('organizer-view-updated', { statusOnly: true, migrationErrors: [] });
+    await new Promise(resolve => setTimeout(resolve, 100));
+    assert.equal(await win.webContents.executeJavaScript("document.getElementById('status').hidden"), true, 'cleared when resolved');
+    console.log('Organizer title bar: name only, never / hover / always visibility, fixed icon positions, live preview and saving, two-line status passed.');
     code = 0;
   } catch (error) {
     console.error(error);

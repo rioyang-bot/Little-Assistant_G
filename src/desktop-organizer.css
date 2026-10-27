@@ -48,7 +48,8 @@ header > * { transition: opacity .15s; }
 #empty { position: absolute; inset: 45% 10px auto; text-align: center; color: #ffffffc0; font-size: 13px; pointer-events: none; }
 #empty span { display: block; font-size: 11px; color: #ffffff75; margin-top: 8px; }
 footer { flex-shrink: 0; }
-#status { margin: 3px 16px 0 3px; font-size: 10px; color: #ffffffa0; }
+#status { margin: 3px 16px 0 3px; font-size: 10px; color: #ffffffa0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+#status[hidden] { display: none; }
 #settings { padding: 8px; background: #172030e0; font-size: 11px; max-height: calc(100% - 110px); overflow-y: auto; flex-shrink: 0; }
 #settings label { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
 #settings input { min-width: 0; flex: 1; }

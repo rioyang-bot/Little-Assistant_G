@@ -32,7 +32,7 @@ test('broker preferences cannot select arbitrary task names, request paths or pr
 });
 
 test('a failed background task falls back to ordinary hiding without another UAC prompt', async () => {
-  const service = new DesktopIconVisibility(os.tmpdir(), os.tmpdir());
+  const service = new DesktopIconVisibility(fs.mkdtempSync(path.join(os.tmpdir(), 'icon-broker-')), os.tmpdir(), { brokerRetryDelayMs: 0 });
   service.useBroker = true;
   let requests = 0, stops = 0;
   service.stopWorker = async () => { stops++; };
@@ -43,9 +43,37 @@ test('a failed background task falls back to ordinary hiding without another UAC
     return ['Protected item still visible'];
   };
   const errors = await service.sync(['owned-desktop-entry']);
-  assert.equal(requests, 2); assert.equal(stops, 1); assert.equal(service.elevated, undefined);
+  assert.equal(requests, 4, 'two retries before the ordinary worker'); assert.equal(stops, 3); assert.equal(service.elevated, undefined);
   assert.equal(service.elevationAttempted, true);
-  assert.ok(errors.some(message => message.includes('重新安裝背景程序')));
+  assert.ok(errors.some(message => message.includes('安裝／修復背景輔助程序') && message.includes('稍後會自動重試')));
+  assert.ok(service.brokerRecheckAt > Date.now(), 'the background task is tried again later');
+  assert.ok(fs.readFileSync(service.logFile, 'utf8').includes('[broker] falling back to ordinary hiding: Task disabled'), 'the failure is logged');
+});
+
+test('a background task that fails once after waking is retried and kept', async () => {
+  const service = new DesktopIconVisibility(fs.mkdtempSync(path.join(os.tmpdir(), 'icon-broker-')), os.tmpdir(), { brokerRetryDelayMs: 0 });
+  service.useBroker = true; service.broker = {};
+  let requests = 0;
+  service.stopWorker = async () => {};
+  service.request = async () => { requests++; if (requests === 1) { const error = new Error('Task failed once'); error.brokerFailed = true; throw error; } return []; };
+  assert.deepEqual(await service.sync(['owned-desktop-entry']), []);
+  assert.equal(requests, 2);
+  assert.equal(service.useBroker, true, 'still uses the background task');
+  assert.equal(service.brokerRecheckAt, 0);
+});
+
+test('after falling back, the background task is tried again once the recheck time passes', async () => {
+  const service = new DesktopIconVisibility(fs.mkdtempSync(path.join(os.tmpdir(), 'icon-broker-')), os.tmpdir(), { brokerRetryDelayMs: 0, brokerRetries: 0, brokerRecheckMs: 0 });
+  service.useBroker = true; service.broker = {};
+  let brokerUp = false, stops = 0;
+  service.stopWorker = async () => { stops++; };
+  service.request = async () => { if (service.useBroker && !brokerUp) { const error = new Error('Task down'); error.brokerFailed = true; throw error; } return []; };
+  await service.sync(['owned-desktop-entry']);
+  assert.equal(service.useBroker, false, 'ordinary hiding for now');
+  brokerUp = true;
+  assert.deepEqual(await service.sync(['owned-desktop-entry']), []);
+  assert.equal(service.useBroker, true, 'back on the background task');
+  assert.equal(service.elevationAttempted, false);
 });
 
 test('an explicit ordinary-mode launch cannot start a privileged icon worker', t => {

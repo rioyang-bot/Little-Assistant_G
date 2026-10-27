@@ -204,3 +204,26 @@ test('lock all / unlock all switch every organizer at once', async t => {
   assert.deepEqual(modes, { [board.id]: ['bottom', 'normal'], [other.id]: ['normal'] });
   assert.deepEqual(movable[other.id], [true]);
 });
+
+test('icon errors show only on the board holding the item, merged into one line', async t => {
+  const { service, board, desktop } = fixture(t);
+  const other = normalizeBoard(); service.boards.push(other);
+  const own = name => ({ id: name.replace(/\W/g, '') || 'x', path: path.join(desktop, name) });
+  board.items.push(own('Microsoft Edge.lnk'), own('WinSCP.lnk'), own('TeamViewer.lnk'), own('PicPick.lnk'));
+  other.items.push(own('Google Chrome.lnk'));
+  const protectedReason = '此桌面項目受到權限保護，請確認 Windows 的圖示隱藏程序管理員提示。';
+  service.iconErrors = [
+    ...['Microsoft Edge.lnk', 'WinSCP.lnk', 'TeamViewer.lnk', 'PicPick.lnk', 'Google Chrome.lnk'].map(name => `${name}：${protectedReason}`),
+    '背景圖示程序暫時無法啟動，稍後會自動重試。', '背景圖示程序暫時無法啟動，稍後會自動重試。'
+  ];
+  assert.deepEqual(service.boardResult(board).migrationErrors, [
+    '4 個項目（Microsoft Edge、WinSCP、TeamViewer 等）：受權限保護，暫時無法從桌面隱藏',
+    '背景圖示程序暫時無法啟動，稍後會自動重試。'
+  ]);
+  assert.deepEqual(service.boardResult(other).migrationErrors, [
+    'Google Chrome：受權限保護，暫時無法從桌面隱藏',
+    '背景圖示程序暫時無法啟動，稍後會自動重試。'
+  ], 'one item keeps its name; other boards do not list it');
+  service.iconErrors = ['Unknown.lnk：其他原因'];
+  assert.deepEqual(service.boardResult(board).migrationErrors, ['Unknown.lnk：其他原因'], 'an item in no board is a general message');
+});
