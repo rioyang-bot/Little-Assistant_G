@@ -1,4 +1,14 @@
 const RELEASE_NOTES = {
+  '1.7.5': {
+    'zh-TW': [
+      '桌面圖示背景輔助程序啟動失敗時（例如剛從待機喚醒）會自動重試，仍失敗時 5 分鐘後再試，不需重新啟動小助手。',
+      '整理視窗只顯示自己項目的圖示錯誤，同樣原因合併為一行，最多兩行；完整內容可將滑鼠停在訊息上查看。'
+    ],
+    en: [
+      'If the desktop icon background helper fails to start (for example right after waking from standby), it is retried automatically and again five minutes later, without restarting the assistant.',
+      'Each organizer shows icon errors only for its own items, merged into one line per reason and at most two lines; hover for the full text.'
+    ]
+  },
   '1.7.4': {
     'zh-TW': [
       '系統匣「桌面整理工具 → 鎖定／解鎖」新增「全部鎖定」與「全部解鎖」，一次切換所有整理視窗。',
