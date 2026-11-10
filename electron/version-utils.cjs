@@ -1,4 +1,14 @@
 const RELEASE_NOTES = {
+  '1.7.6': {
+    'zh-TW': [
+      '待辦便利貼較多時不再壓扁卡片、截掉標題；看板隨便利貼數量長高，最多用到小熊上方的螢幕空間，超出時才以捲軸捲動。',
+      '滑鼠停在便利貼主旨上，浮動提示除了主旨也會列出事項與完成狀態。'
+    ],
+    en: [
+      'With many sticky notes, cards are no longer squeezed and their titles no longer cut off; the board grows with its notes up to the space above the bear, then scrolls.',
+      'Hovering a sticky note subject now shows its items and their completion status as well.'
+    ]
+  },
   '1.7.5': {
     'zh-TW': [
       '桌面圖示背景輔助程序啟動失敗時（例如剛從待機喚醒）會自動重試，仍失敗時 5 分鐘後再試，不需重新啟動小助手。',
