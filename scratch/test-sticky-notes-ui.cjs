@@ -153,7 +153,7 @@ app.whenReady().then(async () => {
     for (const [status, expected] of [
       ['checking', '正在檢查更新'],
       ['current', '目前已是最新版本'],
-      ['error', '無法檢查更新']
+      ['error', '更新未能完成']
     ]) {
       win.webContents.send('update-status', { status, manual: true });
       await new Promise(resolve => setTimeout(resolve, 30));
@@ -610,12 +610,16 @@ app.whenReady().then(async () => {
     const composerSeparation = await win.webContents.executeJavaScript(`(() => {
       document.getElementById('sticky-add-button').click();
       const form = document.getElementById('sticky-note-form').getBoundingClientRect();
+      const list = document.querySelector('.sticky-notes-list').getBoundingClientRect();
       const cards = [...document.querySelectorAll('.sticky-note-card')]
         .map(card => card.getBoundingClientRect());
+      // Cards keep their height and scroll inside the list; the list clips
+      // them, so only its visible area must stay above the composer.
       const result = {
         composerVisible: document.getElementById('sticky-note-form').classList.contains('visible'),
-        notesRemainVisible: cards.length === 2 && cards.every(card => card.width > 0 && card.height > 0),
-        noOverlap: cards.every(card => card.bottom <= form.top)
+        notesRemainVisible: cards.length === 2 && cards.every(card => card.width > 0 && card.height > 0) && cards[0].top < list.bottom,
+        noOverlap: list.bottom <= form.top + 0.5,
+        listHeight: Math.round(list.height), cardBottoms: cards.map(card => Math.round(card.bottom)), formTop: Math.round(form.top)
       };
       document.getElementById('sticky-form-close').click();
       return result;
@@ -623,6 +627,66 @@ app.whenReady().then(async () => {
     assert.equal(composerSeparation.composerVisible, true);
     assert.equal(composerSeparation.notesRemainVisible, true);
     assert.equal(composerSeparation.noOverlap, true, JSON.stringify(composerSeparation));
+
+    // 20 notes with the composer open. The board has no fixed height cap: on
+    // a tall screen every card is fully shown; when the space above the bear
+    // runs out, the list scrolls. Cards are never squeezed.
+    const crowdedList = () => win.webContents.executeJavaScript(`(() => {
+      document.getElementById('sticky-add-button').click();
+      const list = document.querySelector('.sticky-notes-list');
+      const original = list.querySelector('.sticky-note-card');
+      const clones = Array.from({ length: 18 }, () => list.appendChild(original.cloneNode(true)));
+      const cards = [...list.querySelectorAll('.sticky-note-card')];
+      const board = document.getElementById('sticky-notes-board').getBoundingClientRect();
+      const result = {
+        count: cards.length,
+        heights: cards.map(card => Math.round(card.getBoundingClientRect().height)),
+        summary: Math.round(original.querySelector('.sticky-note-summary').getBoundingClientRect().height),
+        scrolls: list.scrollHeight > list.clientHeight + 1,
+        boardHeight: Math.round(board.height), boardTop: Math.round(board.top), windowHeight: innerHeight
+      };
+      clones.forEach(card => card.remove());
+      document.getElementById('sticky-form-close').click();
+      return result;
+    })()`);
+    // The page can lag behind a native resize or zoom change (for example on a
+    // scaled multi-monitor setup), so wait until its viewport matches the window.
+    const settleViewport = async () => {
+      const expected = win.getContentSize()[1] / win.webContents.getZoomFactor();
+      for (let i = 0; i < 60; i += 1) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+        const height = await win.webContents.executeJavaScript('innerHeight');
+        if (Math.abs(height - expected) <= 2) break;
+      }
+      await new Promise(resolve => setTimeout(resolve, 100));
+    };
+    // Windows limits a window to the screen, so use the tallest this screen allows.
+    const { screen } = require('electron');
+    win.setContentSize(330, Math.min(1600, screen.getPrimaryDisplay().workAreaSize.height - 40));
+    await settleViewport();
+    const tall = await crowdedList();
+    assert.equal(tall.count, 20);
+    assert.ok(tall.summary >= 31, JSON.stringify(tall));
+    assert.ok(tall.heights.every(height => height >= tall.summary), 'no card is squeezed: ' + JSON.stringify(tall));
+    // Either all 20 fit, or the board already uses all the space above the
+    // bear (its top reaches the 8px margin) before the list scrolls.
+    assert.ok(!tall.scrolls || tall.boardTop <= 9, 'the board grows until the screen is used: ' + JSON.stringify(tall));
+    assert.ok(tall.windowHeight < 700 || tall.boardHeight > 440, 'the board grows past the former 440 px cap: ' + JSON.stringify(tall));
+    // A tall screen, simulated by zooming out when this one is not tall enough.
+    const zoom = tall.windowHeight >= 1500 ? 1 : 0.5;
+    win.webContents.setZoomFactor(zoom);
+    await settleViewport();
+    const roomy = await crowdedList();
+    win.webContents.setZoomFactor(1);
+    assert.ok(roomy.windowHeight >= 1500, JSON.stringify({ tall, roomy, bounds: win.getBounds() }));
+    assert.equal(roomy.scrolls, false, 'all 20 notes fit on a tall screen: ' + JSON.stringify(roomy));
+    assert.ok(roomy.heights.every(height => height >= roomy.summary), 'no card is squeezed: ' + JSON.stringify(roomy));
+    win.setContentSize(330, 460);
+    await settleViewport();
+    const short = await crowdedList();
+    assert.ok(short.heights.every(height => height >= short.summary), 'no card is squeezed: ' + JSON.stringify(short));
+    assert.equal(short.scrolls, true, 'beyond the screen the list scrolls: ' + JSON.stringify(short));
+    assert.ok(short.boardTop >= 0, 'the board stays on screen: ' + JSON.stringify(short));
 
     const collapsedState = await win.webContents.executeJavaScript(`(() => {
       document.getElementById('sticky-board-close').click();
@@ -666,6 +730,7 @@ app.whenReady().then(async () => {
       return {
         moveModeClass: document.getElementById('pet-container').classList.contains('move-mode'),
         subjectDidNotExpand,
+        subjectTooltip: subject.title,
         expandedFromButton: targetCard.classList.contains('expanded'),
         buttonCursor: getComputedStyle(expandButton).cursor
       };
@@ -673,6 +738,7 @@ app.whenReady().then(async () => {
     await new Promise(resolve => setTimeout(resolve, 30));
     assert.equal(moveModeSummaryClick.moveModeClass, true);
     assert.equal(moveModeSummaryClick.subjectDidNotExpand, true);
+    assert.equal(moveModeSummaryClick.subjectTooltip, '回覆重要客戶\n☐ 下午三點前完成報價回覆\n☐ 確認報價附件');
     assert.equal(moveModeSummaryClick.expandedFromButton, true);
     assert.equal(moveModeSummaryClick.buttonCursor, 'pointer');
     assert.equal(windowDragStartCount, 0);

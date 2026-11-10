@@ -14,7 +14,6 @@
   --bear-size: 190px;
   --assistant-panel-width: 314px;
   --sticky-board-width: 314px;
-  --sticky-board-max-height: 440px;
   --sticky-form-height: 400px;
   --todo-panel-opacity: 1;
   --calendar-panel-opacity: 1;
@@ -38,19 +37,16 @@ body.size-lg {
 
 body.sticky-size-sm {
   --sticky-board-width: 264px;
-  --sticky-board-max-height: 340px;
   --sticky-form-height: 330px;
 }
 
 body.sticky-size-std {
   --sticky-board-width: 314px;
-  --sticky-board-max-height: 440px;
   --sticky-form-height: 400px;
 }
 
 body.sticky-size-lg {
   --sticky-board-width: 404px;
-  --sticky-board-max-height: 500px;
   --sticky-form-height: 470px;
 }
 
@@ -153,7 +149,9 @@ html, body {
 .sticky-notes-board {
   position: relative;
   width: 100%;
-  max-height: var(--sticky-board-max-height, 440px);
+  /* No fixed cap: the board grows with its notes up to the space above the
+     bear (the panel stack's limit); beyond that the note list scrolls. */
+  max-height: 100%;
   min-height: 0;
   z-index: 82;
   display: none;
@@ -323,6 +321,9 @@ html, body {
   border-radius: 8px;
   background: color-mix(in srgb, var(--note-color) 9%, rgba(15, 23, 42, 0.42));
   overflow: hidden;
+  /* Keep each card at its full height; many notes scroll the list instead
+     of squeezing the cards and clipping their titles. */
+  flex-shrink: 0;
 }
 
 .sticky-note-card.expanded {
@@ -1010,10 +1011,6 @@ html, body {
 
 .pet-wrapper:has(.speech-bubble.show) .assistant-panels-stack > section.visible {
   min-height: 32px;
-}
-
-.pet-wrapper:has(.speech-bubble.show) .sticky-notes-board.composing {
-  flex-basis: var(--sticky-form-height, 400px);
 }
 
 .speech-bubble.mail-mode {

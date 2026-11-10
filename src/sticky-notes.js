@@ -662,10 +662,21 @@ export class StickyNotesController {
     const summary = document.createElement('div');
     summary.className = 'sticky-note-summary';
 
+    const items = Array.isArray(note.items) && note.items.length
+      ? note.items
+      : (note.content ? [{ id: `${note.id}-legacy`, text: note.content, completed: false }] : []);
+    const itemTextOf = item => item.text || (Array.isArray(item.runs)
+      ? item.runs.map(run => run && run.text ? run.text : '').join('')
+      : '');
+
     const subject = document.createElement('div');
     subject.className = 'sticky-note-subject';
     subject.textContent = note.title;
-    subject.title = note.title;
+    // Hover shows the subject followed by its items, so a collapsed note can be
+    // read without expanding it.
+    const tooltipItems = items.slice(0, 20).map(item => `${item.completed === true ? '☑' : '☐'} ${itemTextOf(item)}`);
+    if (items.length > 20) tooltipItems.push(`… +${items.length - 20}`);
+    subject.title = [note.title, ...tooltipItems].join('\n');
     summary.appendChild(subject);
 
     if (Number(note.alarmAt) > Date.now()) {
@@ -692,9 +703,6 @@ export class StickyNotesController {
     const expandedContent = document.createElement('div');
     expandedContent.className = 'sticky-note-content';
 
-    const items = Array.isArray(note.items) && note.items.length
-      ? note.items
-      : (note.content ? [{ id: `${note.id}-legacy`, text: note.content, completed: false }] : []);
     if (items.length) {
       const itemList = document.createElement('div');
       itemList.className = 'sticky-note-item-list';
@@ -714,9 +722,7 @@ export class StickyNotesController {
 
         const itemText = document.createElement('span');
         itemText.className = 'sticky-note-item-text';
-        itemText.textContent = item.text || (Array.isArray(item.runs)
-          ? item.runs.map(run => run && run.text ? run.text : '').join('')
-          : '');
+        itemText.textContent = itemTextOf(item);
         itemRow.append(itemCheck, itemText);
         itemList.appendChild(itemRow);
       }
