@@ -1,4 +1,14 @@
 const RELEASE_NOTES = {
+  '1.7.7': {
+    'zh-TW': [
+      '系統匣「桌面整理工具」新增「開啟桌面整理工具」開關：關閉時收起所有整理視窗，收納的檔案回到桌面顯示；開啟時整理視窗回到原位。',
+      '開關狀態會記住，下次開機或重新執行小助手時維持開啟或關閉；整理視窗、各螢幕排列與快照都會保留。'
+    ],
+    en: [
+      'The tray menu "Desktop organizer" adds "Turn on desktop organizer": off closes every organizer and shows the collected files on the desktop again; on brings the organizers back where they were.',
+      'The choice is remembered across restarts; organizers, per-display layouts and snapshots are kept.'
+    ]
+  },
   '1.7.6': {
     'zh-TW': [
       '待辦便利貼較多時不再壓扁卡片、截掉標題；看板隨便利貼數量長高，最多用到小熊上方的螢幕空間，超出時才以捲軸捲動。',
