@@ -11,6 +11,9 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'organizer-snapshot-ui-'));
 app.setPath('userData', dir);
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const near = (actual, expected, label) => { for (const key of ['x', 'y', 'width', 'height']) assert.ok(Math.abs(actual[key] - expected[key]) <= 1, `${label} ${key}: ${JSON.stringify(actual)} vs ${JSON.stringify(expected)}`); };
+// Turning the organizer off closes all its windows; in the app the assistant
+// window stays open, so keep this test app running as well.
+app.on('window-all-closed', () => {});
 app.whenReady().then(async () => {
   let code = 1;
   try {
@@ -51,7 +54,23 @@ app.whenReady().then(async () => {
     await delay(200);
     for (const win of [win1, win2]) assert.equal(win.isMovable(), true);
     assert.equal(await win1.webContents.executeJavaScript("document.getElementById('board').classList.contains('locked')"), false);
-    console.log('Organizer snapshot UI: windows, visibility and icon positions restored; lock all / unlock all passed.');
+    // On/off switch on real windows: off closes them, on reopens them where they were.
+    const placed1 = win1.getBounds();
+    await service.setEnabled(false);
+    assert.equal(win1.isDestroyed() && win2.isDestroyed(), true, 'organizer windows close');
+    assert.equal(service.windows.size, 0);
+    assert.equal(JSON.parse(fs.readFileSync(service.file, 'utf8')).enabled, false, 'off is saved');
+    await service.setEnabled(true);
+    const reopened1 = service.windows.get(first.id), reopened2 = service.windows.get(second.id);
+    assert.ok(reopened1 && reopened2, 'organizer windows reopen');
+    await Promise.all([reopened1, reopened2].map(win => new Promise(resolve => win.webContents.once('did-finish-load', resolve))));
+    await delay(400);
+    assert.equal(reopened1.isVisible() && reopened2.isVisible(), true);
+    near(reopened1.getBounds(), placed1, 'reopened window');
+    const reopenedIcon = await reopened1.webContents.executeJavaScript(`(() => { const button = document.querySelector('.item'); return { left: button.style.left, top: button.style.top }; })()`);
+    assert.deepEqual(reopenedIcon, { left: '100px', top: '120px' }, 'icons keep their positions');
+    assert.equal(JSON.parse(fs.readFileSync(service.file, 'utf8')).enabled, true, 'on is saved');
+    console.log('Organizer snapshot UI: windows, visibility and icon positions restored; lock all / unlock all and the on/off switch passed.');
     code = 0;
   } catch (error) {
     console.error(error);

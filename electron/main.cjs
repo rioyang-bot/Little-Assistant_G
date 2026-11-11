@@ -1479,6 +1479,14 @@ function setBallSpeed(speed, silent = false) {
   updateTrayMenu();
 }
 
+async function setDesktopOrganizerEnabled(enabled) {
+  try { await desktopOrganizer?.setEnabled(enabled); }
+  catch (error) {
+    dialog.showMessageBox({ type: 'warning', message: error.message || (currentLanguage === 'en' ? 'Unable to switch the desktop organizer.' : '無法切換桌面整理工具，請稍後再試。') });
+  }
+  updateTrayMenu();
+}
+
 function setBubbleEnabled(enabled) {
   isBubbleEnabled = !!enabled;
   savePetPreferences();
@@ -1602,6 +1610,8 @@ function updateTrayMenu() {
   const t = getLocale().tray;
   const mock = getLocale().mockEmails;
   const organizerSnapshots = desktopOrganizer?.snapshots?.() || [];
+  const organizerOn = desktopOrganizer?.enabled !== false;
+  const organizerBoards = organizerOn ? (desktopOrganizer?.boards || []) : [];
 
   trayContextMenu = Menu.buildFromTemplate([
     {
@@ -1623,10 +1633,14 @@ function updateTrayMenu() {
     {
       label: currentLanguage === 'en' ? 'Desktop organizer' : '桌面整理工具',
       submenu: [
-        { label: currentLanguage === 'en' ? 'New organizer window' : '新增整理視窗', click: () => desktopOrganizer?.create() },
+        // Remembered across restarts. Off closes the organizers and shows the
+        // collected items on the desktop again.
+        { label: currentLanguage === 'en' ? 'Turn on desktop organizer' : '開啟桌面整理工具', type: 'checkbox', checked: organizerOn, enabled: !!desktopOrganizer, click: item => setDesktopOrganizerEnabled(item.checked) },
+        { type: 'separator' },
+        { label: currentLanguage === 'en' ? 'New organizer window' : '新增整理視窗', enabled: organizerOn, click: () => desktopOrganizer?.create() },
         {
           label: currentLanguage === 'en' ? 'Show organizer windows' : '顯示整理視窗',
-          enabled: !!desktopOrganizer?.boards.length,
+          enabled: !!organizerBoards.length,
           submenu: [
             { label: currentLanguage === 'en' ? 'Show all' : '全部顯示', click: () => desktopOrganizer?.restore() },
             { type: 'separator' },
@@ -1641,7 +1655,7 @@ function updateTrayMenu() {
         },
         {
           label: currentLanguage === 'en' ? 'Lock / unlock' : '鎖定／解鎖',
-          enabled: !!desktopOrganizer?.boards.length,
+          enabled: !!organizerBoards.length,
           submenu: [
             { label: currentLanguage === 'en' ? 'Lock all' : '全部鎖定', icon: menuIcon(nativeImage, 'locked', nativeTheme.shouldUseDarkColors), enabled: !!desktopOrganizer?.boards.some(board => !board.locked), click: () => desktopOrganizer?.setAllLocked(true) },
             { label: currentLanguage === 'en' ? 'Unlock all' : '全部解鎖', icon: menuIcon(nativeImage, 'unlocked', nativeTheme.shouldUseDarkColors), enabled: !!desktopOrganizer?.boards.some(board => board.locked), click: () => desktopOrganizer?.setAllLocked(false) }
@@ -1649,6 +1663,7 @@ function updateTrayMenu() {
         },
         {
           label: currentLanguage === 'en' ? 'Snapshots' : '快照',
+          enabled: organizerOn,
           submenu: [
             { label: currentLanguage === 'en' ? 'Take snapshot' : '建立快照', enabled: !!desktopOrganizer?.boards.length, click: () => takeOrganizerSnapshot() },
             { type: 'separator' },
@@ -1682,8 +1697,8 @@ function updateTrayMenu() {
             },
             {
               label: currentLanguage === 'en' ? 'Recover organizer window' : '復原整理視窗',
-              enabled: !!desktopOrganizer?.boards.length,
-              submenu: (desktopOrganizer?.boards || []).map(board => ({
+              enabled: !!organizerBoards.length,
+              submenu: organizerBoards.map(board => ({
                 label: board.title,
                 click: async () => {
                   try { await desktopOrganizer.recover(board); }

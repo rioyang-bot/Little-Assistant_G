@@ -111,8 +111,11 @@ class DesktopOrganizer {
     this.nativeDrag = electron.organizerDrag || (process.platform === 'win32' && electron.app ? new WindowsFileDrag() : null);
     this.onChange = onChange;
     this.boards = [];
+    // The tool's on/off switch, kept with the boards so it survives restarts.
+    this.enabled = true;
     try {
       const data = JSON.parse(fs.readFileSync(this.file, 'utf8'));
+      this.enabled = data.enabled !== false;
       this.boards = (Array.isArray(data.boards) ? data.boards : []).filter(board => board && typeof board === 'object').slice(0, 30).map(normalizeBoard);
       this.boards = this.boards.filter((board, index, all) => all.findIndex(other => other.id === board.id) === index);
       // Started on other displays than last time: use their icon arrangement.
@@ -130,7 +133,7 @@ class DesktopOrganizer {
     if (!this.displayChanging) for (const board of this.boards) this.captureItemPositions(board);
     fs.mkdirSync(path.dirname(this.file), { recursive: true });
     const temporary = this.file + '.tmp';
-    fs.writeFileSync(temporary, JSON.stringify({ boards: this.boards }, null, 2), 'utf8');
+    fs.writeFileSync(temporary, JSON.stringify({ enabled: this.enabled, boards: this.boards }, null, 2), 'utf8');
     fs.renameSync(temporary, this.file);
   }
 
@@ -369,6 +372,8 @@ class DesktopOrganizer {
   }
 
   desktopPaths(excludedItem) {
+    // Off: every collected item is shown on the desktop again.
+    if (!this.enabled) return [];
     return [...new Set(this.boards.flatMap(board => board.items).filter(item => item !== excludedItem && !item.originalPath && !this.suspendedIcons.has(item.path.toLowerCase()) && !this.clipboardFiles.has(item.path.toLowerCase())).map(item => item.path))];
   }
 
@@ -633,7 +638,7 @@ class DesktopOrganizer {
   }
 
   create() {
-    if (this.boards.length >= 30) return;
+    if (!this.enabled || this.boards.length >= 30) return;
     const { screen } = this.electron;
     const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
     const offset = (this.boards.length % 6) * 24;
@@ -645,6 +650,7 @@ class DesktopOrganizer {
   }
 
   show(board) {
+    if (!this.enabled || this.quitting) return null;
     const existing = this.windows.get(board.id);
     if (existing && !existing.isDestroyed()) {
       if (existing.isMinimized()) existing.restore();
@@ -709,7 +715,7 @@ class DesktopOrganizer {
   }
 
   async recoverWindow(board) {
-    if (this.quitting || !this.boards.includes(board)) return false;
+    if (this.quitting || !this.enabled || !this.boards.includes(board)) return false;
     if (this.activeDrag) throw new Error('請先完成檔案拖曳，再復原整理視窗。');
     const settings = this.settingsWindows.get(board.id);
     this.closeSettings(board);
@@ -1066,6 +1072,31 @@ class DesktopOrganizer {
 
   restore() { for (const board of this.boards) this.show(board); }
 
+  // Turning the tool off closes every organizer window and shows the
+  // collected items on the desktop again; turning it on brings both back.
+  // Boards, layouts and snapshots are kept either way.
+  async setEnabled(enabled) {
+    enabled = enabled !== false;
+    if (enabled === this.enabled) return true;
+    if (this.activeDrag) throw new Error('請先完成檔案拖曳。');
+    if (this.permissionOperation) throw new Error('桌面圖示權限正在設定中。');
+    this.enabled = enabled;
+    this.save();   // also records the current arrangement before the windows close
+    if (enabled) this.restore();
+    else {
+      for (const board of this.boards) {
+        this.closeSettings(board);
+        this.layers.get(board.id)?.dispose();
+        const win = this.windows.get(board.id);
+        if (win && !win.isDestroyed()) win.destroy();
+        this.windows.delete(board.id); this.layers.delete(board.id); this.viewports.delete(board.id);
+      }
+    }
+    this.onChange();
+    await this.syncDesktopIcons();
+    return true;
+  }
+
   // Snapshots, like Fences: the user saves the arrangement of every organizer
   // (window bounds, icon positions, shown or hidden) and restores it later.
   snapshots() {
@@ -1124,6 +1155,7 @@ class DesktopOrganizer {
     const snapshot = this.snapshots().find(candidate => candidate.id === id);
     if (!snapshot) throw new Error('找不到這個快照。');
     if (this.activeDrag) throw new Error('請先完成檔案拖曳，再還原快照。');
+    if (!this.enabled) throw new Error('請先開啟桌面整理工具。');
     for (const saved of snapshot.boards) {
       const board = this.boards.find(candidate => candidate.id === saved.id);
       if (!board) continue;
@@ -1176,7 +1208,7 @@ class DesktopOrganizer {
   }
 
   restoreLayouts() {
-    if (this.quitting) return;
+    if (this.quitting || !this.enabled) return;
     const key = this.displayKey();
     for (const board of this.boards) {
       const win = this.windows.get(board.id);

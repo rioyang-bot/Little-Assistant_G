@@ -68,6 +68,7 @@ app.whenReady().then(async () => {
   state.organizerFixture = {
     boards: [{ id: 'b1', title: '瀏覽器', locked: true }, { id: 'b2', title: '未整理', locked: false }],
     windows: new Map([['b1', { isDestroyed: () => false, isVisible: () => true }], ['b2', { isDestroyed: () => false, isVisible: () => false }]]),
+    enabled: true, setEnabled(enabled) { this.enabledCalls.push(enabled); this.enabled = enabled; }, enabledCalls: [],
     create() {}, restore() {}, show() {}, recover() {}, setAllLocked(locked) { this.lockAllCalls.push(locked); }, lockAllCalls: [],
     snapshots: () => [{ id: 's1', name: '2026-10-07 09:00（延伸 2 個螢幕）' }, { id: 's2', name: '2026-10-07 17:05（僅電腦螢幕）' }]
   };
@@ -84,7 +85,20 @@ app.whenReady().then(async () => {
   assert.deepEqual(troubleshooting.submenu.items[1].submenu.items.map(item => item.label), ['瀏覽器', '未整理']);
   assert.equal(organizerItems.at(-1), troubleshooting, 'at the bottom');
   // Snapshots: take one, restore or delete (newest first).
-  assert.deepEqual(organizerItems.map(item => item.label || item.type), ['新增整理視窗', '顯示整理視窗', '鎖定／解鎖', '快照', 'separator', '疑難排解'], 'top level of the organizer menu');
+  assert.deepEqual(organizerItems.map(item => item.label || item.type), ['開啟桌面整理工具', 'separator', '新增整理視窗', '顯示整理視窗', '鎖定／解鎖', '快照', 'separator', '疑難排解'], 'top level of the organizer menu');
+  // On/off switch: a checkbox at the top; off disables the organizer entries but keeps the repairs.
+  assert.equal(organizerItems[0].type, 'checkbox');
+  assert.equal(organizerItems[0].checked, true);
+  organizerItems[0].click();   // Electron toggles a checkbox item before its handler runs
+  await waitFor(() => vm.runInContext('organizerFixture.enabledCalls.length', state) === 1, 'switched off');
+  assert.deepEqual(vm.runInContext('organizerFixture.enabledCalls', state), [false]);
+  const offItems = vm.runInContext('trayContextMenu', state).items.find(item => item.label === '桌面整理工具').submenu.items;
+  assert.equal(offItems[0].checked, false, 'the switch shows off');
+  for (const label of ['新增整理視窗', '顯示整理視窗', '鎖定／解鎖', '快照']) assert.equal(offItems.find(item => item.label === label).enabled, false, label + ' disabled while off');
+  const offRepairs = offItems.find(item => item.label === '疑難排解');
+  assert.equal(offRepairs.enabled, true, 'permission repairs stay available');
+  assert.equal(offRepairs.submenu.items.find(item => item.label === '復原整理視窗').enabled, false);
+  vm.runInContext('organizerFixture.setEnabled(true); updateTrayMenu();', state);
   // Lock all / Unlock all live under Lock / unlock: enabled while some organizer can change, with padlock icons.
   const lockItems = organizerItems.find(item => item.label === '鎖定／解鎖').submenu.items;
   assert.deepEqual(lockItems.map(item => item.label), ['全部鎖定', '全部解鎖']);
